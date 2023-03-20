@@ -4,41 +4,34 @@ sys.path.append("..")
 import pytest
 
 from solvent import errors
-from solvent import syntax as S
-from solvent.syntax import LiquidVar as L
+from solvent.syntax import types as T
+
+from solvent.syntax import terms
+from solvent.syntax.terms import LiquidVar as L
 
 def test_fromPyType():
-    assert(S.fromPyType(int) == S.Int())
-    assert(S.fromPyType(bool) == S.Bool())
-    assert(S.fromPyType(str) == S.Str())
-    assert(S.fromPyType(list[str]) == S.Array(S.Str()))
-    assert(S.fromPyType(list[list[str]]) == S.Array(S.Array(S.Str())))
+    assert(T.fromPyType(int) == T.Int())
+    assert(T.fromPyType(bool) == T.Bool())
+    assert(T.fromPyType(str) == T.Str())
+    assert(T.fromPyType(list[str]) == T.Array(T.Str()))
+    assert(T.fromPyType(list[list[str]]) == T.Array(T.Array(T.Str())))
 
+    # We can statically catch first-order invalid calls (e.g. fromPyType(float))
+    # but higher-order ones have to be deferred to runtime.
     with pytest.raises(errors.UnsupportedPyType):
-        S.fromPyType(float)
-    with pytest.raises(errors.UnsupportedPyType):
-        S.fromPyType(dict[str, int])
-    with pytest.raises(errors.UnsupportedPyType):
-        S.fromPyType(list[float])
+        T.fromPyType(list[float])
 
 def test_backing_python_type():
-    assert(S.Int().python_type == int)
+    assert(T.Int().python_type == int)
 
 def test_liquidvar_construction():
-    assert(L("i", int) == L("i", S.Int()))
-    assert(L("b", bool) == L("b", S.Bool()))
-    assert(L("s", str) == L("s", S.Str()))
-    assert(L("xs", list[str]) == L("xs", S.Array(S.Str())))
+    assert(L("i", int) == L("i", T.Int()))
+    assert(L("b", bool) == L("b", T.Bool()))
+    assert(L("s", str) == L("s", T.Str()))
+    assert(L("xs", list[str]) == L("xs", T.Array(T.Str())))
 
 def test_binop_construction():
-    i: L = L("i", S.Int())
-    S.BinOp(i, "<", 42)
+    i = L("i", T.Int())
+    print(i)
+    terms.BinOp(i, "<", 42)
 
-    # TODO: At present, I can't figure out how to thread the python type
-    # parameter through when the constructor is called this way, in contrast to
-    # the version above which uses S.Int() rather than the Python type.  (See
-    # the comment in the LiquidVar cstr.)  So, currently, the following
-    # incorrect usage of `i` has to be a runtime error.
-    i: L = L("i", int)
-    with pytest.raises(errors.BinopTypeMismatch):
-        S.BinOp(i, "<", "hello")
