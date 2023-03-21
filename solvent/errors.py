@@ -1,6 +1,6 @@
 class BinopTypeMismatch(Exception):
-    def __init__(self, lhs, rhs):
-        super().__init__(f"Can't unify type {lhs.t} against value {rhs}")
+    def __init__(self, lhs, op, rhs):
+        super().__init__(f"Can't typecheck {lhs} {op} {rhs}")
 
 class UnsupportedPyType(Exception):
     def __init__(self, pytype):

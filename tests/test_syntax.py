@@ -32,6 +32,7 @@ def test_liquidvar_construction():
 
 def test_binop_construction():
     i = L("i", T.Int())
-    print(i)
-    terms.BinOp(i, "<", 42)
-
+    assert(i.eq(42) == terms.Eq(i, 42))
+    assert(i.lt(42) == terms.Lt(i, 42))
+    assert(i.le(42) == terms.Le(i, 42))
+    assert(i.gt(42) == terms.Gt(i, 42))
