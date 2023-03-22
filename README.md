@@ -1,7 +1,7 @@
 # Solvent
 
 An experiment in mapping [liquid types][pldi08] with [type annotation][pep3107]
-syntax, in order to eludicate the technique.  Implemented in service of the
+syntax, in order to elucidate the technique.  Implemented in service of the
 final presentation for [C S 395T: The Model Checking Paradigm][mcmilcourse] at
 UT Austin.
 

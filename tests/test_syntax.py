@@ -30,9 +30,40 @@ def test_liquidvar_construction():
     assert(L("s", str) == L("s", T.Str()))
     assert(L("xs", list[str]) == L("xs", T.Array(T.Str())))
 
-def test_binop_construction():
+def test_int_binop_construction():
     i = L("i", T.Int())
+
     assert(i.eq(42) == terms.Eq(i, 42))
     assert(i.lt(42) == terms.Lt(i, 42))
     assert(i.le(42) == terms.Le(i, 42))
     assert(i.gt(42) == terms.Gt(i, 42))
+
+    assert(i.add(42) == terms.Add(i, 42))
+    assert(i.sub(42) == terms.Sub(i, 42))
+    assert(i.mul(42) == terms.Mul(i, 42))
+    assert(i.div(42) == terms.Div(i, 42))
+    assert(i.mod(42) == terms.Mod(i, 42))
+
+    j = L("j", T.Int())
+    assert(i.eq(j) == terms.Eq(i, j))
+    assert(i.lt(j) == terms.Lt(i, j))
+    assert(i.le(j) == terms.Le(i, j))
+    assert(i.gt(j) == terms.Gt(i, j))
+
+    assert(i.add(j) == terms.Add(i, j))
+    assert(i.sub(j) == terms.Sub(i, j))
+    assert(i.mul(j) == terms.Mul(i, j))
+    assert(i.div(j) == terms.Div(i, j))
+    assert(i.mod(j) == terms.Mod(i, j))
+
+def test_bool_binop_construction():
+    b1 = L("b1", T.Bool())
+    assert(b1.band(True) == terms.And(b1, True))
+    assert(b1.bor(True) == terms.Or(b1, True))
+
+    b2 = L("b2", T.Bool())
+    assert(b1.band(b2) == terms.And(b1, b2))
+    assert(b1.bor(b2) == terms.Or(b1, b2))
+
+def test_array_unop_construction():
+    pass
