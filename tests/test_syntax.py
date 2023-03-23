@@ -12,20 +12,24 @@ from solvent.syntax.terms import LiquidVar as L
 
 
 def test_fromPyType():
-    assert (T.fromPyType(int) == T.Int())
-    assert (T.fromPyType(bool) == T.Bool())
-    assert (T.fromPyType(str) == T.Str())
-    assert (T.fromPyType(list[str]) == T.Array(T.Str()))
-    assert (T.fromPyType(list[list[str]]) == T.Array(T.Array(T.Str())))
+    assert (T.from_py_type(int) == T.Int())
+    assert (T.from_py_type(bool) == T.Bool())
+    assert (T.from_py_type(str) == T.Str())
+    assert (T.from_py_type(list[str]) == T.Array(T.Str()))
+    assert (T.from_py_type(list[list[str]]) == T.Array(T.Array(T.Str())))
 
     # We can statically catch first-order invalid calls (e.g. fromPyType(float))
     # but higher-order ones have to be deferred to runtime.
     with pytest.raises(errors.UnsupportedPyType):
-        T.fromPyType(list[float])
+        T.from_py_type(list[float])
 
 
 def test_backing_python_type():
     assert (T.Int().python_type == int)
+    assert (T.Bool().python_type == bool)
+    assert (T.Str().python_type == str)
+
+    assert (T.Array(T.Bool()).python_type == list)
 
 
 def test_liquidvar_construction():
@@ -66,8 +70,13 @@ def test_int_construction():
 
 def test_bool_construction():
     b1 = L("b1", T.Bool())
+
+    # TODO: once we unify Python types and LiquidExprs, boolean expressions
+    # with literals can always be constant-folded down if we really want.
     assert (b1.band(True) == terms.And(b1, True))
+    assert (b1.band(False) == terms.And(b1, False))
     assert (b1.bor(True) == terms.Or(b1, True))
+    assert (b1.bor(False) == terms.Or(b1, False))
 
     b2 = L("b2", T.Bool())
     assert (b1.band(b2) == terms.And(b1, b2))

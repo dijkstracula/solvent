@@ -51,12 +51,13 @@ class Str(LiquidType[str]):
 class Array(Generic[_PT], LiquidType[list[_PT]]):
     elem_type: LiquidType[_PT]
 
-    def __init__(self, et):
-        super().__init__(list[_PT])
+    def __init__(self, et: LiquidType[_PT]):
+        # TODO: can we avoid type erasure here somehow???
+        super().__init__(list)
         self.elem_type = et
 
 
-def fromPyType(t: Type[_PT]) -> LiquidType:
+def from_py_type(t: Type[_PT]) -> LiquidType:
     """ Transforms a Python native type that is supported into its Liquid equivalent."""
     if t == bool:
         return Bool()
@@ -68,6 +69,6 @@ def fromPyType(t: Type[_PT]) -> LiquidType:
         iterable = t.__origin__
         params = t.__args__
         if iterable == list and len(params) == 1:
-            return Array(fromPyType(params[0]))
+            return Array(from_py_type(params[0]))
     raise errors.UnsupportedPyType(t)
 

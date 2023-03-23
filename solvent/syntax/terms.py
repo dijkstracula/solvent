@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from typing import Generic, Type, Union
 
 
+# TODO: This class represents intermediary nodes in the AST, so this means that terminals are not actually
+# expressions.  I'd like LiquidExpr to be something like a Union[Type[_PT], AstNode[_PT]] (with this class renamed
+# to AstNode) but I'm getting a "can't subclass Union" exception that I haven't been able to diagnose yet.
 class LiquidExpr(Generic[_PT]):
     t: LiquidType[_PT]
 
@@ -17,12 +20,12 @@ class LiquidExpr(Generic[_PT]):
         else:
             # TODO: At present, we lose the type parameter on the type returned
             # from `fromPyType()` but I'm not sure how to thread it through.
-            self.t = types.fromPyType(tp)
+            self.t = types.from_py_type(tp)
 
     def to_vc(self):
         raise Exception(f"Missing to_vc() implementation for {type(self)}")
 
-    ## AST creation methods
+    # AST creation methods
 
     def lt(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Lt":
         return Lt(self, other)
@@ -35,6 +38,12 @@ class LiquidExpr(Generic[_PT]):
 
     def ge(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Ge":
         return Ge(self, other)
+
+    def band(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "And":
+        return And(self, other)
+
+    def bor(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "Or":
+        return Or(self, other)
 
     def add(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Add":
         return Add(self, other)
@@ -51,15 +60,45 @@ class LiquidExpr(Generic[_PT]):
     def mod(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Mod":
         return Mod(self, other)
 
-    def band(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "And":
-        return And(self, other)
-
-    def bor(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "Or":
-        return Or(self, other)
-
-    def len(self: "LiquidExpr[list]"):
+    def len(self: "LiquidExpr[list[_PT]]"):
         return ArrayLen(self)
 
+    # Operator overloading
+    def __add__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Add":
+        return self.add(other)
+
+    def __sub__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Sub":
+        return self.sub(other)
+
+    def __mul__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Mul":
+        return self.mul(other)
+
+    def __truediv__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Div":
+        return self.div(other)
+
+    def __mod__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Mod":
+        return self.mod(other)
+
+    def __and__(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "LiquidExpr[bool]":
+        return self.band(other)
+
+    def __or__(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "LiquidExpr[bool]":
+        return self.bor(other)
+
+    def __le__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Le":
+        return self.le(other)
+
+    def __lt__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Lt":
+        return self.lt(other)
+
+    def __gt__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Gt":
+        return self.gt(other)
+
+    def __ge__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Ge":
+        return self.ge(other)
+
+
+# LiquidExpr = Union[Type[_PT], AstNode[_PT]]
 
 @dataclass
 class LiquidVar(LiquidExpr[_PT]):
@@ -77,7 +116,7 @@ class LiquidVar(LiquidExpr[_PT]):
         else:
             # TODO: At present, we lose the type parameter on the type returned
             # from `fromPyType()` but I'm not sure how to thread it through.
-            self.t = types.fromPyType(t)
+            self.t = types.from_py_type(t)
         self.ident = ident
 
     def eq(self, other: _PT | LiquidExpr[_PT]) -> "Eq":
@@ -202,11 +241,11 @@ class Or(BooleanBinOp):
         super().__init__(lhs, rhs)
 
 
-## Array operations
+# Array operations
 
 @dataclass
 class ArrayLen(Generic[_PT], UnaryOp[list[_PT], int]):
     def __init__(self, l: LiquidExpr[list[_PT]]):
-        if l.t.python_type != list[_PT]:
-            raise errors.UnaryTypeMismatch(self, l)
         super().__init__(l)
+        if l.t.python_type != list:
+            raise errors.UnaryTypeMismatch(self, l)
