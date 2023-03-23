@@ -22,6 +22,7 @@ from typing import Generic, Optional, TypeVar, Type
 # e.g. l = L[list[str]]; l | l.len > 0
 
 _PT = TypeVar("_PT", int, bool, str, list)
+EvalT = TypeVar("EvalT", int, bool, str, list)
 
 class LiquidType(Generic[_PT]):
     "A liquid type, parameterised over some particular Python type."
