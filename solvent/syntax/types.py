@@ -1,10 +1,9 @@
-import typing
-import types
+import types as py_types
 
 from .. import errors
 
 from dataclasses import dataclass
-from typing import Generic, Optional, TypeVar, Type
+from typing import Generic, TypeVar, Type
 
 # AST grammar:
 #
@@ -21,27 +20,32 @@ from typing import Generic, Optional, TypeVar, Type
 # e.g. x = L[int];       x | x >= 0 and x < 10
 # e.g. l = L[list[str]]; l | l.len > 0
 
-_PT = TypeVar("_PT", int, bool, str, list)
 EvalT = TypeVar("EvalT", int, bool, str, list)
+_PT = TypeVar("_PT", int, bool, str, list)
+
 
 class LiquidType(Generic[_PT]):
-    "A liquid type, parameterised over some particular Python type."
+    """A liquid type, parameterised over some particular Python type."""
     python_type: type
 
     def __init__(self, t: type):
         self.python_type = t
 
+
 @dataclass
 class Int(LiquidType[int]):
     def __init__(self): super().__init__(int)
+
 
 @dataclass
 class Bool(LiquidType[bool]):
     def __init__(self): super().__init__(bool)
 
+
 @dataclass
 class Str(LiquidType[str]):
     def __init__(self): super().__init__(str)
+
 
 @dataclass
 class Array(LiquidType[list[_PT]]):
@@ -51,15 +55,16 @@ class Array(LiquidType[list[_PT]]):
         super().__init__(list[_PT])
         self.elems = elems
 
+
 def fromPyType(t: Type[_PT]) -> LiquidType:
-    " Transforms a Python native type that is supported into its Liquid equivalent."
+    """ Transforms a Python native type that is supported into its Liquid equivalent."""
     if t == bool:
         return Bool()
     if t == int:
         return Int()
     if t == str:
         return Str()
-    if isinstance(t, types.GenericAlias):
+    if isinstance(t, py_types.GenericAlias):
         iterable = t.__origin__
         params = t.__args__
         if iterable == list and len(params) == 1:
