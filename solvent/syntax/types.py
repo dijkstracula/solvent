@@ -21,10 +21,10 @@ from typing import Generic, TypeVar, Type
 # e.g. l = L[list[str]]; l | l.len > 0
 
 EvalT = TypeVar("EvalT", int, bool, str, list)
-_PT = TypeVar("_PT", int, bool, str, list)
+PyT = TypeVar("PyT", int, bool, str, list)
 
 
-class LiquidType(Generic[_PT]):
+class LiquidType(Generic[PyT]):
     """A liquid type, parameterised over some particular Python type."""
     python_type: type
 
@@ -48,16 +48,16 @@ class Str(LiquidType[str]):
 
 
 @dataclass
-class Array(Generic[_PT], LiquidType[list[_PT]]):
-    elem_type: LiquidType[_PT]
+class Array(Generic[PyT], LiquidType[list[PyT]]):
+    elem_type: LiquidType[PyT]
 
-    def __init__(self, et: LiquidType[_PT]):
+    def __init__(self, et: LiquidType[PyT]):
         # TODO: can we avoid type erasure here somehow???
         super().__init__(list)
         self.elem_type = et
 
 
-def from_py_type(t: Type[_PT]) -> LiquidType:
+def from_py_type(t: Type[PyT]) -> LiquidType:
     """ Transforms a Python native type that is supported into its Liquid equivalent."""
     if t == bool:
         return Bool()

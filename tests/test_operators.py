@@ -2,10 +2,8 @@ import sys
 
 sys.path.append("..")
 
-import pytest
-
+from solvent import LiquidVar as L
 from solvent.syntax import types as T
-from solvent.syntax.terms import LiquidVar as L
 
 
 def test_integral_overloading():

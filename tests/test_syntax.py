@@ -1,15 +1,13 @@
+import pytest
 import sys
 
-sys.path.append("..")
-
-import pytest
-
 from solvent import errors
+from solvent import LiquidVar as L
+
 from solvent.syntax import types as T
-
 from solvent.syntax import terms
-from solvent.syntax.terms import LiquidVar as L
 
+sys.path.append("..")
 
 def test_fromPyType():
     assert (T.from_py_type(int) == T.Int())

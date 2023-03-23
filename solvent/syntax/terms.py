@@ -1,7 +1,7 @@
 from . import types
 from .. import errors
 
-from .types import _PT, EvalT
+from .types import PyT, EvalT
 from .types import LiquidType, Bool, Int
 
 from dataclasses import dataclass
@@ -11,10 +11,10 @@ from typing import Generic, Type, Union
 # TODO: This class represents intermediary nodes in the AST, so this means that terminals are not actually
 # expressions.  I'd like LiquidExpr to be something like a Union[Type[_PT], AstNode[_PT]] (with this class renamed
 # to AstNode) but I'm getting a "can't subclass Union" exception that I haven't been able to diagnose yet.
-class LiquidExpr(Generic[_PT]):
-    t: LiquidType[_PT]
+class LiquidExpr(Generic[PyT]):
+    t: LiquidType[PyT]
 
-    def __init__(self, tp: Union[Type[_PT], LiquidType[_PT]]):
+    def __init__(self, tp: Union[Type[PyT], LiquidType[PyT]]):
         if isinstance(tp, LiquidType):
             self.t = tp
         else:
@@ -26,6 +26,9 @@ class LiquidExpr(Generic[_PT]):
         raise Exception(f"Missing to_vc() implementation for {type(self)}")
 
     # AST creation methods
+
+    def eq(self: "LiquidExpr[PyT]", other: PyT | "LiquidExpr[PyT]") -> "Eq":
+        return Eq(self, other)
 
     def lt(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Lt":
         return Lt(self, other)
@@ -60,7 +63,7 @@ class LiquidExpr(Generic[_PT]):
     def mod(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Mod":
         return Mod(self, other)
 
-    def len(self: "LiquidExpr[list[_PT]]"):
+    def len(self: "LiquidExpr[list[PyT]]"):
         return ArrayLen(self)
 
     # Operator overloading
@@ -100,43 +103,20 @@ class LiquidExpr(Generic[_PT]):
 
 # LiquidExpr = Union[Type[_PT], AstNode[_PT]]
 
-@dataclass
-class LiquidVar(LiquidExpr[_PT]):
-    """ A binding of a name to a type.  the `ident` metavariable name should
-    match the name of the local Python variable for consistency."""
-    ident: str
-
-    def __init__(self, ident: str, t: Union[Type[_PT], LiquidType[_PT]]):
-        # XXX: PyRight complains about:
-        # "Argument of type "Type[_PT@LiquidVar] | LiquidType[_PT@LiquidVar]" cannot be assigned to parameter
-        #   "tp" of type "Type[_PT@LiquidVar] | LiquidType[_PT@LiquidVar]"
-        # if I try to call the superclass' constructor, so it's inlined here.
-        if isinstance(t, LiquidType):
-            self.t = t
-        else:
-            # TODO: At present, we lose the type parameter on the type returned
-            # from `fromPyType()` but I'm not sure how to thread it through.
-            self.t = types.from_py_type(t)
-        self.ident = ident
-
-    def eq(self, other: _PT | LiquidExpr[_PT]) -> "Eq":
-        return Eq(self, other)
-
-
 # Expressions
 
 @dataclass
-class UnaryOp(Generic[_PT, EvalT], LiquidExpr[EvalT]):
+class UnaryOp(Generic[PyT, EvalT], LiquidExpr[EvalT]):
     """ A uniary operation on a liquid variable. """
-    target: LiquidExpr[_PT]
+    target: LiquidExpr[PyT]
 
 
-class BinOp(Generic[_PT, EvalT], LiquidExpr[EvalT]):
+class BinOp(Generic[PyT, EvalT], LiquidExpr[EvalT]):
     """ A binary operation on a liquid variable and a concrete Python one."""
-    lhs: LiquidExpr[_PT]
-    rhs: _PT | LiquidExpr[_PT]
+    lhs: LiquidExpr[PyT]
+    rhs: PyT | LiquidExpr[PyT]
 
-    def __init__(self, t: LiquidType[EvalT], lhs: LiquidExpr[_PT], rhs: _PT | LiquidExpr[_PT]):
+    def __init__(self, t: LiquidType[EvalT], lhs: LiquidExpr[PyT], rhs: PyT | LiquidExpr[PyT]):
         super().__init__(t)
         if isinstance(rhs, LiquidExpr):
             if lhs.t.python_type != rhs.t.python_type:
@@ -150,8 +130,8 @@ class BinOp(Generic[_PT, EvalT], LiquidExpr[EvalT]):
 
 
 @dataclass
-class Eq(BinOp[_PT, bool]):
-    def __init__(self, lhs: LiquidExpr[_PT], rhs: Union[_PT, LiquidExpr[_PT]]):
+class Eq(BinOp[PyT, bool]):
+    def __init__(self, lhs: LiquidExpr[PyT], rhs: Union[PyT, LiquidExpr[PyT]]):
         super().__init__(Bool(), lhs, rhs)
 
 
@@ -244,8 +224,8 @@ class Or(BooleanBinOp):
 # Array operations
 
 @dataclass
-class ArrayLen(Generic[_PT], UnaryOp[list[_PT], int]):
-    def __init__(self, l: LiquidExpr[list[_PT]]):
+class ArrayLen(Generic[PyT], UnaryOp[list[PyT], int]):
+    def __init__(self, l: LiquidExpr[list[PyT]]):
         super().__init__(l)
         if l.t.python_type != list:
             raise errors.UnaryTypeMismatch(self, l)
