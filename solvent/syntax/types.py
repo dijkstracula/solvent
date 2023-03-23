@@ -48,12 +48,12 @@ class Str(LiquidType[str]):
 
 
 @dataclass
-class Array(LiquidType[list[_PT]]):
-    elems: LiquidType[_PT]
+class Array(Generic[_PT], LiquidType[list[_PT]]):
+    elem_type: LiquidType[_PT]
 
-    def __init__(self, elems):
+    def __init__(self, et):
         super().__init__(list[_PT])
-        self.elems = elems
+        self.elem_type = et
 
 
 def fromPyType(t: Type[_PT]) -> LiquidType:

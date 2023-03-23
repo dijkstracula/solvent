@@ -68,7 +68,16 @@ class LiquidVar(LiquidExpr[_PT]):
     ident: str
 
     def __init__(self, ident: str, t: Union[Type[_PT], LiquidType[_PT]]):
-        super().__init__(t)
+        # XXX: PyRight complains about:
+        # "Argument of type "Type[_PT@LiquidVar] | LiquidType[_PT@LiquidVar]" cannot be assigned to parameter
+        #   "tp" of type "Type[_PT@LiquidVar] | LiquidType[_PT@LiquidVar]"
+        # if I try to call the superclass' constructor, so it's inlined here.
+        if isinstance(t, LiquidType):
+            self.t = t
+        else:
+            # TODO: At present, we lose the type parameter on the type returned
+            # from `fromPyType()` but I'm not sure how to thread it through.
+            self.t = types.fromPyType(t)
         self.ident = ident
 
     def eq(self, other: _PT | LiquidExpr[_PT]) -> "Eq":
