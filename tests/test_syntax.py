@@ -12,9 +12,8 @@ sys.path.append("..")
 def test_fromPyType():
     assert (T.from_py_type(int) == T.Int())
     assert (T.from_py_type(bool) == T.Bool())
-    assert (T.from_py_type(str) == T.Str())
-    assert (T.from_py_type(list[str]) == T.Array(T.Str()))
-    assert (T.from_py_type(list[list[str]]) == T.Array(T.Array(T.Str())))
+    assert (T.from_py_type(list[str]) == T.Array(T.Bool()))
+    assert (T.from_py_type(list[list[str]]) == T.Array(T.Array(T.Bool())))
 
     # We can statically catch first-order invalid calls (e.g. fromPyType(float))
     # but higher-order ones have to be deferred to runtime.
@@ -25,16 +24,13 @@ def test_fromPyType():
 def test_backing_python_type():
     assert (T.Int().python_type == int)
     assert (T.Bool().python_type == bool)
-    assert (T.Str().python_type == str)
-
     assert (T.Array(T.Bool()).python_type == list)
 
 
 def test_liquidvar_construction():
     assert (L("i", int) == L("i", T.Int()))
     assert (L("b", bool) == L("b", T.Bool()))
-    assert (L("s", str) == L("s", T.Str()))
-    assert (L("xs", list[str]) == L("xs", T.Array(T.Str())))
+    assert (L("xs", list[str]) == L("xs", T.Array(T.Bool())))
 
 
 def test_int_construction():
@@ -82,5 +78,5 @@ def test_bool_construction():
 
 
 def test_array_construction():
-    xs = L("xs", T.Array(T.Str()))
+    xs = L("xs", T.Array(T.Bool()))
     assert (xs.len() == terms.ArrayLen(xs))

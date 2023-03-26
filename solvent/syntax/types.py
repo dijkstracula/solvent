@@ -10,18 +10,19 @@ from typing import Generic, TypeVar, Type
 # LiquidType   := <LiquidVar> "|" <Predicate>
 #
 # LiquidVar    := L[<PyType>]
-# PyType       := "int" | "bool" | "str" | "list[" PyType "]"
+# PyType       := "int" | "bool" | "list[" PyType "]"
 #
 # Predicate     := <LiquidVarRVal> <BinOp> <PyVal>
 # LiquidVarLVal := <LiquidVar> | <LiquidVar>.len
 # BinOp         := "=" | "<" | "<=" | ">=" | ">"
 # PyVal         := int | bool | str | list[PyVal]
 #
-# e.g. x = L[int];       x | x >= 0 and x < 10
-# e.g. l = L[list[str]]; l | l.len > 0
+# e.g. x = L[int];        x | x >= 0 and x < 10
+# e.g. l = L[list[bool]]; l | l.len > 0
 
-EvalT = TypeVar("EvalT", int, bool, str, list)
-PyT = TypeVar("PyT", int, bool, str, list)
+EvalT = TypeVar("EvalT", int, bool, list)
+PyT = TypeVar("PyT", int, bool, list)
+PyT2 = TypeVar("PyT2", int, bool, list)
 
 
 class LiquidType(Generic[PyT]):
@@ -43,14 +44,14 @@ class Bool(LiquidType[bool]):
 
 
 @dataclass
-class Str(LiquidType[str]):
-    def __init__(self): super().__init__(str)
-
-
-@dataclass
 class Array(Generic[PyT], LiquidType[list[PyT]]):
     elem_type: LiquidType[PyT]
 
+    # TODO: We need a way of quantifying over all the elements, which I don't think
+    # this syntax lets us do precisely.  Think about how to do that - we need ultimately
+    # i = Int(); a = Array(i);
+    # a.suchThat(a.len() > 0)
+    # a.suchThat(i > 0)
     def __init__(self, et: LiquidType[PyT]):
         # TODO: can we avoid type erasure here somehow???
         super().__init__(list)
@@ -63,8 +64,6 @@ def from_py_type(t: Type[PyT]) -> LiquidType:
         return Bool()
     if t == int:
         return Int()
-    if t == str:
-        return Str()
     if isinstance(t, py_types.GenericAlias):
         iterable = t.__origin__
         params = t.__args__

@@ -1,7 +1,7 @@
 from . import types
 from .. import errors
 
-from .types import PyT, EvalT
+from .types import PyT, PyT2, EvalT
 from .types import LiquidType, Bool, Int
 
 from dataclasses import dataclass
@@ -111,12 +111,12 @@ class UnaryOp(Generic[PyT, EvalT], LiquidExpr[EvalT]):
     target: LiquidExpr[PyT]
 
 
-class BinOp(Generic[PyT, EvalT], LiquidExpr[EvalT]):
+class BinOp(Generic[PyT, PyT2, EvalT], LiquidExpr[EvalT]):
     """ A binary operation on a liquid variable and a concrete Python one."""
     lhs: LiquidExpr[PyT]
-    rhs: PyT | LiquidExpr[PyT]
+    rhs: PyT2 | LiquidExpr[PyT2]
 
-    def __init__(self, t: LiquidType[EvalT], lhs: LiquidExpr[PyT], rhs: PyT | LiquidExpr[PyT]):
+    def __init__(self, t: LiquidType[EvalT], lhs: LiquidExpr[PyT], rhs: PyT2 | LiquidExpr[PyT2]):
         super().__init__(t)
         if isinstance(rhs, LiquidExpr):
             if lhs.t.python_type != rhs.t.python_type:
@@ -130,14 +130,14 @@ class BinOp(Generic[PyT, EvalT], LiquidExpr[EvalT]):
 
 
 @dataclass
-class Eq(BinOp[PyT, bool]):
+class Eq(BinOp[PyT, PyT, bool]):
     def __init__(self, lhs: LiquidExpr[PyT], rhs: Union[PyT, LiquidExpr[PyT]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 ### Numeric comparisons
 
-class NumericBinOp(BinOp[int, EvalT]):
+class NumericBinOp(BinOp[int, int, EvalT]):
     def __init__(self, t: LiquidType[EvalT], lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
         if lhs.t.python_type != int:
             raise errors.BinopTypeMismatch(self, self, rhs)
@@ -202,7 +202,7 @@ class Mod(NumericBinOp[int]):
 
 ### Boolean operations
 
-class BooleanBinOp(BinOp[bool, bool]):
+class BooleanBinOp(BinOp[bool, bool, bool]):
     def __init__(self, lhs: LiquidExpr[bool], rhs: Union[bool, LiquidExpr[bool]]):
         if lhs.t.python_type != bool:
             raise errors.BinopTypeMismatch(lhs, self, rhs)
