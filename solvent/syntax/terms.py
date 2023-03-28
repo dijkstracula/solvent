@@ -229,3 +229,6 @@ class ArrayLen(Generic[PyT], UnaryOp[list[PyT], int]):
         super().__init__(l)
         if l.t.python_type != list:
             raise errors.UnaryTypeMismatch(self, l)
+
+
+Predicate = LiquidExpr[bool]

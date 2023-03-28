@@ -12,8 +12,8 @@ sys.path.append("..")
 def test_fromPyType():
     assert (T.from_py_type(int) == T.Int())
     assert (T.from_py_type(bool) == T.Bool())
-    assert (T.from_py_type(list[str]) == T.Array(T.Bool()))
-    assert (T.from_py_type(list[list[str]]) == T.Array(T.Array(T.Bool())))
+    assert (T.from_py_type(list[bool]) == T.Array(T.Bool()))
+    assert (T.from_py_type(list[list[bool]]) == T.Array(T.Array(T.Bool())))
 
     # We can statically catch first-order invalid calls (e.g. fromPyType(float))
     # but higher-order ones have to be deferred to runtime.
@@ -30,7 +30,7 @@ def test_backing_python_type():
 def test_liquidvar_construction():
     assert (L("i", int) == L("i", T.Int()))
     assert (L("b", bool) == L("b", T.Bool()))
-    assert (L("xs", list[str]) == L("xs", T.Array(T.Bool())))
+    assert (L("xs", list[bool]) == L("xs", T.Array(T.Bool())))
 
 
 def test_int_construction():
