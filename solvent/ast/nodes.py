@@ -9,47 +9,42 @@ from typing import Generic, Optional, TypeVar, Type, Union
 
 # Wrappers for a tiny, tiny subset of AST nodes
 
-# Statements
-
-# FunctionDef
-# Return
-# Assign
-# AnnAssign
-# If
-
-
 PyAst = TypeVar("PyAst", bound=ast.AST, covariant=True)
+
+AstVals = Union["Constant", "Name"] # TODO: no lambdas, for sure, right; else FunctionDefs too?
 
 Env = set[str]
 
 
-def stmt_from_ast(tree: ast.AST, env: Env) -> "AstWrapper":
+def stmt_from_ast(tree: ast.AST) -> "AstWrapper":
     if isinstance(tree, ast.FunctionDef):
-        raise Exception("TODO")
+        return FunctionDef(tree)
     if isinstance(tree, ast.Return):
-        return Return(tree, env)
+        return Return(tree)
     if isinstance(tree, ast.Assign):
-        return Assign(tree, env)
+        return Assign(tree)
     if isinstance(tree, ast.AnnAssign):
         raise Exception("TODO")
     if isinstance(tree, ast.If):
-        return If(tree, env)
-    return expr_from_ast(tree, env)
+        return If(tree)
+    return expr_from_ast(tree)
 
 
-def expr_from_ast(tree: ast.AST, env: Env) -> "Expr":
+def expr_from_ast(tree: ast.AST) -> "Expr":
     if isinstance(tree, ast.Constant):
-        return Constant(tree, env)
+        return Constant(tree)
     if isinstance(tree, ast.Name):
-        return Name(tree, env)
+        return Name(tree)
     if isinstance(tree, ast.BinOp):
-        return ArithOp(tree, env)
+        return ArithOp(tree)
     if isinstance(tree, ast.BoolOp):
-        return BoolOp(tree, env)
+        return BoolOp(tree)
     if isinstance(tree, ast.Compare):
-        return Compare(tree, env)
+        return Compare(tree)
     if isinstance(tree, ast.List):
-        return List(tree, env)
+        return List(tree)
+    if isinstance(tree, ast.Call):
+        return Call(tree)
     raise errors.UnsupportedAST(tree)
 
 
@@ -60,14 +55,10 @@ class AstWrapper(Generic[PyAst]):
     # base_type: Optional[Type[PyT]] = None # TODO: datatype for typevar constraint?
     liquid_type: Optional[Predicate] = None
 
-    def __init__(self, node, env: Env = set()):
+    def __init__(self, node):
         if not isinstance(node, self.reified_ast_type):
             raise errors.MalformedAST(node, self.reified_ast_type)
         self.node = node
-        self.validate(env)
-
-    def validate(self, env: Env):
-        raise Exception(f"validate() not yet implemented for type {type(self)}")
 
 
 @dataclass(init=False)
@@ -76,10 +67,8 @@ class FunctionDef(AstWrapper[ast.FunctionDef]):
     args: list["Name"]
     body: list[AstWrapper]
 
-    def validate(self, env: Env):
-        env.add(self.node.name)
-
-        env = copy.copy(env)
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
 
         args: ast.arguments = self.node.args
         if args.vararg:
@@ -89,9 +78,8 @@ class FunctionDef(AstWrapper[ast.FunctionDef]):
         self.args = []
         for arg in args.args:
             aname = arg.arg
-            env.add(aname)
             self.args.append(Name(ast.Name(aname, ast.Load())))
-        self.body = [stmt_from_ast(stmt, env) for stmt in self.node.body]
+        self.body = [stmt_from_ast(stmt) for stmt in self.node.body]
 
 
 
@@ -100,9 +88,10 @@ class Return(AstWrapper[ast.Return]):
     reified_ast_type = ast.Return
     val: Optional["Expr"]
 
-    def validate(self, env: Env):
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
         if self.node.value:
-            self.val = expr_from_ast(self.node.value, env)
+            self.val = expr_from_ast(self.node.value)
         else:
             self.val = None
 
@@ -113,12 +102,13 @@ class Assign(Generic[PyAst, EvalT], AstWrapper[ast.Assign]):
     lhs: "Name"
     rhs: "Expr"
 
-    def validate(self, env: Env):
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
         if not isinstance(self.node.targets[0], ast.Name):
             raise errors.MalformedAST(self.node.targets[0], ast.Name)
 
-        self.lhs = Name(self.node.targets[0], env)
-        self.rhs = expr_from_ast(self.node.value, env)
+        self.lhs = Name(self.node.targets[0])
+        self.rhs = expr_from_ast(self.node.value)
 
 
 @dataclass(init=False)
@@ -134,17 +124,27 @@ class If(Generic[PyAst], AstWrapper[ast.If]):
     tru: list[AstWrapper]
     fls: list[AstWrapper]
 
-    def validate(self, env: Env):
-        test = expr_from_ast(self.node.test, env)
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
+        test = expr_from_ast(self.node.test)
         self.test = test
 
         # TODO: I'm not sure what the right thing to do with variable shadowing
         # in the environment should be.  With proper lexical scoping this wouldn't
         # be an issue, but since we "take both branches" during typechecking we kind
         # of need to unify across both arms of the branch?
-        self.tru = [stmt_from_ast(stmt, env) for stmt in self.node.body]
-        self.fls = [stmt_from_ast(stmt, env) for stmt in self.node.orelse]
+        self.tru = [stmt_from_ast(stmt) for stmt in self.node.body]
+        self.fls = [stmt_from_ast(stmt) for stmt in self.node.orelse]
 
+@dataclass(init=False)
+class Call(Generic[PyAst, EvalT], AstWrapper[ast.Call]):
+    reified_ast_type = ast.Call
+    fn_name: str
+    args: list["Expr[PyAst, EvalT]"]
+
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
+        #TODO
 
 # Expressions
 
@@ -159,7 +159,8 @@ class Constant(Expr[ast.Constant, Union[bool, int]]):
 
     val: Union[bool, int]
 
-    def validate(self, env: Env):
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
         if type(self.node.value) not in [bool, int]:
             raise errors.UnsupportedAST(self.node)
         self.val = self.node.value
@@ -170,14 +171,9 @@ class Name(Expr[ast.Name, EvalT]):
     reified_ast_type = ast.Name
     id: str
 
-    def validate(self, env: Env):
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
         self.id = self.node.id
-        if self.id not in env:
-            if type(self.node.ctx) == ast.Load:
-                raise errors.UnknownNameError(self.node)
-            else:
-                # We're in store scope,
-                env.add(self.node.id)
 
 
 @dataclass(init=False)
@@ -186,9 +182,10 @@ class ArithOp(Expr[ast.BinOp, int]):
     lhs: Expr
     rhs: Expr
 
-    def validate(self, env: Env):
-        self.lhs = expr_from_ast(self.node.left, env)
-        self.rhs = expr_from_ast(self.node.right, env)
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
+        self.lhs = expr_from_ast(self.node.left)
+        self.rhs = expr_from_ast(self.node.right)
 
         ops = [ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod]
         if self.node.op.__class__ not in ops:
@@ -200,8 +197,9 @@ class BoolOp(Expr[ast.BoolOp, bool]):
     reified_ast_type = ast.BoolOp
     subs = list[Expr[PyAst, bool]]
 
-    def validate(self, env: Env):
-        self.subs = [expr_from_ast(e, env) for e in self.node.values]
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
+        self.subs = [expr_from_ast(e) for e in self.node.values]
 
         ops = [ast.Or, ast.And]
         if self.node.op.__class__ not in ops:
@@ -215,7 +213,8 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
     lhs: Expr[PyAst, bool]
     rhs: Expr[PyAst, bool]
 
-    def validate(self, env: Env):
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
         if len(self.node.ops) != 1:
             raise errors.UnsupportedAST(self.node)
         if len(self.node.comparators) != 1:
@@ -225,8 +224,8 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
         if self.node.ops[0].__class__ not in ops:
             raise errors.BinopTypeMismatch(self.node.left, self.node.ops[0], self.node.comparators[0])
 
-        self.lhs = expr_from_ast(self.node.left, env)
-        self.rhs = expr_from_ast(self.node.comparators[0], env)
+        self.lhs = expr_from_ast(self.node.left)
+        self.rhs = expr_from_ast(self.node.comparators[0])
 
 
 @dataclass(init=False)
@@ -235,7 +234,8 @@ class List(Generic[PyAst, EvalT], Expr[ast.List, EvalT]):
 
     elements: list[Expr[PyAst, EvalT]]
 
-    def validate(self, env: Env):
+    def __init__(self, node: ast.AST):
+        super().__init__(node)
         if self.node.ctx.__class__ == ast.Store:
             raise errors.ASTError(self.node, "Can't use a list as an lval")
-        self.elements = [expr_from_ast(subtree, env) for subtree in self.node.elts]
+        self.elements = [expr_from_ast(subtree) for subtree in self.node.elts]

@@ -1,4 +1,4 @@
-from solvent.ast.ast_wrappers import *
+from solvent.ast.nodes import *
 
 import ast
 import pytest
@@ -33,18 +33,13 @@ def test_constant_wrapper():
 
 
 def test_name_wrapper():
-    assert Name(str_to_ast_expr("i"), set("i")).node.id == "i"
-
-    with pytest.raises(errors.UnknownNameError):
-        Name(str_to_ast_expr("i"))
+    assert Name(str_to_ast_expr("i")).node.id == "i"
 
 
 def test_assign_wrapper():
-    env = set()
-    assign = Assign(str_to_assign("i = 42"), env)
+    assign = Assign(str_to_assign("i = 42"))
     assert isinstance(assign.lhs, Name)
     assert assign.lhs.node.id == "i"
-    assert "i" in env
 
     assert isinstance(assign.rhs, Constant)
     assert assign.rhs.val == 42
@@ -132,12 +127,7 @@ def test_return_statement():
 def test_function_def():
     fntext = "def f(x,y): return x + y"
 
-    env = set()
-    fn = FunctionDef(ast.parse(fntext).body[0], env)
-    # Bring "f" into the external scope but no local variables
-    assert "f" in env
-    assert "x" not in env
-    assert "y" not in env
+    fn = FunctionDef(ast.parse(fntext).body[0])
 
     assert len(fn.body) == 1
     assert isinstance(fn.body[0], Return)
@@ -146,3 +136,6 @@ def test_function_def():
     assert isinstance(fn.body[0].val.rhs, Name)
     assert fn.body[0].val.lhs.id == 'x'
     assert fn.body[0].val.rhs.id == 'y'
+
+    fntext = "def f(x,y): return f(x, y)"
+    fn = FunctionDef(ast.parse(fntext).body[0])
