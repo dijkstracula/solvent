@@ -1,10 +1,10 @@
+from solvent.ast.ast_wrappers import *
+
 import ast
 import pytest
 import sys
 
 sys.path.append("..")
-
-from solvent.ast.ast_wrappers import *
 
 
 def str_to_ast_expr(source: str):
@@ -13,21 +13,24 @@ def str_to_ast_expr(source: str):
         raise errors.MalformedAST(tree, ast.Expr)
     return tree.value
 
+
 def str_to_assign(source: str):
     tree = ast.parse(source).body[0]
     if not isinstance(tree, ast.Assign):
         raise errors.MalformedAST(tree, ast.Assign)
     return tree
 
+
 def test_constant_wrapper():
-    assert Constant(str_to_ast_expr("42")).node.value == 42
-    assert Constant(str_to_ast_expr("True")).node.value
-    assert not Constant(str_to_ast_expr("False")).node.value
+    assert Constant(str_to_ast_expr("42")).val == 42
+    assert Constant(str_to_ast_expr("True")).val
+    assert not Constant(str_to_ast_expr("False")).val
 
     with pytest.raises(errors.UnsupportedAST):
         Constant(str_to_ast_expr("3.14"))
     with pytest.raises(errors.UnsupportedAST):
         Constant(str_to_ast_expr("'hello'"))
+
 
 def test_name_wrapper():
     assert Name(str_to_ast_expr("i"), set("i")).node.id == "i"
@@ -44,7 +47,7 @@ def test_assign_wrapper():
     assert "i" in env
 
     assert isinstance(assign.rhs, Constant)
-    assert assign.rhs.node.value == 42
+    assert assign.rhs.val == 42
 
     assign = Assign(str_to_assign("i = 41 + 1"))
     assert isinstance(assign.lhs, Name)
@@ -52,21 +55,28 @@ def test_assign_wrapper():
 
     assert isinstance(assign.rhs, ArithOp)
     assert isinstance(assign.rhs.lhs, Constant)
-    assert assign.rhs.lhs.node.value == 41
+    assert assign.rhs.lhs.val == 41
     assert isinstance(assign.rhs.rhs, Constant)
-    assert assign.rhs.rhs.node.value == 1
+    assert assign.rhs.rhs.val == 1
+
+    with pytest.raises(errors.ASTError):
+        List(str_to_ast_expr("[x,y] = [1,2]"))
+    with pytest.raises(errors.ASTError):
+        List(str_to_ast_expr("x = x"))
+    with pytest.raises(SyntaxError):
+        List(str_to_ast_expr("3 = 4"))
 
 
 def test_arith_expr_wrapper():
     expr = ArithOp(str_to_ast_expr("41 + 1"))
     assert isinstance(expr.lhs, Constant)
-    assert expr.lhs.node.value == 41
+    assert expr.lhs.val == 41
     assert isinstance(expr.rhs, Constant)
-    assert expr.rhs.node.value == 1
+    assert expr.rhs.val == 1
 
     expr = ArithOp(str_to_ast_expr("41 - (2 * 3)"))
     assert isinstance(expr.lhs, Constant)
-    assert expr.lhs.node.value == 41
+    assert expr.lhs.val == 41
     assert isinstance(expr.rhs, ArithOp)
 
     with pytest.raises(errors.BinopTypeMismatch):
@@ -76,9 +86,9 @@ def test_arith_expr_wrapper():
 def test_compare_expr_wrapper():
     expr = Compare(str_to_ast_expr("41 < 1"))
     assert isinstance(expr.lhs, Constant)
-    assert expr.lhs.node.value == 41
+    assert expr.lhs.val == 41
     assert isinstance(expr.rhs, Constant)
-    assert expr.rhs.node.value == 1
+    assert expr.rhs.val == 1
 
     with pytest.raises(errors.UnsupportedAST):
         Compare(str_to_ast_expr("1 < 2 < 3"))
@@ -86,6 +96,15 @@ def test_compare_expr_wrapper():
         Compare(str_to_ast_expr("'a' < 'b'"))
     with pytest.raises(errors.BinopTypeMismatch):
         Compare(str_to_ast_expr("1 in 2"))
+
+
+def test_list_exprs():
+    expr = List(str_to_ast_expr("[1,2,3]"))
+    assert isinstance(expr, List)
+    assert len(expr.elements) == 3
+    assert isinstance(expr.elements[0], Constant)
+    assert expr.elements[0].val == 1
+
 
 def test_compare_if_statements():
     py = "\n".join([
@@ -97,7 +116,33 @@ def test_compare_if_statements():
 
     py = "\n".join([
         "if 1 < 2:",
-         "  if False: i = 4",
+        "  if False: i = 4",
         "else: i = 17"
     ])
     If(ast.parse(py).body[0])
+
+
+def test_return_statement():
+    assert Return(ast.parse("return").body[0]).val is None
+    ret = Return(ast.parse("return 42").body[0])
+    assert ret.val
+    assert ret.val.node.value == 42
+
+
+def test_function_def():
+    fntext = "def f(x,y): return x + y"
+
+    env = set()
+    fn = FunctionDef(ast.parse(fntext).body[0], env)
+    # Bring "f" into the external scope but no local variables
+    assert "f" in env
+    assert "x" not in env
+    assert "y" not in env
+
+    assert len(fn.body) == 1
+    assert isinstance(fn.body[0], Return)
+    assert isinstance(fn.body[0].val, ArithOp)
+    assert isinstance(fn.body[0].val.lhs, Name)
+    assert isinstance(fn.body[0].val.rhs, Name)
+    assert fn.body[0].val.lhs.id == 'x'
+    assert fn.body[0].val.rhs.id == 'y'

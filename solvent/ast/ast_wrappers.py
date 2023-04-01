@@ -1,4 +1,5 @@
 import ast
+import copy
 
 from solvent import errors
 from solvent.syntax.terms import EvalT, Predicate
@@ -26,7 +27,7 @@ def stmt_from_ast(tree: ast.AST, env: Env) -> "AstWrapper":
     if isinstance(tree, ast.FunctionDef):
         raise Exception("TODO")
     if isinstance(tree, ast.Return):
-        raise Exception("TODO")
+        return Return(tree, env)
     if isinstance(tree, ast.Assign):
         return Assign(tree, env)
     if isinstance(tree, ast.AnnAssign):
@@ -47,6 +48,8 @@ def expr_from_ast(tree: ast.AST, env: Env) -> "Expr":
         return BoolOp(tree, env)
     if isinstance(tree, ast.Compare):
         return Compare(tree, env)
+    if isinstance(tree, ast.List):
+        return List(tree, env)
     raise errors.UnsupportedAST(tree)
 
 
@@ -69,12 +72,39 @@ class AstWrapper(Generic[PyAst]):
 
 @dataclass(init=False)
 class FunctionDef(AstWrapper[ast.FunctionDef]):
-    pass
+    reified_ast_type = ast.FunctionDef
+    args: list["Name"]
+    body: list[AstWrapper]
+
+    def validate(self, env: Env):
+        env.add(self.node.name)
+
+        env = copy.copy(env)
+
+        args: ast.arguments = self.node.args
+        if args.vararg:
+            raise errors.ASTError(self.node, "varargs not supported")
+        if args.kwarg:
+            raise errors.ASTError(self.node, "kwargs not supported")
+        self.args = []
+        for arg in args.args:
+            aname = arg.arg
+            env.add(aname)
+            self.args.append(Name(ast.Name(aname, ast.Load())))
+        self.body = [stmt_from_ast(stmt, env) for stmt in self.node.body]
+
 
 
 @dataclass(init=False)
 class Return(AstWrapper[ast.Return]):
-    pass
+    reified_ast_type = ast.Return
+    val: Optional["Expr"]
+
+    def validate(self, env: Env):
+        if self.node.value:
+            self.val = expr_from_ast(self.node.value, env)
+        else:
+            self.val = None
 
 
 @dataclass(init=False)
@@ -107,6 +137,11 @@ class If(Generic[PyAst], AstWrapper[ast.If]):
     def validate(self, env: Env):
         test = expr_from_ast(self.node.test, env)
         self.test = test
+
+        # TODO: I'm not sure what the right thing to do with variable shadowing
+        # in the environment should be.  With proper lexical scoping this wouldn't
+        # be an issue, but since we "take both branches" during typechecking we kind
+        # of need to unify across both arms of the branch?
         self.tru = [stmt_from_ast(stmt, env) for stmt in self.node.body]
         self.fls = [stmt_from_ast(stmt, env) for stmt in self.node.orelse]
 
@@ -119,20 +154,25 @@ class Expr(Generic[PyAst, EvalT], AstWrapper[PyAst]):
 
 
 @dataclass(init=False)
-class Constant(Expr[ast.Constant, int]):
+class Constant(Expr[ast.Constant, Union[bool, int]]):
     reified_ast_type = ast.Constant
+
+    val: Union[bool, int]
 
     def validate(self, env: Env):
         if type(self.node.value) not in [bool, int]:
             raise errors.UnsupportedAST(self.node)
+        self.val = self.node.value
 
 
 @dataclass(init=False)
 class Name(Expr[ast.Name, EvalT]):
     reified_ast_type = ast.Name
+    id: str
 
     def validate(self, env: Env):
-        if self.node.id not in env:
+        self.id = self.node.id
+        if self.id not in env:
             if type(self.node.ctx) == ast.Load:
                 raise errors.UnknownNameError(self.node)
             else:
@@ -187,3 +227,15 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
 
         self.lhs = expr_from_ast(self.node.left, env)
         self.rhs = expr_from_ast(self.node.comparators[0], env)
+
+
+@dataclass(init=False)
+class List(Generic[PyAst, EvalT], Expr[ast.List, EvalT]):
+    reified_ast_type = ast.List
+
+    elements: list[Expr[PyAst, EvalT]]
+
+    def validate(self, env: Env):
+        if self.node.ctx.__class__ == ast.Store:
+            raise errors.ASTError(self.node, "Can't use a list as an lval")
+        self.elements = [expr_from_ast(subtree, env) for subtree in self.node.elts]
