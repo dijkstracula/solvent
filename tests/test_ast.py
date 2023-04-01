@@ -1,4 +1,4 @@
-from solvent.ast.nodes import *
+from solvent.syntax.ast import *
 
 import ast
 import pytest
