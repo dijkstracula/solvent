@@ -1,4 +1,4 @@
-from solvent.syntax.ast import *
+from solvent.ast import *
 
 import ast
 import pytest
@@ -22,31 +22,31 @@ def str_to_assign(source: str):
 
 
 def test_constant_wrapper():
-    assert Constant(str_to_ast_expr("42")).val == 42
-    assert Constant(str_to_ast_expr("True")).val
-    assert not Constant(str_to_ast_expr("False")).val
+    assert Constant.from_pyast(str_to_ast_expr("42")).val == 42
+    assert Constant.from_pyast(str_to_ast_expr("True")).val
+    assert not Constant.from_pyast(str_to_ast_expr("False")).val
 
     with pytest.raises(errors.UnsupportedAST):
-        Constant(str_to_ast_expr("3.14"))
+        Constant.from_pyast(str_to_ast_expr("3.14"))
     with pytest.raises(errors.UnsupportedAST):
-        Constant(str_to_ast_expr("'hello'"))
+        Constant.from_pyast(str_to_ast_expr("'hello'"))
 
 
 def test_name_wrapper():
-    assert Name(str_to_ast_expr("i")).node.id == "i"
+    assert Name.from_pyast(str_to_ast_expr("i")).id == "i"
 
 
 def test_assign_wrapper():
-    assign = Assign(str_to_assign("i = 42"))
+    assign = Assign.from_pyast(str_to_assign("i = 42"))
     assert isinstance(assign.lhs, Name)
-    assert assign.lhs.node.id == "i"
+    assert assign.lhs.id == "i"
 
     assert isinstance(assign.rhs, Constant)
     assert assign.rhs.val == 42
 
-    assign = Assign(str_to_assign("i = 41 + 1"))
+    assign = Assign.from_pyast(str_to_assign("i = 41 + 1"))
     assert isinstance(assign.lhs, Name)
-    assert assign.lhs.node.id == "i"
+    assert assign.lhs.id == "i"
 
     assert isinstance(assign.rhs, ArithOp)
     assert isinstance(assign.rhs.lhs, Constant)
@@ -55,46 +55,46 @@ def test_assign_wrapper():
     assert assign.rhs.rhs.val == 1
 
     with pytest.raises(errors.ASTError):
-        List(str_to_ast_expr("[x,y] = [1,2]"))
+        List.from_pyast(str_to_ast_expr("[x,y] = [1,2]"))
     with pytest.raises(errors.ASTError):
-        List(str_to_ast_expr("x = x"))
+        Assign.from_pyast(str_to_ast_expr("x = x"))
     with pytest.raises(SyntaxError):
-        List(str_to_ast_expr("3 = 4"))
+        Assign.from_pyast(str_to_ast_expr("3 = 4"))
 
 
 def test_arith_expr_wrapper():
-    expr = ArithOp(str_to_ast_expr("41 + 1"))
+    expr = ArithOp.from_pyast(str_to_ast_expr("41 + 1"))
     assert isinstance(expr.lhs, Constant)
     assert expr.lhs.val == 41
     assert isinstance(expr.rhs, Constant)
     assert expr.rhs.val == 1
 
-    expr = ArithOp(str_to_ast_expr("41 - (2 * 3)"))
+    expr = ArithOp.from_pyast(str_to_ast_expr("41 - (2 * 3)"))
     assert isinstance(expr.lhs, Constant)
     assert expr.lhs.val == 41
     assert isinstance(expr.rhs, ArithOp)
 
     with pytest.raises(errors.BinopTypeMismatch):
-        ArithOp(str_to_ast_expr("41 ** 2"))
+        ArithOp.from_pyast(str_to_ast_expr("41 ** 2"))
 
 
 def test_compare_expr_wrapper():
-    expr = Compare(str_to_ast_expr("41 < 1"))
+    expr = Compare.from_pyast(str_to_ast_expr("41 < 1"))
     assert isinstance(expr.lhs, Constant)
     assert expr.lhs.val == 41
     assert isinstance(expr.rhs, Constant)
     assert expr.rhs.val == 1
 
     with pytest.raises(errors.UnsupportedAST):
-        Compare(str_to_ast_expr("1 < 2 < 3"))
+        Compare.from_pyast(str_to_ast_expr("1 < 2 < 3"))
     with pytest.raises(errors.UnsupportedAST):
-        Compare(str_to_ast_expr("'a' < 'b'"))
+        Compare.from_pyast(str_to_ast_expr("'a' < 'b'"))
     with pytest.raises(errors.BinopTypeMismatch):
-        Compare(str_to_ast_expr("1 in 2"))
+        Compare.from_pyast(str_to_ast_expr("1 in 2"))
 
 
 def test_list_exprs():
-    expr = List(str_to_ast_expr("[1,2,3]"))
+    expr = List.from_pyast(str_to_ast_expr("[1,2,3]"))
     assert isinstance(expr, List)
     assert len(expr.elements) == 3
     assert isinstance(expr.elements[0], Constant)
@@ -107,27 +107,27 @@ def test_compare_if_statements():
         " i = 42",
         "else: i = 17"
     ])
-    If(ast.parse(py).body[0])
+    If.from_pyast(ast.parse(py).body[0])
 
     py = "\n".join([
         "if 1 < 2:",
         "  if False: i = 4",
         "else: i = 17"
     ])
-    If(ast.parse(py).body[0])
+    If.from_pyast(ast.parse(py).body[0])
 
 
 def test_return_statement():
-    assert Return(ast.parse("return").body[0]).val is None
-    ret = Return(ast.parse("return 42").body[0])
+    assert Return.from_pyast(ast.parse("return").body[0]).val is None
+    ret = Return.from_pyast(ast.parse("return 42").body[0])
     assert ret.val
-    assert ret.val.node.value == 42
+    assert ret.val.val == 42
 
 
 def test_function_def():
     fntext = "def f(x,y): return x + y"
 
-    fn = FunctionDef(ast.parse(fntext).body[0])
+    fn = FunctionDef.from_pyast(ast.parse(fntext).body[0])
 
     assert len(fn.body) == 1
     assert isinstance(fn.body[0], Return)
@@ -138,4 +138,4 @@ def test_function_def():
     assert fn.body[0].val.rhs.id == 'y'
 
     fntext = "def f(x,y): return f(x, y)"
-    fn = FunctionDef(ast.parse(fntext).body[0])
+    fn = FunctionDef.from_pyast(ast.parse(fntext).body[0])
