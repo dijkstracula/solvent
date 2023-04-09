@@ -4,7 +4,7 @@ from solvent import errors
 from .syntax.terms import EvalT, Predicate
 
 from dataclasses import dataclass
-from typing import Any, Generic, Iterable, Optional, TypeVar, Type, Union
+from typing import Any, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
 
 from .syntax.types import PyT
 from .typechecker.unification import Constraint, CVar
@@ -201,19 +201,20 @@ class ArithOp(Expr[ast.BinOp, int]):
 
 
 @dataclass(frozen=True)
-class BoolOp(Expr[ast.BoolOp, bool]):
+class BoolOp(Generic[PyAst], Expr[ast.BoolOp, bool]):
     reified_ast_type = ast.BoolOp
-    subs = list[Expr[PyAst, bool]]
+    subs: list[Expr[PyAst, bool]]
+    op: Literal["Or"] | Literal["And"]
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "BoolOp":
         assert isinstance(node, ast.BoolOp)
         subs = [expr_from_pyast(e) for e in node.values]
 
-        ops = [ast.Or, ast.And]
-        if node.op.__class__ not in ops:
+        opname = node.op.__class__.__name__
+        if opname != "Or" and opname != "And":
             raise errors.BinopTypeMismatch(subs[0], node.op, subs[1])
-        return BoolOp(subs)
+        return BoolOp(subs, opname)
 
 
 @dataclass(frozen=True)

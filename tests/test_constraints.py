@@ -6,15 +6,22 @@ from solvent.ast import *
 
 
 def test_constant_constraints():
-    c = Constant.from_pyast(str_to_ast_expr("42"))
+    c = Constant(42)
     assert Constraint(c, int) in c.constraints({})
 
-    c = Constant.from_pyast(str_to_ast_expr("True"))
+    c = Constant(True)
     assert Constraint(c, bool) in c.constraints({})
 
 
 def test_name_constraints():
-    n = Name.from_pyast(str_to_ast_expr("i"))
+    n = Name("n")
     assert [Constraint(n, int)] == n.constraints({n: int})
     assert Constraint(n, bool) in n.constraints({n: bool})
     assert Constraint(n, list) in n.constraints({n: list})
+
+def test_if_constraints():
+    tru = Constant(True)
+    fls = Constant(False)
+    b1 = Name("b1")
+    b2 = Name("b2")
+

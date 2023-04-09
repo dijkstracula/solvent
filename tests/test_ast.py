@@ -78,6 +78,18 @@ def test_arith_expr_wrapper():
         ArithOp.from_pyast(str_to_ast_expr("41 ** 2"))
 
 
+def test_bool_op_wrapper():
+    expr = BoolOp.from_pyast(str_to_ast_expr("b1 or True"))
+    assert isinstance(expr, BoolOp)
+    assert expr.op == "Or"
+    assert expr.subs == [Name("b1"), Constant(True)]
+
+    expr = BoolOp.from_pyast(str_to_ast_expr("b1 and b2 and b3"))
+    assert isinstance(expr, BoolOp)
+    assert expr.op == "And"
+    assert expr.subs == [Name("b1"), Name("b2"), Name("b3")]
+
+
 def test_compare_expr_wrapper():
     expr = Compare.from_pyast(str_to_ast_expr("41 < 1"))
     assert isinstance(expr.lhs, Constant)
@@ -120,7 +132,7 @@ def test_compare_if_statements():
 def test_return_statement():
     assert Return.from_pyast(ast.parse("return").body[0]).val is None
     ret = Return.from_pyast(ast.parse("return 42").body[0])
-    assert ret.val
+    assert isinstance(ret.val, Constant)
     assert ret.val.val == 42
 
 
