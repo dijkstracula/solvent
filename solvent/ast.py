@@ -43,6 +43,8 @@ def expr_from_pyast(tree: ast.AST) -> "Expr":
         return Compare.from_pyast(tree)
     if isinstance(tree, ast.List):
         return List.from_pyast(tree)
+    if isinstance(tree, ast.Subscript):
+        return Subscript.from_pyast(tree)
     if isinstance(tree, ast.Call):
         return Call.from_pyast(tree)
     raise errors.UnsupportedAST(tree)
@@ -89,6 +91,9 @@ class Return(AstWrapper[ast.Return]):
             val = None
 
         return Return(val)
+
+    def constraints(self, env: Env) -> Iterable[Constraint]:
+        return [Constraint(self, type(self.val))]
 
 
 @dataclass(frozen=True)
@@ -232,13 +237,11 @@ class BoolOp(Generic[PyAst], Expr[ast.BoolOp, bool]):
         yield Constraint(self, bool)
 
 
-
 @dataclass(frozen=True)
 class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
     lhs: Expr[PyAst, bool]
     op: Any  # TODO
     rhs: Expr[PyAst, bool]
-
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "Compare":
@@ -293,7 +296,7 @@ class List(Generic[PyAst, EvalT], Expr[ast.List, tuple[EvalT]]):
 
 @dataclass(frozen=True)
 class Subscript(Generic[PyAst, EvalT], Expr[ast.Subscript, EvalT]):
-    val: Expr[PyAst, list[EvalT]]
+    arr: Expr[PyAst, list[EvalT]]
     idx: Expr[PyAst, int]
 
     @classmethod
@@ -301,6 +304,17 @@ class Subscript(Generic[PyAst, EvalT], Expr[ast.Subscript, EvalT]):
         assert(isinstance(node, ast.Subscript))
         if isinstance(node.slice, ast.Slice):
             raise errors.ASTError(node, "Can only extract a scalar from a list")
-        val = expr_from_pyast(node.value)
+        arr = expr_from_pyast(node.value)
         idx = expr_from_pyast(node.slice)
-        return Subscript(val, idx)
+        return Subscript(arr, idx)
+
+    def constraints(self, env: Env) -> Iterable[Constraint]:
+        for c in self.arr.constraints(env):
+            yield c
+        for c in self.idx.constraints(env):
+            yield c
+        yield Constraint(self.idx, int)
+
+        cvar = CVar.next()
+        yield Constraint(self.arr, (cvar,))
+        yield Constraint(self, cvar)

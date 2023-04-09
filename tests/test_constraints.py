@@ -103,21 +103,38 @@ def test_list_constraints():
 
     CVar.reset()
 
-    expr = List.from_pyast(str_to_ast_expr("[1,2,3]"))
+    expr = List.from_pyast(str_to_ast_expr("[1,2]"))
     constraints = expr.constraints({})
     assert set(constraints) == set([
         Constraint(Constant(1), int),
         Constraint(Constant(1), CVar(1)),
         Constraint(Constant(2), int),
         Constraint(Constant(2), CVar(1)),
-        Constraint(Constant(3), int),
-        Constraint(Constant(3), CVar(1)),
         Constraint(expr, (CVar(1),))
     ])
 
 
 def test_subscript_constraints():
-    expr = Subscript.from_pyast(str_to_ast_expr("a[4]"))
+    expr = Subscript.from_pyast(str_to_ast_expr("[1,2,3][4]"))
+    constraints = set(expr.constraints({}))
+    assert constraints.issuperset(set([
+        # ?1 and ?2 will unify to the same type.
+        Constraint(Constant(1), CVar(1)),
+        Constraint(List((Constant(1), Constant(2), Constant(3))), (CVar(1),)),
+        Constraint(List((Constant(1), Constant(2), Constant(3))), (CVar(2),)),
+        Constraint(expr, CVar(2)),
+        Constraint(Constant(4), int)
+    ]))
+
+    CVar.reset()
+
+    # Clearly shouldn't be able to unify; can only subscript by an int.
+    expr = Subscript.from_pyast(str_to_ast_expr("[1,2,3][True]"))
+    constraints = set(expr.constraints({}))
+    assert constraints.issuperset(set([
+        Constraint(Constant(True), int),
+        Constraint(Constant(True), bool)
+    ]))
 
 
 def test_if_constraints():
