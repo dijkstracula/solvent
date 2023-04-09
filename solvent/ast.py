@@ -93,7 +93,13 @@ class Return(AstWrapper[ast.Return]):
         return Return(val)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
-        return [Constraint(self, type(self.val))]
+        if not self.val:
+            return []
+        for c in self.val.constraints(env):
+            yield c
+        cvar = CVar.next()
+        yield Constraint(cvar, self.val)
+        yield Constraint(cvar, self)
 
 
 @dataclass(frozen=True)

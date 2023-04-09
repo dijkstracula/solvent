@@ -137,6 +137,18 @@ def test_subscript_constraints():
     ]))
 
 
+def test_return_constraints():
+    expr = Return(None)
+    assert set(expr.constraints({})) == set()
+
+    expr = Return(Constant(42))
+    assert set(expr.constraints({})).issuperset(set([
+        Constraint(Constant(42), int),
+        Constraint(CVar(1), Constant(42)),
+        Constraint(CVar(1), expr),
+    ]))
+
+
 def test_if_constraints():
     tru = Constant(True)
     fls = Constant(False)
