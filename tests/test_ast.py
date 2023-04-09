@@ -82,12 +82,12 @@ def test_bool_op_wrapper():
     expr = BoolOp.from_pyast(str_to_ast_expr("b1 or True"))
     assert isinstance(expr, BoolOp)
     assert expr.op == "Or"
-    assert expr.subs == [Name("b1"), Constant(True)]
+    assert expr.subs == (Name("b1"), Constant(True))
 
     expr = BoolOp.from_pyast(str_to_ast_expr("b1 and b2 and b3"))
     assert isinstance(expr, BoolOp)
     assert expr.op == "And"
-    assert expr.subs == [Name("b1"), Name("b2"), Name("b3")]
+    assert expr.subs == (Name("b1"), Name("b2"), Name("b3"))
 
 
 def test_compare_expr_wrapper():
@@ -112,6 +112,15 @@ def test_list_exprs():
     assert isinstance(expr.elements[0], Constant)
     assert expr.elements[0].val == 1
 
+    expr = Subscript.from_pyast(str_to_ast_expr("a[4]"))
+    assert isinstance(expr, Subscript)
+    assert expr.val == Name("a")
+    assert expr.idx == Constant(4)
+
+    expr = Subscript.from_pyast(str_to_ast_expr("[1,2,3][i]"))
+    assert isinstance(expr, Subscript)
+    assert expr.val == List((Constant(1), Constant(2), Constant(3),))
+    assert expr.idx == Name("i")
 
 def test_compare_if_statements():
     py = "\n".join([

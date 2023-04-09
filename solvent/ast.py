@@ -199,11 +199,18 @@ class ArithOp(Expr[ast.BinOp, int]):
             raise errors.BinopTypeMismatch(lhs, node.op, rhs)
         return ArithOp(lhs, node.op, rhs)
 
+    def constraints(self, env: Env) -> Iterable[Constraint]:
+        for c in self.lhs.constraints(env):
+            yield c
+        for c in self.rhs.constraints(env):
+            yield c
+        yield Constraint(self, int)
+
 
 @dataclass(frozen=True)
 class BoolOp(Generic[PyAst], Expr[ast.BoolOp, bool]):
     reified_ast_type = ast.BoolOp
-    subs: list[Expr[PyAst, bool]]
+    subs: tuple[Expr[PyAst, bool]]
     op: Literal["Or"] | Literal["And"]
 
     @classmethod
@@ -214,7 +221,16 @@ class BoolOp(Generic[PyAst], Expr[ast.BoolOp, bool]):
         opname = node.op.__class__.__name__
         if opname != "Or" and opname != "And":
             raise errors.BinopTypeMismatch(subs[0], node.op, subs[1])
-        return BoolOp(subs, opname)
+        return BoolOp(tuple(subs), opname)
+
+    def constraints(self, env: Env) -> Iterable[Constraint]:
+        for v in self.subs:
+            if isinstance(v, Name) or isinstance(v, Constant):
+                yield Constraint(v, bool)
+            for c in v.constraints(env):
+                yield c
+        yield Constraint(self, bool)
+
 
 
 @dataclass(frozen=True)
@@ -242,16 +258,49 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
 
         return Compare(lhs, op, rhs)
 
+    def constraints(self, env: Env) -> Iterable[Constraint]:
+        cvar = CVar.next()
+        for c in self.lhs.constraints(env):
+            yield c
+        yield Constraint(self.lhs, cvar);
+        for c in self.rhs.constraints(env):
+            yield c
+        yield Constraint(self.rhs, cvar);
+        yield Constraint(self, cvar)
+
 
 @dataclass(frozen=True)
-class List(Generic[PyAst, EvalT], Expr[ast.List, EvalT]):
-    elements: list[Expr[PyAst, EvalT]]
+class List(Generic[PyAst, EvalT], Expr[ast.List, tuple[EvalT]]):
+    elements: tuple[Expr[PyAst, EvalT]]
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "List":
         assert isinstance(node, ast.List)
         if node.ctx.__class__ == ast.Store:
             raise errors.ASTError(node, "Can't use a list as an lval")
-        elements = [expr_from_pyast(subtree) for subtree in node.elts]
+        elements = tuple([expr_from_pyast(subtree) for subtree in node.elts])
         return List(elements)
 
+    def constraints(self, env: Env) -> Iterable[Constraint]:
+        # An empty list needs to be polymorphic, I guess?
+        cvar = CVar.next()
+        for elm in self.elements:
+            for c in elm.constraints(env):
+                yield c
+            yield Constraint(elm, cvar)
+        yield Constraint(self, (cvar, ))
+
+
+@dataclass(frozen=True)
+class Subscript(Generic[PyAst, EvalT], Expr[ast.Subscript, EvalT]):
+    val: Expr[PyAst, list[EvalT]]
+    idx: Expr[PyAst, int]
+
+    @classmethod
+    def from_pyast(cls, node: ast.AST) -> "Subscript":
+        assert(isinstance(node, ast.Subscript))
+        if isinstance(node.slice, ast.Slice):
+            raise errors.ASTError(node, "Can only extract a scalar from a list")
+        val = expr_from_pyast(node.value)
+        idx = expr_from_pyast(node.slice)
+        return Subscript(val, idx)
