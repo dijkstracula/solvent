@@ -221,7 +221,7 @@ class ArithOp(Expr[ast.BinOp, int]):
 @dataclass(frozen=True)
 class BoolOp(Generic[PyAst], Expr[ast.BoolOp, bool]):
     reified_ast_type = ast.BoolOp
-    subs: tuple[Expr[PyAst, bool]]
+    subs: tuple[Expr[PyAst, bool], ...]
     op: Literal["Or"] | Literal["And"]
 
     @classmethod
@@ -279,8 +279,8 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
 
 
 @dataclass(frozen=True)
-class List(Generic[PyAst, EvalT], Expr[ast.List, tuple[EvalT]]):
-    elements: tuple[Expr[PyAst, EvalT]]
+class List(Generic[PyAst, EvalT], Expr[ast.List, EvalT]):
+    elements: tuple[Expr[PyAst, EvalT], ...]
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "List":

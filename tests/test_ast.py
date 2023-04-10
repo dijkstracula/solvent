@@ -114,12 +114,12 @@ def test_list_exprs():
 
     expr = Subscript.from_pyast(str_to_ast_expr("a[4]"))
     assert isinstance(expr, Subscript)
-    assert expr.val == Name("a")
+    assert expr.arr == Name("a")
     assert expr.idx == Constant(4)
 
     expr = Subscript.from_pyast(str_to_ast_expr("[1,2,3][i]"))
     assert isinstance(expr, Subscript)
-    assert expr.val == List((Constant(1), Constant(2), Constant(3),))
+    assert expr.arr == List((Constant(1), Constant(2), Constant(3),))
     assert expr.idx == Name("i")
 
 def test_compare_if_statements():
