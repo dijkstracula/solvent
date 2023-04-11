@@ -100,5 +100,10 @@ def test_subscript_ops():
         Name("j"): CVar(2)
     }
     constraints = set(expr.constraints(env))
-    assert constraints == {Constraint(int, int), Constraint(CVar(1), CVar(2))})
+    assert constraints == {Constraint(int, int), Constraint(CVar(1), CVar(2))}
     assert expr.type(env) == CVar(1)
+
+    expr = Subscript.from_pyast(str_to_ast_expr("[1,2,3][True]"))
+    constraints = set(expr.constraints({}))
+    assert constraints == {Constraint(int, int), Constraint(int, bool)}
+    assert expr.type({}) == int

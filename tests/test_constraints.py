@@ -14,10 +14,10 @@ def before_all():
 
 def test_constant_constraints():
     c = Constant(42)
-    assert len(c.constraints({})) == 0
+    assert set(c.constraints({})) == set()
 
     c = Constant(True)
-    assert len(c.constraints({})) == 0
+    assert set(c.constraints({})) == set()
 
 
 def test_name_constraints():

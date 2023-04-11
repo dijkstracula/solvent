@@ -16,9 +16,9 @@ from .typechecker.unification import Constraint, CVar
 PyAst = TypeVar("PyAst", bound=ast.AST, covariant=True)
 
 
-HMType = Type[int] | Type[bool] | Type[list] | Type[Callable] | Constraint
+HMType = Type[int] | Type[bool] | Type[list] | Type[Callable] | CVar
 
-Env = dict["Name", HMType]
+Env = dict["Name", Union[Type, CVar]]
 
 
 def stmt_from_pyast(tree: ast.AST) -> "AstWrapper":
