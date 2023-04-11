@@ -79,7 +79,11 @@ def unifier(constraints: list[Constraint]) -> Env:
     """ Return something that unifies with the constraints, or None
     if there's a contradiction."""
     env = {}
-    [env := c.unify(env) for c in constraints]  # morally, foldl
+    for c in constraints:
+        print(c, env)
+        env = c.unify(env)
+        if env is None:
+            return env
     return {x: subst_env(env, x) for x in env}
 
 

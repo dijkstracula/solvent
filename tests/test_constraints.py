@@ -14,127 +14,82 @@ def before_all():
 
 def test_constant_constraints():
     c = Constant(42)
-    assert Constraint(c, int) in c.constraints({})
+    assert len(c.constraints({})) == 0
 
     c = Constant(True)
-    assert Constraint(c, bool) in c.constraints({})
+    assert len(c.constraints({})) == 0
 
 
 def test_name_constraints():
     n = Name("n")
-    assert [Constraint(n, int)] == n.constraints({n: int})
-    assert Constraint(n, bool) in n.constraints({n: bool})
-    assert Constraint(n, list) in n.constraints({n: list})
+    assert n.type({n: int}) == int
+    assert n.type({n: bool}) == bool
+    assert n.type({n: list[int]}) == list[int]
 
 
 def test_arith_op_constraints():
     expr = ArithOp.from_pyast(str_to_ast_expr("1 + 2"))
     constraints = expr.constraints({})
-    assert set(constraints) == set(
-         [Constraint(Constant(1), int),
-          Constraint(Constant(2), int),
-          Constraint(expr, int)])
+    assert set(constraints) == {Constraint(int, int)}
 
     expr = ArithOp.from_pyast(str_to_ast_expr("i + j"))
-    constraints = expr.constraints({Name("i"): int, Name("j"): int})
-    assert set(constraints) == set(
-        [Constraint(Name("i"), int),
-         Constraint(Name("j"), int),
-         Constraint(expr, int)])
+    constraints = set(expr.constraints({
+        Name("i"): CVar(1),
+        Name("j"): CVar(2)
+    }))
+    assert Constraint(int, CVar(1)) in constraints
+    assert Constraint(int, CVar(2)) in constraints
 
 
 def test_bool_op_constraints():
     expr = BoolOp.from_pyast(str_to_ast_expr("b1 or b2 or True"))
     constraints = expr.constraints({Name("b1"): bool, Name("b2"): bool})
-    assert set(constraints) == set(
-        [Constraint(expr, bool),
-         Constraint(Name("b1"), bool),
-         Constraint(Name("b2"), bool),
-         Constraint(Constant(True), bool)])
+    assert set(constraints) == {Constraint(bool, bool)}
 
     expr = BoolOp.from_pyast(str_to_ast_expr("(b1 or b2) and True"))
     constraints = expr.constraints({Name("b1"): bool, Name("b2"): bool})
-    assert set(constraints) == set(
-        [Constraint(expr, bool),
-         Constraint(BoolOp.from_pyast(str_to_ast_expr("b1 or b2")), bool),
-         Constraint(Name("b1"), bool),
-         Constraint(Name("b2"), bool),
-         Constraint(Constant(True), bool)])
+    assert set(constraints) == {Constraint(bool, bool)}
 
     # Here's one that will fail to typecheck later on: we're using i both
     # as an int and a bool.
     expr = BoolOp.from_pyast(str_to_ast_expr("b1 and i"))
     constraints = expr.constraints({Name("b1"): bool, Name("i"): int})
-    assert set(constraints) == set(
-        [Constraint(expr, bool),
-         Constraint(Name("b1"), bool),
-         Constraint(Name("i"), int),
-         Constraint(Name("i"), bool)])
+    assert(Constraint(bool, int) in constraints)
 
 
 def test_compare_constraints():
     expr = Compare.from_pyast(str_to_ast_expr("1 < 2"))
-    constraints = expr.constraints({})
-    assert set(constraints) == set([
-        Constraint(Constant(1), int),
-        Constraint(Constant(2), int),
-        Constraint(Constant(1), CVar(1)),
-        Constraint(Constant(2), CVar(1)),
-        Constraint(expr, CVar(1)),
-    ])
-
-    CVar.reset()
+    constraints = set(expr.constraints({}))
+    assert set(constraints) == {Constraint(int, int)}
 
     expr = Compare.from_pyast(str_to_ast_expr("1 < True"))
     constraints = expr.constraints({})
-    assert set(constraints) == set([
-        Constraint(Constant(1), int),
-        Constraint(Constant(True), bool),
-        Constraint(Constant(1), CVar(1)),
-        Constraint(Constant(True), CVar(1)),
-        Constraint(expr, CVar(1)),
-    ])
+    assert set(constraints) == {Constraint(int, bool)}
 
 
 def test_list_constraints():
     expr = List.from_pyast(str_to_ast_expr("[]"))
     constraints = expr.constraints({})
-    assert set(constraints) == set([Constraint(expr, (CVar(1),))])
+    assert set(constraints) == set()
 
     CVar.reset()
 
     expr = List.from_pyast(str_to_ast_expr("[1,2]"))
     constraints = expr.constraints({})
-    assert set(constraints) == set([
-        Constraint(Constant(1), int),
-        Constraint(Constant(1), CVar(1)),
-        Constraint(Constant(2), int),
-        Constraint(Constant(2), CVar(1)),
-        Constraint(expr, (CVar(1),))
-    ])
+    assert set(constraints) == {Constraint(int, int)}
 
 
 def test_subscript_constraints():
     expr = Subscript.from_pyast(str_to_ast_expr("[1,2,3][4]"))
     constraints = set(expr.constraints({}))
-    assert constraints.issuperset(set([
-        # ?1 and ?2 will unify to the same type.
-        Constraint(Constant(1), CVar(1)),
-        Constraint(List((Constant(1), Constant(2), Constant(3))), (CVar(1),)),
-        Constraint(List((Constant(1), Constant(2), Constant(3))), (CVar(2),)),
-        Constraint(expr, CVar(2)),
-        Constraint(Constant(4), int)
-    ]))
+    assert set(constraints) == {Constraint(int, int)}
 
     CVar.reset()
 
     # Clearly shouldn't be able to unify; can only subscript by an int.
     expr = Subscript.from_pyast(str_to_ast_expr("[1,2,3][True]"))
     constraints = set(expr.constraints({}))
-    assert constraints.issuperset(set([
-        Constraint(Constant(True), int),
-        Constraint(Constant(True), bool)
-    ]))
+    assert set(constraints) == set({Constraint(int, bool), Constraint(int, int)})
 
 
 def test_return_constraints():
@@ -142,11 +97,7 @@ def test_return_constraints():
     assert set(expr.constraints({})) == set()
 
     expr = Return(Constant(42))
-    assert set(expr.constraints({})).issuperset(set([
-        Constraint(Constant(42), int),
-        Constraint(CVar(1), Constant(42)),
-        Constraint(CVar(1), expr),
-    ]))
+    assert set(expr.constraints({})) == set()
 
 
 def test_if_constraints():

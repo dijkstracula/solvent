@@ -1,10 +1,12 @@
 import ast
+import itertools
 
 from solvent import errors
 from .syntax.terms import EvalT, Predicate
 
 from dataclasses import dataclass
-from typing import Any, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
+from types import GenericAlias
+from typing import Any, Callable, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
 
 from .syntax.types import PyT
 from .typechecker.unification import Constraint, CVar
@@ -13,7 +15,10 @@ from .typechecker.unification import Constraint, CVar
 
 PyAst = TypeVar("PyAst", bound=ast.AST, covariant=True)
 
-Env = dict["AstWrapper", Type[int] | Type[bool] | Type[list]]
+
+HMType = Type[int] | Type[bool] | Type[list] | Type[Callable] | Constraint
+
+Env = dict["Name", HMType]
 
 
 def stmt_from_pyast(tree: ast.AST) -> "AstWrapper":
@@ -93,13 +98,7 @@ class Return(AstWrapper[ast.Return]):
         return Return(val)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
-        if not self.val:
-            return []
-        for c in self.val.constraints(env):
-            yield c
-        cvar = CVar.next()
-        yield Constraint(cvar, self.val)
-        yield Constraint(cvar, self)
+        return []
 
 
 @dataclass(frozen=True)
@@ -149,7 +148,8 @@ class If(Generic[PyAst], AstWrapper[ast.If]):
 
 
 class Expr(Generic[PyAst, EvalT], AstWrapper[PyAst]):
-    pass
+    def type(self, env: Env) -> Union[Type, CVar]:
+        raise Exception(f"{type(self)}.type() not implemented")
 
 
 @dataclass(frozen=True)
@@ -166,7 +166,10 @@ class Constant(Expr[ast.Constant, Union[bool, int]]):
         return Constant(val)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
-        return [Constraint(self, type(self.val))]
+        return []
+
+    def type(self, env: Env) -> Union[Type, CVar]:
+        return type(self.val)
 
 
 @dataclass(frozen=True)
@@ -179,7 +182,10 @@ class Name(Expr[ast.Name, EvalT]):
         return Name(node.id)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
-        return [Constraint(self, env[self])]
+        return []
+
+    def type(self, env: Env) -> Union[Type, CVar]:
+        return env[self]
 
 
 @dataclass(frozen=True)
@@ -213,9 +219,14 @@ class ArithOp(Expr[ast.BinOp, int]):
     def constraints(self, env: Env) -> Iterable[Constraint]:
         for c in self.lhs.constraints(env):
             yield c
+        yield Constraint(self.type(env), self.lhs.type(env))
+
         for c in self.rhs.constraints(env):
             yield c
-        yield Constraint(self, int)
+        yield Constraint(self.type(env), self.rhs.type(env))
+
+    def type(self, env: Env) -> Union[Type, CVar]:
+        return int  # TODO: array concat
 
 
 @dataclass(frozen=True)
@@ -235,12 +246,13 @@ class BoolOp(Generic[PyAst], Expr[ast.BoolOp, bool]):
         return BoolOp(tuple(subs), opname)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
-        for v in self.subs:
-            if isinstance(v, Name) or isinstance(v, Constant):
-                yield Constraint(v, bool)
-            for c in v.constraints(env):
+        for sub in self.subs:
+            for c in sub.constraints(env):
                 yield c
-        yield Constraint(self, bool)
+            yield Constraint(self.type(env), sub.type(env))
+
+    def type(self, env: Env) -> Union[Type, CVar]:
+        return bool
 
 
 @dataclass(frozen=True)
@@ -268,19 +280,19 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
         return Compare(lhs, op, rhs)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
-        cvar = CVar.next()
         for c in self.lhs.constraints(env):
             yield c
-        yield Constraint(self.lhs, cvar);
         for c in self.rhs.constraints(env):
             yield c
-        yield Constraint(self.rhs, cvar);
-        yield Constraint(self, cvar)
+        yield Constraint(self.lhs.type(env), self.rhs.type(env));
 
+    def type(self, env: Env) -> Union[Type, CVar]:
+        return bool
 
 @dataclass(frozen=True)
 class List(Generic[PyAst, EvalT], Expr[ast.List, EvalT]):
     elements: tuple[Expr[PyAst, EvalT], ...]
+    empty_list_cvar = CVar.next()  # Only used if a list is polymorphic
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "List":
@@ -291,13 +303,22 @@ class List(Generic[PyAst, EvalT], Expr[ast.List, EvalT]):
         return List(elements)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
-        # An empty list needs to be polymorphic, I guess?
-        cvar = CVar.next()
-        for elm in self.elements:
-            for c in elm.constraints(env):
+        for e in self.elements:
+            for c in e.constraints(env):
                 yield c
-            yield Constraint(elm, cvar)
-        yield Constraint(self, (cvar, ))
+
+        deduped_pairs = set()
+        for e1, e2 in itertools.combinations(self.elements, 2):
+            deduped_pairs.add(Constraint(e1.type(env), e2.type(env)))
+        for c in deduped_pairs:
+            yield c
+
+    def type(self, env: Env) -> HMType:
+        # An empty list needs to be polymorphic, I guess?
+        if len(self.elements) > 0:
+            return list[self.elements[0].type(env)]  # type: ignore
+        else:
+            return list[self.empty_list_cvar] # type: ignore
 
 
 @dataclass(frozen=True)
@@ -317,10 +338,9 @@ class Subscript(Generic[PyAst, EvalT], Expr[ast.Subscript, EvalT]):
     def constraints(self, env: Env) -> Iterable[Constraint]:
         for c in self.arr.constraints(env):
             yield c
-        for c in self.idx.constraints(env):
-            yield c
-        yield Constraint(self.idx, int)
+        yield Constraint(int, self.idx.type(env))
 
-        cvar = CVar.next()
-        yield Constraint(self.arr, (cvar,))
-        yield Constraint(self, cvar)
+    def type(self, env: Env) -> HMType:
+        at = self.arr.type(env)
+        assert isinstance(at, GenericAlias)
+        return at.__args__[0]
