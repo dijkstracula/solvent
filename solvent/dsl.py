@@ -2,14 +2,14 @@ import ast
 import itertools
 
 from solvent import errors
-from .syntax.terms import EvalT, Predicate
+from solvent.syntax.quants import EvalT
 
 from dataclasses import dataclass
 from types import GenericAlias
 from typing import Any, Callable, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
 
-from .syntax.types import PyT, LiquidType
-from .typechecker.unification import Constraint, CVar
+from solvent.syntax.types import LiquidType, from_py_type
+from solvent.typechecker.unification import Constraint, CVar
 
 # Wrappers for a tiny, tiny subset of AST nodes
 
@@ -115,9 +115,8 @@ class AnnAssign(Generic[PyAst, EvalT], AstWrapper[ast.AnnAssign]):
 
         lhs = Name(node.target.id)
         rhs = expr_from_pyast(node.value)
-        pyannot = expr_from_pyast(node.annotation)
 
-        return AnnAssign(lhs, rhs, None)
+        return AnnAssign(lhs, rhs, from_ast(lhs, node.annotation))
 
 
 @dataclass(frozen=True)
@@ -301,6 +300,7 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
     def type(self, env: Env) -> Union[Type, CVar]:
         return bool
 
+
 @dataclass(frozen=True)
 class List(Generic[PyAst, EvalT], Expr[ast.List, EvalT]):
     elements: tuple[Expr[PyAst, EvalT], ...]
@@ -356,3 +356,23 @@ class Subscript(Generic[PyAst, EvalT], Expr[ast.Subscript, EvalT]):
         at = self.arr.type(env)
         assert isinstance(at, GenericAlias)
         return at.__args__[0]
+
+
+def from_ast(var: Name, t: ast.AST) -> LiquidType:
+    if isinstance(t, ast.Name):
+        if t.id in ["int", "bool", "list"]:
+            # A simple monomorphic type literal
+            blob = ast.unparse(t)
+            return from_py_type(eval(blob))  # Yee haw!
+        # TODO: if it isn't, then it feels like the Name could be an in-scope variable.
+    elif isinstance(t, ast.Subscript):
+        if t.value.id == "list":
+            # A polymorphic list
+            blob = ast.unparse(t)
+            return from_py_type(eval(blob))  # Yee haw!
+    elif isinstance(t, ast.Call):
+        # TODO: Hopefuly this is a call to a liquid type constructor, eek, what do??
+        expr = Call.from_pyast(t)
+        raise Exception("TODO")
+    # Hm, okay, I guess what we have here is a program expression
+    raise errors.UnsupportedAST(t)

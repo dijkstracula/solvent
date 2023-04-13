@@ -5,7 +5,7 @@ from solvent import errors
 from solvent import LiquidVar as L
 
 from solvent.syntax import types as T
-from solvent.syntax import terms
+from solvent.syntax import quants
 
 sys.path.append("..")
 
@@ -37,30 +37,30 @@ def test_liquidvar_construction():
 def test_int_construction():
     i = L("i", T.Int())
 
-    assert (i.eq(42) == terms.Eq(i, 42))
-    assert (i.lt(42) == terms.Lt(i, 42))
-    assert (i.le(42) == terms.Le(i, 42))
-    assert (i.gt(42) == terms.Gt(i, 42))
+    assert (i.eq(42) == quants.Eq(i, 42))
+    assert (i.lt(42) == quants.Lt(i, 42))
+    assert (i.le(42) == quants.Le(i, 42))
+    assert (i.gt(42) == quants.Gt(i, 42))
 
-    assert (i.add(42) == terms.Add(i, 42))
-    assert (i.sub(42) == terms.Sub(i, 42))
-    assert (i.mul(42) == terms.Mul(i, 42))
-    assert (i.div(42) == terms.Div(i, 42))
-    assert (i.mod(42) == terms.Mod(i, 42))
+    assert (i.add(42) == quants.Add(i, 42))
+    assert (i.sub(42) == quants.Sub(i, 42))
+    assert (i.mul(42) == quants.Mul(i, 42))
+    assert (i.div(42) == quants.Div(i, 42))
+    assert (i.mod(42) == quants.Mod(i, 42))
 
     j = L("j", T.Int())
-    assert (i.eq(j) == terms.Eq(i, j))
-    assert (i.lt(j) == terms.Lt(i, j))
-    assert (i.le(j) == terms.Le(i, j))
-    assert (i.gt(j) == terms.Gt(i, j))
+    assert (i.eq(j) == quants.Eq(i, j))
+    assert (i.lt(j) == quants.Lt(i, j))
+    assert (i.le(j) == quants.Le(i, j))
+    assert (i.gt(j) == quants.Gt(i, j))
 
-    assert (i.add(j) == terms.Add(i, j))
-    assert (i.sub(j) == terms.Sub(i, j))
-    assert (i.mul(j) == terms.Mul(i, j))
-    assert (i.div(j) == terms.Div(i, j))
-    assert (i.mod(j) == terms.Mod(i, j))
+    assert (i.add(j) == quants.Add(i, j))
+    assert (i.sub(j) == quants.Sub(i, j))
+    assert (i.mul(j) == quants.Mul(i, j))
+    assert (i.div(j) == quants.Div(i, j))
+    assert (i.mod(j) == quants.Mod(i, j))
 
-    assert (i.add(j.add(1)) == terms.Add(i, terms.Add(j, 1)))
+    assert (i.add(j.add(1)) == quants.Add(i, quants.Add(j, 1)))
 
 
 def test_bool_construction():
@@ -68,19 +68,19 @@ def test_bool_construction():
 
     # TODO: once we unify Python types and LiquidExprs, boolean expressions
     # with literals can always be constant-folded down if we really want.
-    assert (b1.band(True) == terms.And(b1, True))
-    assert (b1.band(False) == terms.And(b1, False))
-    assert (b1.bor(True) == terms.Or(b1, True))
-    assert (b1.bor(False) == terms.Or(b1, False))
+    assert (b1.band(True) == quants.And(b1, True))
+    assert (b1.band(False) == quants.And(b1, False))
+    assert (b1.bor(True) == quants.Or(b1, True))
+    assert (b1.bor(False) == quants.Or(b1, False))
 
     b2 = L("b2", T.Bool())
-    assert (b1.band(b2) == terms.And(b1, b2))
-    assert (b1.bor(b2) == terms.Or(b1, b2))
+    assert (b1.band(b2) == quants.And(b1, b2))
+    assert (b1.bor(b2) == quants.Or(b1, b2))
 
 
 def test_array_construction():
     xs = L("xs", T.Array(T.Bool()))
-    assert (xs.len() == terms.ArrayLen(xs))
+    assert (xs.len() == quants.ArrayLen(xs))
 
 
 def test_LV_construction():

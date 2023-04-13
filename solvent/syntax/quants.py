@@ -11,7 +11,7 @@ from typing import Generic, Type, Union
 # TODO: This class represents intermediary nodes in the AST, so this means that terminals are not actually
 # expressions.  I'd like LiquidExpr to be something like a Union[Type[_PT], AstNode[_PT]] (with this class renamed
 # to AstNode) but I'm getting a "can't subclass Union" exception that I haven't been able to diagnose yet.
-class LiquidExpr(Generic[PyT]):
+class QualifiedType(Generic[PyT]):
     t: LiquidType[PyT]
 
     def __init__(self, tp: Union[Type[PyT], LiquidType[PyT]]):
@@ -27,77 +27,77 @@ class LiquidExpr(Generic[PyT]):
 
     # AST creation methods
 
-    def eq(self: "LiquidExpr[PyT]", other: PyT | "LiquidExpr[PyT]") -> "Eq":
+    def eq(self: "QualifiedType[PyT]", other: PyT | "QualifiedType[PyT]") -> "Eq":
         return Eq(self, other)
 
-    def lt(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Lt":
+    def lt(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Lt":
         return Lt(self, other)
 
-    def le(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Le":
+    def le(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Le":
         return Le(self, other)
 
-    def gt(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Gt":
+    def gt(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Gt":
         return Gt(self, other)
 
-    def ge(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Ge":
+    def ge(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Ge":
         return Ge(self, other)
 
-    def band(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "And":
+    def band(self: "QualifiedType[bool]", other: Union[bool, "QualifiedType[bool]"]) -> "And":
         return And(self, other)
 
-    def bor(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "Or":
+    def bor(self: "QualifiedType[bool]", other: Union[bool, "QualifiedType[bool]"]) -> "Or":
         return Or(self, other)
 
-    def add(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Add":
+    def add(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Add":
         return Add(self, other)
 
-    def sub(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Sub":
+    def sub(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Sub":
         return Sub(self, other)
 
-    def mul(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Mul":
+    def mul(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Mul":
         return Mul(self, other)
 
-    def div(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Div":
+    def div(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Div":
         return Div(self, other)
 
-    def mod(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Mod":
+    def mod(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Mod":
         return Mod(self, other)
 
-    def len(self: "LiquidExpr[list[PyT]]"):
+    def len(self: "QualifiedType[list[PyT]]"):
         return ArrayLen(self)
 
     # Operator overloading
-    def __add__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Add":
+    def __add__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Add":
         return self.add(other)
 
-    def __sub__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Sub":
+    def __sub__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Sub":
         return self.sub(other)
 
-    def __mul__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Mul":
+    def __mul__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Mul":
         return self.mul(other)
 
-    def __truediv__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Div":
+    def __truediv__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Div":
         return self.div(other)
 
-    def __mod__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Mod":
+    def __mod__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Mod":
         return self.mod(other)
 
-    def __and__(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "LiquidExpr[bool]":
+    def __and__(self: "QualifiedType[bool]", other: Union[bool, "QualifiedType[bool]"]) -> "QualifiedType[bool]":
         return self.band(other)
 
-    def __or__(self: "LiquidExpr[bool]", other: Union[bool, "LiquidExpr[bool]"]) -> "LiquidExpr[bool]":
+    def __or__(self: "QualifiedType[bool]", other: Union[bool, "QualifiedType[bool]"]) -> "QualifiedType[bool]":
         return self.bor(other)
 
-    def __le__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Le":
+    def __le__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Le":
         return self.le(other)
 
-    def __lt__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Lt":
+    def __lt__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Lt":
         return self.lt(other)
 
-    def __gt__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Gt":
+    def __gt__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Gt":
         return self.gt(other)
 
-    def __ge__(self: "LiquidExpr[int]", other: Union[int, "LiquidExpr[int]"]) -> "Ge":
+    def __ge__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Ge":
         return self.ge(other)
 
 
@@ -106,19 +106,19 @@ class LiquidExpr(Generic[PyT]):
 # Expressions
 
 @dataclass
-class UnaryOp(Generic[PyT, EvalT], LiquidExpr[EvalT]):
+class UnaryOp(Generic[PyT, EvalT], QualifiedType[EvalT]):
     """ A uniary operation on a liquid variable. """
-    target: LiquidExpr[PyT]
+    target: QualifiedType[PyT]
 
 
-class BinOp(Generic[PyT, PyT2, EvalT], LiquidExpr[EvalT]):
+class BinOp(Generic[PyT, PyT2, EvalT], QualifiedType[EvalT]):
     """ A binary operation on a liquid variable and a concrete Python one."""
-    lhs: LiquidExpr[PyT]
-    rhs: PyT2 | LiquidExpr[PyT2]
+    lhs: QualifiedType[PyT]
+    rhs: PyT2 | QualifiedType[PyT2]
 
-    def __init__(self, t: LiquidType[EvalT], lhs: LiquidExpr[PyT], rhs: PyT2 | LiquidExpr[PyT2]):
+    def __init__(self, t: LiquidType[EvalT], lhs: QualifiedType[PyT], rhs: PyT2 | QualifiedType[PyT2]):
         super().__init__(t)
-        if isinstance(rhs, LiquidExpr):
+        if isinstance(rhs, QualifiedType):
             if lhs.t.python_type != rhs.t.python_type:
                 raise errors.BinopTypeMismatch(lhs, self, rhs)
         else:
@@ -131,14 +131,14 @@ class BinOp(Generic[PyT, PyT2, EvalT], LiquidExpr[EvalT]):
 
 @dataclass
 class Eq(BinOp[PyT, PyT, bool]):
-    def __init__(self, lhs: LiquidExpr[PyT], rhs: Union[PyT, LiquidExpr[PyT]]):
+    def __init__(self, lhs: QualifiedType[PyT], rhs: Union[PyT, QualifiedType[PyT]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 ### Numeric comparisons
 
 class NumericBinOp(BinOp[int, int, EvalT]):
-    def __init__(self, t: LiquidType[EvalT], lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, t: LiquidType[EvalT], lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         if lhs.t.python_type != int:
             raise errors.BinopTypeMismatch(self, self, rhs)
         super().__init__(t, lhs, rhs)
@@ -146,25 +146,25 @@ class NumericBinOp(BinOp[int, int, EvalT]):
 
 @dataclass
 class Le(NumericBinOp[bool]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 @dataclass
 class Lt(NumericBinOp[bool]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 @dataclass
 class Ge(NumericBinOp[bool]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 @dataclass
 class Gt(NumericBinOp[bool]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Bool(), lhs, rhs)
 
 
@@ -172,38 +172,38 @@ class Gt(NumericBinOp[bool]):
 
 @dataclass
 class Add(NumericBinOp[int]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 @dataclass
 class Sub(NumericBinOp[int]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 @dataclass
 class Mul(NumericBinOp[int]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 @dataclass
 class Div(NumericBinOp[int]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 @dataclass
 class Mod(NumericBinOp[int]):
-    def __init__(self, lhs: LiquidExpr[int], rhs: Union[int, LiquidExpr[int]]):
+    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 ### Boolean operations
 
 class BooleanBinOp(BinOp[bool, bool, bool]):
-    def __init__(self, lhs: LiquidExpr[bool], rhs: Union[bool, LiquidExpr[bool]]):
+    def __init__(self, lhs: QualifiedType[bool], rhs: Union[bool, QualifiedType[bool]]):
         if lhs.t.python_type != bool:
             raise errors.BinopTypeMismatch(lhs, self, rhs)
         super().__init__(Bool(), lhs, rhs)
@@ -211,13 +211,13 @@ class BooleanBinOp(BinOp[bool, bool, bool]):
 
 @dataclass
 class And(BooleanBinOp):
-    def __init__(self, lhs: LiquidExpr[bool], rhs: Union[bool, LiquidExpr[bool]]):
+    def __init__(self, lhs: QualifiedType[bool], rhs: Union[bool, QualifiedType[bool]]):
         super().__init__(lhs, rhs)
 
 
 @dataclass
 class Or(BooleanBinOp):
-    def __init__(self, lhs: LiquidExpr[bool], rhs: Union[bool, LiquidExpr[bool]]):
+    def __init__(self, lhs: QualifiedType[bool], rhs: Union[bool, QualifiedType[bool]]):
         super().__init__(lhs, rhs)
 
 
@@ -225,10 +225,10 @@ class Or(BooleanBinOp):
 
 @dataclass
 class ArrayLen(Generic[PyT], UnaryOp[list[PyT], int]):
-    def __init__(self, l: LiquidExpr[list[PyT]]):
+    def __init__(self, l: QualifiedType[list[PyT]]):
         super().__init__(l)
         if l.t.python_type != list:
             raise errors.UnaryTypeMismatch(self, l)
 
 
-Predicate = LiquidExpr[bool]
+Predicate = QualifiedType[bool]

@@ -1,11 +1,11 @@
-from .syntax.terms import LiquidExpr
+from .syntax.quants import QualifiedType
 from .syntax.types import PyT, LiquidType, from_py_type
 
 from dataclasses import dataclass
 from typing import Union, Type
 
 @dataclass
-class LiquidVar(LiquidExpr[PyT]):
+class LiquidVar(QualifiedType[PyT]):
     """ A binding of a name to a type.  the `ident` metavariable name should
     match the name of the local Python variable for consistency."""
     ident: str
