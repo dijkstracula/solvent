@@ -1,4 +1,4 @@
-from solvent.ast import *
+from solvent.dsl import *
 
 import ast
 import pytest
@@ -16,7 +16,7 @@ def str_to_ast_expr(source: str):
 
 def str_to_assign(source: str):
     tree = ast.parse(source).body[0]
-    if not isinstance(tree, ast.Assign):
+    if not isinstance(tree, ast.Assign) and not isinstance(tree, ast.AnnAssign):
         raise errors.MalformedAST(tree, ast.Assign)
     return tree
 
@@ -60,6 +60,10 @@ def test_assign_wrapper():
         Assign.from_pyast(str_to_ast_expr("x = x"))
     with pytest.raises(SyntaxError):
         Assign.from_pyast(str_to_ast_expr("3 = 4"))
+
+
+def test_annassign_wrapper():
+    assign = AnnAssign.from_pyast(str_to_assign("i: i > 0 = 42"))
 
 
 def test_arith_expr_wrapper():

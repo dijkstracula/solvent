@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from types import GenericAlias
 from typing import Any, Callable, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
 
-from .syntax.types import PyT
+from .syntax.types import PyT, LiquidType
 from .typechecker.unification import Constraint, CVar
 
 # Wrappers for a tiny, tiny subset of AST nodes
@@ -29,7 +29,7 @@ def stmt_from_pyast(tree: ast.AST) -> "AstWrapper":
     if isinstance(tree, ast.Assign):
         return Assign.from_pyast(tree)
     if isinstance(tree, ast.AnnAssign):
-        raise Exception("TODO")
+        return AnnAssign.from_pyast(tree)
     if isinstance(tree, ast.If):
         return If.from_pyast(tree)
     return expr_from_pyast(tree)
@@ -102,10 +102,28 @@ class Return(AstWrapper[ast.Return]):
 
 
 @dataclass(frozen=True)
+class AnnAssign(Generic[PyAst, EvalT], AstWrapper[ast.AnnAssign]):
+    lhs: "Name"
+    rhs: "Expr"
+    annotation: LiquidType
+
+    @classmethod
+    def from_pyast(cls, node: ast.AST) -> "AnnAssign":
+        assert isinstance(node, ast.AnnAssign)
+        if not isinstance(node.target, ast.Name):
+            raise errors.MalformedAST(node.target, ast.Name)
+
+        lhs = Name(node.target.id)
+        rhs = expr_from_pyast(node.value)
+        pyannot = expr_from_pyast(node.annotation)
+
+        return AnnAssign(lhs, rhs, None)
+
+
+@dataclass(frozen=True)
 class Assign(Generic[PyAst, EvalT], AstWrapper[ast.Assign]):
     lhs: "Name"
     rhs: "Expr"
-
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "Assign":
@@ -117,12 +135,6 @@ class Assign(Generic[PyAst, EvalT], AstWrapper[ast.Assign]):
         rhs = expr_from_pyast(node.value)
 
         return Assign(lhs, rhs)
-
-
-@dataclass(frozen=True)
-class AnnAssign(AstWrapper[ast.Assign]):
-    pass
-
 
 @dataclass(frozen=True)
 class If(Generic[PyAst], AstWrapper[ast.If]):

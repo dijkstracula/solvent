@@ -2,6 +2,8 @@ import types as py_types
 
 from .. import errors
 
+import ast
+
 from dataclasses import dataclass
 from typing import Generic, TypeVar, Type
 
@@ -71,3 +73,20 @@ def from_py_type(t: Type[PyT]) -> LiquidType:
             return Array(from_py_type(params[0]))
     raise errors.UnsupportedPyType(t)
 
+
+def from_ast(t: ast.AST) -> LiquidType:
+    if isinstance(t, ast.Name):
+        if t.id in ["int", "bool", "list"]:
+            # A simple monomorphic type literal
+            blob = ast.unparse(t)
+            return from_py_type(eval(blob))  # Yee haw!
+        # TODO: if it isn't, then it feels like the Name could be an in-scope variable.
+    elif isinstance(t, ast.Subscript):
+        if t.__origin__ == "list":
+            # A polymorphic list
+            blob = ast.unparse(t)
+            return from_py_type(eval(blob))  # Yee haw!
+    elif isinstance(t, ast.Call):
+        # TODO: Hopefuly this is a call to a liquid type constructor, eek, what do??
+        raise Exception("TODO")
+    raise errors.MalformedAST(t)

@@ -4,7 +4,7 @@ import pytest
 
 from test_ast import str_to_ast_expr, str_to_assign
 
-from solvent.ast import *
+from solvent.dsl import *
 
 
 @pytest.fixture(autouse=True)

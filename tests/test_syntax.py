@@ -9,6 +9,7 @@ from solvent.syntax import terms
 
 sys.path.append("..")
 
+
 def test_fromPyType():
     assert (T.from_py_type(int) == T.Int())
     assert (T.from_py_type(bool) == T.Bool())
@@ -80,3 +81,9 @@ def test_bool_construction():
 def test_array_construction():
     xs = L("xs", T.Array(T.Bool()))
     assert (xs.len() == terms.ArrayLen(xs))
+
+
+def test_LV_construction():
+    i = L("i", T.Int())
+    nat = i >= 0
+    pos = i > 0

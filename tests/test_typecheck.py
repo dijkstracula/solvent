@@ -1,6 +1,6 @@
 import pytest
 
-from solvent.ast import *
+from solvent.dsl import *
 from solvent.typechecker.unification import unifier
 
 @pytest.fixture(autouse=True)
