@@ -1,0 +1,12 @@
+standalone: true
+citeproc: true
+output-file: report.html
+reference-links: true
+css: 
+  - pandoc.css
+metadata:
+  csl: acm.csl
+  title: "Liquid Types"
+  author:
+    - Nathan Taylor <ntaylor@cs.utexas.edu>
+    - Samuel Thomas <sgt@cs.utexas.edu>

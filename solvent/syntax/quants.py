@@ -227,7 +227,7 @@ class Or(BooleanBinOp):
 @dataclass
 class ArrayLen(Generic[PyT], UnaryOp[list[PyT], int]):
     def __init__(self, l: QualifiedType[list[PyT]]):
-        super().__init__(l)
+        super().__init__(l, target=l)
         if l.t.python_type != list:
             raise errors.UnaryTypeMismatch(self, l)
 
