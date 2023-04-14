@@ -12,8 +12,7 @@ html {
 body {
   color: #444;
   font-family: Georgia, Palatino, 'Palatino Linotype', Times, 'Times New Roman', serif;
-  font-size: 9px;
-  line-height: 1.4;
+  line-height: 1.5;
   padding: 1em;
   margin: auto;
   max-width: 42em;
@@ -252,6 +251,13 @@ table td {
   text-align: center;
 }
 
+pre, blockquote {
+  padding: .2em 1em;
+    border: 1px solid #999;
+    padding-right: 1em;
+    page-break-inside: avoid;
+}
+
 @media only screen and (min-width: 480px) {
   body {
     font-size: 14px;
@@ -271,7 +277,7 @@ table td {
   }
 
   body {
-    font-size: 10pt;
+    font-size: 9pt;
     max-width: 100%;
   }
 
@@ -300,8 +306,6 @@ table td {
   }
 
   pre, blockquote {
-    border: 1px solid #999;
-    padding-right: 1em;
     page-break-inside: avoid;
   }
 

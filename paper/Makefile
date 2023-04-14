@@ -1,9 +1,11 @@
 .PHONY: all
-all: report.pdf
+all: report.html
 
-report.pdf: report.md bibliography.bib defaults.yaml
-	pandoc --csl report/acm.csl report.md --bibliography bibliography.bib -d defaults.yaml -o report.pdf
+PANDOCARGS=--csl report/acm.csl --bibliography bibliography.bib -d defaults.yaml --embed-resources --standalone
+
+report.html: report.md bibliography.bib defaults.yaml pandoc.css
+	pandoc report.md $(PANDOCARGS) -o report.html
 
 .PHONY: clean
 clean:
-	rm -f report.pdf
+	rm -f report.html

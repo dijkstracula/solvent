@@ -1,6 +1,7 @@
 standalone: true
 citeproc: true
 output-file: report.html
+pdf-engine: xelatex
 reference-links: true
 css: 
   - pandoc.css
