@@ -24,17 +24,21 @@ def test_simple_annot_assign():
     assign = AnnAssign.from_pyast(str_to_assign("i: int = 42"))
     assert assign.lhs == Name("i")
     assert assign.rhs == Constant(42)
-    assert assign.annotation == LiquidTypes.Int()
+    assert assign.annotation == QualifiedType(LiquidTypes.Int())
 
     assign = AnnAssign.from_pyast(str_to_assign("b: bool = True"))
     assert assign.lhs == Name("b")
     assert assign.rhs == Constant(True)
-    assert assign.annotation == LiquidTypes.Bool()
+    assert assign.annotation == QualifiedType(LiquidTypes.Bool())
 
     assign = AnnAssign.from_pyast(str_to_assign("xs: list[int] = [1,2,3]"))
     assert assign.lhs == Name("xs")
     assert assign.rhs == List((Constant(1), Constant(2), Constant(3),))
-    assert assign.annotation == LiquidTypes.Array(LiquidTypes.Int())
+    assert assign.annotation == QualifiedType(LiquidTypes.Array(LiquidTypes.Int()))
 
-#def test_bound_lt_annot_assign():
-    #assign = AnnAssign.from_pyast(str_to_assign("i: i >= 0 = 42"))
+
+def test_bound_lt_annot_assign():
+    assign = AnnAssign.from_pyast(str_to_assign("i: i >= 0 = 42"))
+    assert assign.lhs == Name("i")
+    assert assign.rhs == Constant(42)
+    assert assign.annotation == Compare(Name("i"), ">=", Constant(0))

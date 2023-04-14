@@ -8,6 +8,8 @@ from typing import Union, Type
 class LiquidVar(QualifiedType[PyT]):
     """ A binding of a name to a type.  the `ident` metavariable name should
     match the name of the local Python variable for consistency."""
+    # TODO: I'm not convinced we want to remember the identifier name here.
+    # I thought we'd need it for vc generation, but...
     ident: str
 
     def __init__(self, ident: str, t: Union[Type[PyT], LiquidType[PyT]]):

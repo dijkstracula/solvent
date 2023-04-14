@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from types import GenericAlias
 from typing import Any, Callable, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
 
-from solvent.syntax.types import LiquidType, from_py_type
+from solvent.syntax.quants import QualifiedType
 from solvent.typechecker.unification import Constraint, CVar
 
 # Wrappers for a tiny, tiny subset of AST nodes
@@ -105,7 +105,7 @@ class Return(AstWrapper[ast.Return]):
 class AnnAssign(Generic[PyAst, EvalT], AstWrapper[ast.AnnAssign]):
     lhs: "Name"
     rhs: "Expr"
-    annotation: LiquidType
+    annotation: Union[QualifiedType, "Expr"]
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "AnnAssign":
@@ -162,6 +162,10 @@ class Expr(Generic[PyAst, EvalT], AstWrapper[PyAst]):
     def type(self, env: Env) -> Union[Type, CVar]:
         raise Exception(f"{type(self)}.type() not implemented")
 
+    # TODO: Rondon's thesis calls the output of this function ConstType; am I conflating things
+    def ConstType(self) -> QualifiedType[EvalT]:
+        raise Exception(f"{type(self)}.template() not implemented")
+
 
 @dataclass(frozen=True)
 class Constant(Expr[ast.Constant, Union[bool, int]]):
@@ -181,6 +185,10 @@ class Constant(Expr[ast.Constant, Union[bool, int]]):
 
     def type(self, env: Env) -> Union[Type, CVar]:
         return type(self.val)
+
+    def ConstType(self) -> QualifiedType[bool]:
+        #return L
+        pass
 
 
 @dataclass(frozen=True)
@@ -288,7 +296,21 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
         lhs = expr_from_pyast(node.left)
         rhs = expr_from_pyast(node.comparators[0])
 
-        return Compare(lhs, op, rhs)
+        match op.__class__.__name__:
+            case "Lt":
+                opName = "<"
+            case "LtE":
+                opName = "<="
+            case "Eq":
+                opName = "="
+            case "NotEq":
+                opName = "!="  # TODO: Not sure that this is right.
+            case "Gt":
+                opName = ">"
+            case "GtE":
+                opName = ">="
+
+        return Compare(lhs, opName, rhs)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
         for c in self.lhs.constraints(env):
@@ -358,21 +380,25 @@ class Subscript(Generic[PyAst, EvalT], Expr[ast.Subscript, EvalT]):
         return at.__args__[0]
 
 
-def from_ast(var: Name, t: ast.AST) -> LiquidType:
+def from_ast(var: Name, t: ast.AST) -> Union[Expr, QualifiedType]:
     if isinstance(t, ast.Name):
         if t.id in ["int", "bool", "list"]:
             # A simple monomorphic type literal
             blob = ast.unparse(t)
-            return from_py_type(eval(blob))  # Yee haw!
+            return QualifiedType(eval(blob))  # Yee haw!
         # TODO: if it isn't, then it feels like the Name could be an in-scope variable.
     elif isinstance(t, ast.Subscript):
         if t.value.id == "list":
             # A polymorphic list
             blob = ast.unparse(t)
-            return from_py_type(eval(blob))  # Yee haw!
+            return QualifiedType(eval(blob))  # Yee haw!
     elif isinstance(t, ast.Call):
         # TODO: Hopefuly this is a call to a liquid type constructor, eek, what do??
         expr = Call.from_pyast(t)
         raise Exception("TODO")
+
     # Hm, okay, I guess what we have here is a program expression
+    elif isinstance(t, ast.expr):
+        return expr_from_pyast(t)
+
     raise errors.UnsupportedAST(t)

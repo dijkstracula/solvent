@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from typing import Generic, Type, Union
 
 
-# TODO: This class represents intermediary nodes in the AST, so this means that terminals are not actually
+# TODO: This class represents intermediary nodes in the type, so this means that terminals are not actually
 # expressions.  I'd like LiquidExpr to be something like a Union[Type[_PT], AstNode[_PT]] (with this class renamed
 # to AstNode) but I'm getting a "can't subclass Union" exception that I haven't been able to diagnose yet.
+@dataclass
 class QualifiedType(Generic[PyT]):
     t: LiquidType[PyT]
 
