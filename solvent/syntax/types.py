@@ -1,3 +1,10 @@
+"""
+Functions to manipulate the base types we consider.
+
+TODO: Perhaps rename the enclosing syntax package to `types`?
+TODO: Perhaps rename this to "base" or something?  The core LiquidType class would have to be moved out.
+"""
+
 import types as py_types
 
 from .. import errors

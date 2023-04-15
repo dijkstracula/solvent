@@ -1,3 +1,8 @@
+"""
+The internal DSL that we use for typechecking.  At parse time, the Python AST
+is transformed into this more manageable sublanguage.
+"""
+
 import ast
 import itertools
 
@@ -9,16 +14,12 @@ from types import GenericAlias
 from typing import Any, Callable, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
 
 from solvent.syntax.quants import QualifiedType
-from solvent.typechecker.unification import Constraint, CVar
-
-# Wrappers for a tiny, tiny subset of AST nodes
+from solvent.typechecker.unification import Constraint, CVar, UnificationEnv as Env
 
 PyAst = TypeVar("PyAst", bound=ast.AST, covariant=True)
 
-
+# These are what we expect H-M typechecking to spit out.
 HMType = Type[int] | Type[bool] | Type[list] | Type[Callable] | CVar
-
-Env = dict["Name", Union[Type, CVar]]
 
 
 def stmt_from_pyast(tree: ast.AST) -> "AstWrapper":
@@ -135,12 +136,12 @@ class Assign(Generic[PyAst, EvalT], AstWrapper[ast.Assign]):
 
         return Assign(lhs, rhs)
 
+
 @dataclass(frozen=True)
 class If(Generic[PyAst], AstWrapper[ast.If]):
     test: "Expr[PyAst, bool]"
     tru: list[AstWrapper]
     fls: list[AstWrapper]
-
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "If":

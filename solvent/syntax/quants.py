@@ -1,3 +1,23 @@
+""" Type-level DSL for qualified types independent of program terms
+
+At parse time, we are able to convert many program annotations into internal
+AST nodes.  For instance, given the program fragment
+
+```
+i: i > 0 = 42
+```
+
+We extract the annotation `i > 0` from the assignment and transform it into the syntax
+subtree `dsl.Compare(dsl.Name("i"), ">=", dsl.Constant(0))`.  Meanwhile, the typechecker
+will produce a base type of `int`.  We next[1] have to qualify this type with the constraint
+`{i: int | i == 42}`, or, more precisely, `Int().eq(42)`.  This module contains the internal
+representation of this final refined type.
+
+TODO: Perhaps rename to something like refined.py?
+
+[1] TODO: Still have to lift base types into their refinements!
+"""
+
 from . import types
 from .. import errors
 
@@ -8,9 +28,6 @@ from dataclasses import dataclass
 from typing import Generic, Type, Union
 
 
-# TODO: This class represents intermediary nodes in the type, so this means that terminals are not actually
-# expressions.  I'd like LiquidExpr to be something like a Union[Type[_PT], AstNode[_PT]] (with this class renamed
-# to AstNode) but I'm getting a "can't subclass Union" exception that I haven't been able to diagnose yet.
 @dataclass
 class QualifiedType(Generic[PyT]):
     t: LiquidType[PyT]

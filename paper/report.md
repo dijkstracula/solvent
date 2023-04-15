@@ -43,7 +43,6 @@ but reasoning about inductive data structures is tricky.  You have to either inv
 custom logics for a particular data structure[@LinkedListVerification] or give up
 automation.  OR SOMETHING MAN IDK
 
-
 ### Towards relating types and terms
 
 While this particular soundness hole can be patched with traditional

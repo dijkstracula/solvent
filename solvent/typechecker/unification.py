@@ -1,9 +1,17 @@
+"""
+Performs classic unification against sequences of constraints between values
+and/or logical variables.
+
+Adapted from Norvig: Paradigms of Artificial Intelligence, ch. 11; and, material
+from UToronto's CSC324: Principles of Programming Languages course:
+http://individual.utoronto.ca/nbtaylor/csc324_s2020/asn2/partb.rkt
+"""
+
 from dataclasses import dataclass
-from typing import Any, Generic, Optional, TypeVar, Union
+from typing import Any, Generic, Optional, TypeVar, Type, Union
 
 T = TypeVar("T", covariant=True)
 U = TypeVar("U", covariant=True)
-
 
 _cvar_counter = 0
 
@@ -39,9 +47,7 @@ class Constraint(Generic[T, U]):
     rhs: Union[CVar, U]
 
     def unify(self, env: Env) -> Env:
-        """ See if x and y match given the bindings. (Adapted from Norvig: Paradigms of
-        Artificial Intelligence, ch. 11 and material from UToronto's CSC324 course:
-        http://individual.utoronto.ca/nbtaylor/csc324_s2020/asn2/partb.rkt)"""
+        """ See if x and y match given the bindings."""
         if env is None:
             return None
         if self.lhs == self.rhs:
@@ -90,4 +96,7 @@ def unifier(constraints: list[Constraint]) -> Env:
 def flip(lhs: list[Any], rhs: list[Any]) -> list[Constraint]:
     """ A helper to transform two structurally-similar lists into constraints"""
     return [Constraint(l, r) for l, r in zip(lhs, rhs)]
+
+
+UnificationEnv = dict["Name", Union[Type, CVar]]
 
