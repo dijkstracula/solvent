@@ -8,7 +8,7 @@ css:
 metadata:
   csl: acm.csl
   title: "Liquid Types"
-  geometry: margin=2cm
+  geometry: margin=1.5cm
   author:
     - Nathan Taylor <ntaylor@cs.utexas.edu>
     - Samuel Thomas <sgt@cs.utexas.edu>

@@ -16,13 +16,6 @@ In so doing, Milner's old canard
 that _"well-typed programs don't go wrong"_[@milner-type-poly] has entered the
 programmer's popular lexicon.
 
-```python
-def avg(xs):
-    return sum(xs) / len(xs)
-avg(42) # Runtime error: int is not iterable
-```
-_Figure 1: an ill-typed program that goes wrong._
-
 However, as a form of abstract interpretation[@CousotCousot], this statement is
 in reality circumscribed by how much information is lost in the abstract
 transformer: in particular, the program in Figure 2 can, indeed, go wrong - the
@@ -32,12 +25,17 @@ Concretely: Since at the type level an empty list is indistinguishable from a
 non-empty one, it's impossible  to reject a program that requires a _non-empty_
 list as input.
 
-```python
-def avg(xs: list[int]) -> int
+```{.python .numberLines}
+def avg(xs):
     return sum(xs) / len(xs)
+avg(42) # Runtime error: int is not iterable
+
+def avg(xs: list[int]) -> int
+    return sum(xs) // len(xs)
 avg([]) # Runtime error: ZeroDivisionError
 ```
-_Figure 2: a well-typed program that nevertheless goes wrong._
+_Figure 1: an ill-typed program that goes wrong, and a well-typed one that also
+goes wrong._
 
 ### Towards a type-theoretic approach
 
@@ -54,17 +52,93 @@ typelevel definition of the Peano naturals as a type `Nat` with type
 constructors `Z` and `S[N <: Nat]` would allow encoding natural numbers _within
 the type system_.  In contrast to the _term_ `3` (of type `int` and kind `★`),
 `S[S[S[Z]]]` is itself a _type_ (of kind `★`) with no inherent runtime
-semantics[@Shapeless].  This encoding would let us embed a second type parameter
-`L <: Nat` to `List[T]`, tracking the length of the list .  Under this scheme,
-`[1,2]` might be typed as `List[S[S[Z], Int]`, and `cons` as `𝛼 → List[l, 𝛼] →
-List[S[l], 𝛼]`.  While some may consider contorting an existing type system in
-this way to be a hack, the benefits are clear: as we have not introduced any
-new mechanism into an ordinary parametrically-polymorphic type system, we know
-that our type-metatheoretic properties of soundness, inference, and termination
-remain - after all, we are only reusing existing mechanism.  Just as clear,
-however, are the downsides: it's not difficult to imagine needing constraints
-over the naturals that are wildly impractical to state in such a restricted
-"type language".
+semantics[@Shapeless].  
+
+```{.python .numberLines}
+from typing import Any, Generic, TypeVar
+
+class Nat: pass
+M,N = TypeVar("M", bound=Nat), TypeVar("N", bound=Nat)
+
+class Z(Nat): pass
+class S(Nat, Generic[N]): pass
+
+Two: type = S[S[Z]]
+Four: type = S[S[Two]]
+```
+_Figure 2: A typelevel encoding of the natural numbers.  Note the absence of
+any runtime behaviour; `Two` and `Four` are not Python values but rather
+*types*. _
+
+Representing numbers this way would let us embed a second type parameter `L <:
+Nat` to a collection type `Vec[L, T]`, the vector of `L` elements of type `T`.
+As a concrete example, `[1,2]` might be typed as `List[S[S[Z], Int]`, and
+`cons` as `𝛼 → List[l, 𝛼] → List[S[l], 𝛼]`.  In so doing, we say that `Vec` is
+_indexed_ by the type `Nat`.  Notice that this is not the same as being indexed
+by _values_ of type `Nat`; indeed, `Z` and `S` in figure 3 are empty classes
+and have no runtime semantics at all.  
+
+```{.python .numberLines startFrom="12"}
+T = TypeVar("T")
+@dataclass
+class Vec(Generic[N,T]): # A Vector of N elements of type T
+    l: list[T]
+
+    @staticmethod
+    def nil() -> "Vec[Z, T]": return Vec([])
+    @staticmethod
+    def cons(t: T, l: "Vec[N, T]") -> "Vec[S[N], T]": return Vec([t] + l.l)
+
+empty: Vec[Z, int] = Vec.nil()
+one_two: Vec[Two, int] = Vec.cons(1, Vec.cons(2, Vec.nil()))
+one_four: Vec[Four, int] = Vec.cons(1, Vec.cons(4, Vec.nil())) # typechecking error
+
+def avg(l: Vec[S[N], int]) -> int:
+    return sum(l.l) // len(l.l)
+
+avg(one_two)
+avg(empty) # typechecking error
+```
+_Figure 3: A vector of elements whose length is encoded in the type system, and
+an implementation of `avg` that statically-rejects the empty `Vec`._
+
+While some may consider contorting an existing type system in this way to be a
+hack, the benefits are clear: as we have not introduced any new mechanism into
+an ordinary type system, we know that our existing type-metatheoretic
+properties of soundness, inference, and termination remain.  Also, most
+typechecking algorithms run in polynomial -- if not linear -- time.  In this
+way, once written, we get our proofs from our type system for free, and the
+procedure in which they are generated is decidedly non-magical.
+
+Just as clear, however, are the downsides: that typecheckers operate on program
+fragments definitionally restrict us to shallow propositions: it's not
+difficult to imagine needing constraints over the naturals that are wildly
+impractical, if not impossible, to state entirely in the metalanguage of
+parametrically-polymorphic types.  For instance, while we can prove the length
+of a Vec is nonzero, we cannot state that elements _contained within the Vec_
+are themselves nonzero, nor could we specify a constraint over the index type
+itself (such as enforcing a list of even length).
+
+Further, ergonomic issues abound: a type error should be treated as a form 
+of counterproof, but often reported errors are at the wrong level of abstraction;
+for instance, decoding the two error-producing expressions in Figure 3 requires
+knowing the implementation details of `Nat` and `Vec` and obsecures relevent details:
+
+```
+$ pycheck peanos.py
+/Users/ntaylor/code/peanos.py
+ /Users/ntaylor/code/peanos.py:24:28 - error: Expression of type "Vec[S[S[S[S[Z]] | Z]], int]" cannot be assigned to declared type "Vec[S[S[S[S[Z]]]], int]"
+  TypeVar "N@Vec" is covariant
+   TypeVar "N@S" is covariant
+    TypeVar "N@S" is covariant
+     Type "S[S[Z]] | Z" cannot be assigned to type "S[S[Z]]"
+      "Z" is incompatible with "S[S[Z]]" (reportGeneralTypeIssues)
+ /Users/ntaylor/code/peanos.py:30:5 - error: Argument of type "Vec[Z, int]" cannot be assigned to parameter "l" of type "Vec[S[N@avg], int]" in function "avg"
+  TypeVar "N@Vec" is covariant
+   "Z" is incompatible with "S[N@avg]" (reportGeneralTypeIssues)
+2 errors, 0 warnings, 0 infos
+$
+```
 
 TODO: Alternative: higher-order theorem proving lets us express all sorts of
 nice properties (even with, under curry-howard, quantifiers!) but now humans
@@ -106,16 +180,23 @@ def avg(xs: List(Int) | len(xs) > 0) -> int
 avg(42) # Type-checking error
 avg([]) # Type-checking error
 ```
-_Figure 3: a dependently-typed program that does not go wrong._
-
+_Figure 3: a well-typed program that does not go wrong._
 
 By contrast, liquid types[@LiquidTypesPLDI08] owns, dude.
-
-<---
 
 
 ## Historical overview and context
 
-## 
+## The technique
 
-[^1]: In particular, those derived from the Hindley-Milner subset of System F.
+### From program expressions to base types
+
+### Lifting base types into refined types
+
+### Predicate abstraction and the journey home
+
+## Limitations and Subsequent Work
+
+[^1]: In particular, those derived from the Hindley-Milner subset of System F,
+  which we can intuit as being more or less equivalent in expressiveness to
+  Java's Generics[@JavaGenerics].
