@@ -68,6 +68,16 @@ img {
   max-width: 100%;
 }
 
+.references {
+  font-size: 0.80em;
+}
+
+pre.numberSource code > span {
+	position: relative;
+	left: -4.5em;
+	counter-increment: source-line;
+}
+
 h1, h2, h3, h4, h5, h6 {
   color: #111;
   line-height: 125%;
@@ -126,7 +136,7 @@ pre, code, kbd, samp {
   font-family: monospace, monospace;
   _font-family: 'courier new', monospace;
   line-height: 1.25;
-  font-size: 0.80em;
+  font-size: 0.95em;
 }
 
 pre {
@@ -253,9 +263,9 @@ table td {
 
 pre, blockquote {
   padding: .2em 1em;
-    border: 1px solid #999;
-    padding-right: 1em;
-    page-break-inside: avoid;
+  border: 1px solid #999;
+  padding-right: 1em;
+  page-break-inside: avoid;
 }
 
 @media only screen and (min-width: 480px) {
@@ -271,13 +281,15 @@ pre, blockquote {
 @media print {
   * {
     background: transparent !important;
+    /*
     color: black !important;
+    */
     filter: none !important;
     -ms-filter: none !important;
   }
 
   body {
-    font-size: 9pt;
+    font-size: 8pt;
     max-width: 100%;
   }
 

@@ -12,17 +12,16 @@ annotation), and termination are guaranteed, even when type-checking programs
 whose behaviour depends on runtime user input or data structures of unknown or
 unbounded size.  
 
-In so doing, Milner's old canard
-that _"well-typed programs don't go wrong"_[@milner-type-poly] has entered the
-programmer's popular lexicon.
+In so doing, Milner's old canard that _"well-typed programs don't go
+wrong"_[@milner-type-poly] has entered the programmer's popular lexicon.
 
 However, as a form of abstract interpretation[@CousotCousot], this statement is
-in reality circumscribed by how much information is lost in the abstract
-transformer: in particular, the program in Figure 2 can, indeed, go wrong - the
-type system proves the _shape_ of the input datatype (morally, an iterable,
+in reality circumscribed by how much information is lost by the abstract
+transformation: in particular, the program in Figure 2 can, indeed, go wrong -
+the type system proves the _shape_ of the input datatype (morally, an iterable,
 indexable structure) but lost facts about _particular_ well-typed terms.
 Concretely: Since at the type level an empty list is indistinguishable from a
-non-empty one, it's impossible  to reject a program that requires a _non-empty_
+non-empty one, it's impossible to reject a program that requires a _non-empty_
 list as input.
 
 ```{.python .numberLines}
@@ -39,20 +38,23 @@ goes wrong._
 
 ### Towards a type-theoretic approach
 
-This particular soundness hole can be approached from the world of types, too.
-Be it via refactoring the subtyping hierarchy for `List`,
-[@ScalaCatsNonEmptyList], indexed types[@ZengerIndexedTypes], or generalized
-algebraic datatypes[@InductiveFamilies], we need to place constraints on terms
-of type `List[T]` by a statement in some particular _constraint domain_. In our
-case, our domain would need to be rich enough to encode and solve for the
-nonemptiness constraint on the input list `xs`.
+This particular soundness hole can be tackled by making the typelevel
+definition of a list more precise. Be it via refactoring the subtyping
+hierarchy for `List`, [@ScalaCatsNonEmptyList], indexed
+types[@ZengerIndexedTypes], or generalized algebraic
+datatypes[@InductiveFamilies], we need to place constraints on terms of type
+`List[T]` by a statement in some particular _constraint domain_. In our case,
+our domain would need to be rich enough to encode and solve for an nonemptiness
+constraint.  In general, the richer the constraint domain, the richer and more
+general qualifications we can place on a type, but the higher the proof burden
+on the humans and proof systems in the loop.
 
 A constraint domain may simply be the existing type system.  For instance, the
 typelevel definition of the Peano naturals as a type `Nat` with type
-constructors `Z` and `S[N <: Nat]` would allow encoding natural numbers _within
-the type system_.  In contrast to the _term_ `3` (of type `int` and kind `★`),
-`S[S[S[Z]]]` is itself a _type_ (of kind `★`) with no inherent runtime
-semantics[@Shapeless].  
+constructors `Z` and `S[N <: Nat]` would allow a new encoding of natural
+numbers _within the type system_.  In contrast to the _term_ `3` (of type
+`int`), `S[S[S[Z]]]` is itself a _type_ (namely, a subtype of `Nat`) with no
+inherent runtime semantics[@Shapeless].  
 
 ```{.python .numberLines}
 from typing import Any, Generic, TypeVar
@@ -66,17 +68,17 @@ class S(Nat, Generic[N]): pass
 Two: type = S[S[Z]]
 Four: type = S[S[Two]]
 ```
-_Figure 2: A typelevel encoding of the natural numbers.  Note the absence of
-any runtime behaviour; `Two` and `Four` are not Python values but rather
-*types*. _
+_Figure 2: A typelevel encoding of the natural numbers._
 
 Representing numbers this way would let us embed a second type parameter `L <:
 Nat` to a collection type `Vec[L, T]`, the vector of `L` elements of type `T`.
 As a concrete example, `[1,2]` might be typed as `List[S[S[Z], Int]`, and
 `cons` as `𝛼 → List[l, 𝛼] → List[S[l], 𝛼]`.  In so doing, we say that `Vec` is
-_indexed_ by the type `Nat`.  Notice that this is not the same as being indexed
-by _values_ of type `Nat`; indeed, `Z` and `S` in figure 3 are empty classes
-and have no runtime semantics at all.  
+_indexed_ by the type `Nat`, and a fuller implementation of `Vec` (see Figure 3).  
+
+Notice that this is not the same as being indexed by _values_ of type `Nat`; we
+cannot write `List[2, Int]` as the term 2 and type `S[S[Z]]` occupy different
+syntactic domains.
 
 ```{.python .numberLines startFrom="12"}
 T = TypeVar("T")
@@ -90,17 +92,18 @@ class Vec(Generic[N,T]): # A Vector of N elements of type T
     def cons(t: T, l: "Vec[N, T]") -> "Vec[S[N], T]": return Vec([t] + l.l)
 
 empty: Vec[Z, int] = Vec.nil()
-one_two: Vec[Two, int] = Vec.cons(1, Vec.cons(2, Vec.nil()))
-one_four: Vec[Four, int] = Vec.cons(1, Vec.cons(4, Vec.nil())) # typechecking error
+one_two:  Vec[Two, int]  = Vec.cons(1, Vec.cons(2, Vec.nil()))
+one_four: Vec[Four, int] = Vec.cons(1, Vec.cons(4, Vec.nil())) # error: Expression of type "Vec[S[S[S[S[Z]] | Z]], int]" cannot be assigned to declared type "Vec[S[S[S[S[Z]]]], int]"; TypeVar "N@Vec" is covariant; TypeVar "N@S" is covariant; TypeVar "N@S" is covariant; Type "S[S[Z]] | Z" cannot be assigned to type "S[S[Z]]"; "Z" is incompatible with "S[S[Z]]"
 
 def avg(l: Vec[S[N], int]) -> int:
     return sum(l.l) // len(l.l)
 
 avg(one_two)
-avg(empty) # typechecking error
+avg(empty) # error: Argument of type "Vec[Z, int]" cannot be assigned to parameter "l" of type "Vec[S[N@avg], int]" in function "avg"; TypeVar "N@Vec" is covariant; "Z" is incompatible with "S[N@avg]"
 ```
-_Figure 3: A vector of elements whose length is encoded in the type system, and
-an implementation of `avg` that statically-rejects the empty `Vec`._
+_Figure 3: A vector of elements whose length is indexed by the type system, and
+an implementation of `avg` that rejects an empty `Vec` with a difficult to
+understand error._
 
 While some may consider contorting an existing type system in this way to be a
 hack, the benefits are clear: as we have not introduced any new mechanism into
@@ -117,28 +120,14 @@ impractical, if not impossible, to state entirely in the metalanguage of
 parametrically-polymorphic types.  For instance, while we can prove the length
 of a Vec is nonzero, we cannot state that elements _contained within the Vec_
 are themselves nonzero, nor could we specify a constraint over the index type
-itself (such as enforcing a list of even length).
+itself (such as enforcing a list of even length), so we have to adjust
+expectations accordingly.
 
 Further, ergonomic issues abound: a type error should be treated as a form 
 of counterproof, but often reported errors are at the wrong level of abstraction;
 for instance, decoding the two error-producing expressions in Figure 3 requires
-knowing the implementation details of `Nat` and `Vec` and obsecures relevent details:
-
-```
-$ pycheck peanos.py
-/Users/ntaylor/code/peanos.py
- /Users/ntaylor/code/peanos.py:24:28 - error: Expression of type "Vec[S[S[S[S[Z]] | Z]], int]" cannot be assigned to declared type "Vec[S[S[S[S[Z]]]], int]"
-  TypeVar "N@Vec" is covariant
-   TypeVar "N@S" is covariant
-    TypeVar "N@S" is covariant
-     Type "S[S[Z]] | Z" cannot be assigned to type "S[S[Z]]"
-      "Z" is incompatible with "S[S[Z]]" (reportGeneralTypeIssues)
- /Users/ntaylor/code/peanos.py:30:5 - error: Argument of type "Vec[Z, int]" cannot be assigned to parameter "l" of type "Vec[S[N@avg], int]" in function "avg"
-  TypeVar "N@Vec" is covariant
-   "Z" is incompatible with "S[N@avg]" (reportGeneralTypeIssues)
-2 errors, 0 warnings, 0 infos
-$
-```
+exposes implementation details of `Nat` and `Vec` while obscuring relevent
+ones, making applying the "counterproof" a frictive experience.
 
 TODO: Alternative: higher-order theorem proving lets us express all sorts of
 nice properties (even with, under curry-howard, quantifiers!) but now humans
@@ -150,37 +139,54 @@ Type Enjoyer maybe can you flesh this bit out?
 ### Towards a model-theoretic approach
 
 Certainly, the logical statement `at no point will len(xs) be zero` feels very
-much a temporal safety property, suggesting a straightforward "throw a tool for
-temporal model checking like Slam[@SlamProject] or Saturn[@Saturn] at it"
-solution.  Much like our non-higher order type systems, model checking
-techniques are sound, push-button in their human-in-the-loop requirements, and
-can scale up to tackle the practicalities of exploring the execution space in
-real-world software.
+much a safety property, suggesting a straightforward "throw a tool for model
+checking like Slam[@SlamProject] or Saturn[@Saturn] at it" solution. Much like
+our non-higher order type systems, model checking techniques are sound,
+push-button in their human-in-the-loop requirements, and can scale up to tackle
+the practicalities of exploring the execution space in real-world software.
 
 Indeed, enumerating paths through a program is a property of model-checking
 that is not well-covered in the type theory space.  Type systems are typically
-_path-insensitive_ as most typechecking algorithms act on a bottom-up traversal
-of the syntax tree.  TODO: yes, this might be true, but what does this buy us?
-Presuambly a more interesting counterexample can follow from following a full
-execution path?
+_path-insensitive_ as most typechecking algorithms act upon program
+fragments, and then compose to operate over the program as a whole.  This
+"context-free" nature means the typechecker knows where it's going, but it
+doesn't know where it's been[@RoadtoNowhere], limiting the richness of the
+space of counterproofs that it can generate.
 
-TODO: but reasoning about inductive data structures is tricky.  You have to
-either invent custom logics for a particular data
-structure[@LinkedListVerification] or give up automation[@Dafny]. OR
-SOMETHING MAN IDK
+The model checking approach is not strictly optimal, however.  Hidden within
+our straightforward type `List[T]` is in fact something problematic for model
+checkers: under Curry-Howard, a type variable corresponds to universal
+quantification in constructive logic.  In that way, a natural reading of the
+polymorphic list type is: _for all elements in the list, that element types to
+`T`_ Meanwhile, the encoding schemes for symbolically abstracting states into
+statesets such as BDDs and subsets of first-order logic, typically eschew
+quantifiers altogether.  
+
+So, given that reasoning about inductive data structures with a pure model-checking
+.  You have to either invent custom logics for a particular
+data structure[@LinkedListVerification] give up full automation[@Dafny], or
+hope that heuristics will do the right thing[@TriggerSelection]. OR SOMETHING
+MAN IDK
 
 ### Unifying the two approaches with logically-qualified types
 
+Ideally, we would be able to pick and choose parts from both the model- and
+type-theoretic approaches to get the benefits of each.
+
 A _refinement type_[@RefinementTypesForML] is the a pairing of a type (called
-the _base type_) and some predicate 
+the _base type_) and some logical predicate that _refines_ it.  For example,
+`{v: int | 0 <= v ∧ v < n}` refines the base type of the integers to be bound
+between 0 and some other program value `n`, assumed to be in scope here.  Since
+`n` is a term in some program, a refinement type is also a dependent type (in
+particular, the finite dependent sum type `Fin n`). 
 
 ```python
 def avg(xs: List(Int) | len(xs) > 0) -> int
-    return sum(xs) / len(xs)
+    return sum(xs) // len(xs)
 avg(42) # Type-checking error
 avg([]) # Type-checking error
 ```
-_Figure 3: a well-typed program that does not go wrong._
+_Figure 4: a well-logically qualified typed program that does not go wrong._
 
 By contrast, liquid types[@LiquidTypesPLDI08] owns, dude.
 
@@ -192,6 +198,8 @@ By contrast, liquid types[@LiquidTypesPLDI08] owns, dude.
 ### From program expressions to base types
 
 ### Lifting base types into refined types
+
+### Subtyping through implications
 
 ### Predicate abstraction and the journey home
 
