@@ -129,12 +129,13 @@ for instance, decoding the two error-producing expressions in Figure 3 requires
 exposes implementation details of `Nat` and `Vec` while obscuring relevent
 ones, making applying the "counterproof" a frictive experience.
 
-TODO: Alternative: higher-order theorem proving lets us express all sorts of
+_TODO: Alternative: higher-order theorem proving lets us express all sorts of
 nice properties (even with, under curry-howard, quantifiers!) but now humans
 have to step in and help with the proof discharge, and program execution is
 sometimes constrained to e.g. provably terminate, fit into Calculus of
-Constructions-compliant datatypes, or whatever.  Sammy: since you're the real
-Type Enjoyer maybe can you flesh this bit out?
+Constructions-compliant datatypes, or whatever.  Definition of a dependent
+type should go here too.  Sammy: since you're the real Type Enjoyer maybe can
+you flesh this bit out?_
 
 ### Towards a model-theoretic approach
 
@@ -162,23 +163,27 @@ polymorphic list type is: _for all elements in the list, that element types to
 statesets such as BDDs and subsets of first-order logic, typically eschew
 quantifiers altogether.  
 
-So, given that reasoning about inductive data structures with a pure model-checking
-.  You have to either invent custom logics for a particular
-data structure[@LinkedListVerification] give up full automation[@Dafny], or
-hope that heuristics will do the right thing[@TriggerSelection]. OR SOMETHING
-MAN IDK
+Generally, therefore, reasoning about inductive data structures, something
+trivial for a type-checker, can cause a model checker to wander into the realm
+of undecidability.  Either users are therefore forced to either give up full
+automation in their models[@Dafny], or model checker implementers are required
+to add new axioms on a per-data structure basis[@LinkedListVerification] or
+hope that their system's heuristics[@TriggerSelection] will not cause verification
+to spiral out of control.
 
-### Unifying the two approaches with logically-qualified types
+## Unifying the two approaches with logically-qualified types
 
 Ideally, we would be able to pick and choose parts from both the model- and
 type-theoretic approaches to get the benefits of each.
 
-A _refinement type_[@RefinementTypesForML] is the a pairing of a type (called
-the _base type_) and some logical predicate that _refines_ it.  For example,
-`{v: int | 0 <= v ∧ v < n}` refines the base type of the integers to be bound
-between 0 and some other program value `n`, assumed to be in scope here.  Since
-`n` is a term in some program, a refinement type is also a dependent type (in
-particular, the finite dependent sum type `Fin n`). 
+A _refinement type_[@RefinementTypesForML] is the a pairing of an ordinary,
+potentially polymorphic type (called the _base type_) and some logical
+predicate that _refines_ it.  For example, `{v: int | 0 <= v ∧ v < n}` refines
+the base type of the integers to be bound between 0 and some other program
+value `n`.  Since `n` is a program-level term, a refinement type is also a
+dependent type (in particular, the finite dependent sum type `Fin n`).  As
+before, the expressiveness of a refinement type depends on the expressiveness
+of the refining predicate's constraint domain.
 
 ```python
 def avg(xs: List(Int) | len(xs) > 0) -> int
@@ -186,7 +191,7 @@ def avg(xs: List(Int) | len(xs) > 0) -> int
 avg(42) # Type-checking error
 avg([]) # Type-checking error
 ```
-_Figure 4: a well-logically qualified typed program that does not go wrong._
+_Figure 4: a logically qualified program that does not go wrong._
 
 By contrast, liquid types[@LiquidTypesPLDI08] owns, dude.
 
