@@ -34,21 +34,13 @@
     bibsource = {dblp computer science bibliography, https://dblp.org}
 }
 
-@inproceedings{10.1145/277650.277732,
-    author = {Xi, Hongwei and Pfenning, Frank},
-    title = {Eliminating Array Bound Checking through Dependent Types},
-    year = {1998},
-    isbn = {0897919874},
-    publisher = {Association for Computing Machinery},
-    address = {New York, NY, USA},
-    url = {https://doi.org/10.1145/277650.277732},
-    doi = {10.1145/277650.277732},
-    abstract = {We present a type-based approach to eliminating array bound checking and list tag checking by conservatively extending Standard ML with a restricted form of dependent types. This enables the programmer to capture more invariants through types while type-checking remains decidable in theory and can still be performed efficiently in practice. We illustrate our approach through concrete examples and present the result of our preliminary experiments which support support the feasibility and effectiveness of our approach.},
-    booktitle = {Proceedings of the ACM SIGPLAN 1998 Conference on Programming Language Design and Implementation},
-    pages = {249–257},
-    numpages = {9},
-    location = {Montreal, Quebec, Canada},
-    series = {PLDI '98}
+@article{DependentML,
+  title={Dependent ML An approach to practical programming with dependent types},
+  author={Hongwei Xi},
+  journal={Journal of Functional Programming},
+  year={2007},
+  volume={17},
+  pages={215 - 286}
 }
 
 @article{EliminatingBoundsChecking,
@@ -63,7 +55,6 @@
     issn = {0362-1340},
     url = {https://doi.org/10.1145/277652.277732},
     doi = {10.1145/277652.277732},
-    abstract = {We present a type-based approach to eliminating array bound checking and list tag checking by conservatively extending Standard ML with a restricted form of dependent types. This enables the programmer to capture more invariants through types while type-checking remains decidable in theory and can still be performed efficiently in practice. We illustrate our approach through concrete examples and present the result of our preliminary experiments which support support the feasibility and effectiveness of our approach.},
     journal = {SIGPLAN Not.},
     month = {may},
     pages = {249–257},
@@ -148,6 +139,13 @@
     keywords = {hindley-milner, dependent types, type inference, predicate abstraction},
     location = {Tucson, AZ, USA},
     series = {PLDI '08}
+}
+
+@misc{LiquidHaskellTutorial,
+    title = {Programming with Refinement Types: An Introduction to LiquidHaskell},
+    author = {Jhala, R. and Seidel, E. and Vazou, N.},
+    howpublished = {\url{https://ucsd-progsys.github.io/liquidhaskell-tutorial/}},
+    note = {Accessed: 2023-04-17}
 }
 
 @article{milner-type-poly,
@@ -256,6 +254,30 @@
     numpages = {3},
     location = {Portland, Oregon},
     series = {POPL '02}
+}
+
+@article{SystemFUndecidable,
+    author = {Wells, J. B.},
+    biburl = {https://www.bibsonomy.org/bibtex/2d6a0e20dfca09ffc0e6b67f569dcd897/dblp},
+    ee = {https://doi.org/10.1016/S0168-0072(98)00047-5},
+    journal = {Ann. Pure Appl. Log.},
+    keywords = {dblp},
+    number = {1-3},
+    pages = {111-156},
+    timestamp = {2020-02-22T12:46:15.000+0100},
+    title = {Typability and Type Checking in System F are Equivalent and Undecidable.},
+    url = {http://dblp.uni-trier.de/db/journals/apal/apal98.html#Wells99},
+    volume = 98,
+    year = 1999
+}
+
+@book{TaPL,
+    author = {Pierce, Benjamin C.},
+    title = {Types and Programming Languages},
+    year = {2002},
+    isbn = {0262162091},
+    publisher = {The MIT Press},
+    edition = {1st},
 }
 
 @inproceedings{TriggerSelection,

@@ -13,11 +13,12 @@ whose behaviour depends on runtime user input or data structures of unknown or
 unbounded size.  
 
 In so doing, Milner's old canard that _"well-typed programs don't go
-wrong"_[@milner-type-poly] has entered the programmer's popular lexicon.
+wrong"_[@milner-type-poly] has entered the programmer's popular lexicon
+[@LiquidHaskellTutorial].
 
 However, as a form of abstract interpretation[@CousotCousot], this statement is
 in reality circumscribed by how much information is lost by the abstract
-transformation: in particular, the program in Figure 2 can, indeed, go wrong -
+transformation: in particular, the program in Figure 1 can, indeed, go wrong -
 the type system proves the _shape_ of the input datatype (morally, an iterable,
 indexable structure) but lost facts about _particular_ well-typed terms.
 Concretely: Since at the type level an empty list is indistinguishable from a
@@ -34,7 +35,7 @@ def avg(xs: list[int]) -> int
 avg([]) # Runtime error: ZeroDivisionError
 ```
 _Figure 1: an ill-typed program that goes wrong, and a well-typed one that also
-goes wrong._
+goes wrong.[@LiquidHaskellTutorial]._
 
 ### Towards a type-theoretic approach
 
@@ -47,7 +48,9 @@ datatypes[@InductiveFamilies], we need to place constraints on terms of type
 our domain would need to be rich enough to encode and solve for an nonemptiness
 constraint.  In general, the richer the constraint domain, the richer and more
 general qualifications we can place on a type, but the higher the proof burden
-on the humans and proof systems in the loop.
+on the humans and proof systems in the loop.  In the words of Rondon et al,
+_type checking [over a constraint domain] is shown to be decidable modulo the
+decidability of the domain_.
 
 A constraint domain may simply be the existing type system.  For instance, the
 typelevel definition of the Peano naturals as a type `Nat` with type
@@ -75,9 +78,8 @@ Nat` to a collection type `Vec[L, T]`, the vector of `L` elements of type `T`.
 As a concrete example, `[1,2]` might be typed as `List[S[S[Z], Int]`, and
 `cons` as `𝛼 → List[l, 𝛼] → List[S[l], 𝛼]`.  In so doing, we say that `Vec` is
 _indexed_ by the type `Nat`, and a fuller implementation of `Vec` (see Figure 3).  
-
 Notice that this is not the same as being indexed by _values_ of type `Nat`; we
-cannot write `List[2, Int]` as the term 2 and type `S[S[Z]]` occupy different
+cannot write `List[2, Int]` as the term `2` and type `S[S[Z]]` occupy different
 syntactic domains.
 
 ```{.python .numberLines startFrom="12"}
@@ -85,19 +87,15 @@ T = TypeVar("T")
 @dataclass
 class Vec(Generic[N,T]): # A Vector of N elements of type T
     l: list[T]
+def nil() -> Vec[Z, T]: return Vec([])
+def cons(t: T, l: Vec[N, T]) -> Vec[S[N], T]: return Vec([t] + l.l)
 
-    @staticmethod
-    def nil() -> "Vec[Z, T]": return Vec([])
-    @staticmethod
-    def cons(t: T, l: "Vec[N, T]") -> "Vec[S[N], T]": return Vec([t] + l.l)
-
-empty: Vec[Z, int] = Vec.nil()
-one_two:  Vec[Two, int]  = Vec.cons(1, Vec.cons(2, Vec.nil()))
-one_four: Vec[Four, int] = Vec.cons(1, Vec.cons(4, Vec.nil())) # error: Expression of type "Vec[S[S[S[S[Z]] | Z]], int]" cannot be assigned to declared type "Vec[S[S[S[S[Z]]]], int]"; TypeVar "N@Vec" is covariant; TypeVar "N@S" is covariant; TypeVar "N@S" is covariant; Type "S[S[Z]] | Z" cannot be assigned to type "S[S[Z]]"; "Z" is incompatible with "S[S[Z]]"
+empty: Vec[Z, int] = nil()
+one_two:  Vec[Two, int]  = cons(1, cons(2, nil()))
+one_four: Vec[Four, int] = cons(1, cons(4, nil())) # error: Expression of type "Vec[S[S[S[S[Z]] | Z]], int]" cannot be assigned to declared type "Vec[S[S[S[S[Z]]]], int]"; TypeVar "N@Vec" is covariant; TypeVar "N@S" is covariant; TypeVar "N@S" is covariant; Type "S[S[Z]] | Z" cannot be assigned to type "S[S[Z]]"; "Z" is incompatible with "S[S[Z]]"
 
 def avg(l: Vec[S[N], int]) -> int:
     return sum(l.l) // len(l.l)
-
 avg(one_two)
 avg(empty) # error: Argument of type "Vec[Z, int]" cannot be assigned to parameter "l" of type "Vec[S[N@avg], int]" in function "avg"; TypeVar "N@Vec" is covariant; "Z" is incompatible with "S[N@avg]"
 ```
@@ -134,8 +132,9 @@ nice properties (even with, under curry-howard, quantifiers!) but now humans
 have to step in and help with the proof discharge, and program execution is
 sometimes constrained to e.g. provably terminate, fit into Calculus of
 Constructions-compliant datatypes, or whatever.  Definition of a dependent
-type should go here too.  Sammy: since you're the real Type Enjoyer maybe can
-you flesh this bit out?_
+type should go here too, and ideally an example that requires something more
+expressive than liquid types.  Sammy: since you're the real Type Enjoyer maybe
+can you flesh this bit out?_
 
 ### Towards a model-theoretic approach
 
@@ -156,12 +155,11 @@ space of counterproofs that it can generate.
 
 The model checking approach is not strictly optimal, however.  Hidden within
 our straightforward type `List[T]` is in fact something problematic for model
-checkers: under Curry-Howard, a type variable corresponds to universal
-quantification in constructive logic.  In that way, a natural reading of the
-polymorphic list type is: _for all elements in the list, that element types to
-`T`_ Meanwhile, the encoding schemes for symbolically abstracting states into
-statesets such as BDDs and subsets of first-order logic, typically eschew
-quantifiers altogether.  
+checkers: under Curry-Howard, a type variable corresponds to quantifying over
+propositions in constructive logic[@TaPL].  In that way, a natural reading of
+a polymorphic type is: `for all propositions P, T(P)`. Meanwhile, the encoding
+schemes for symbolically abstracting states into statesets such as BDDs and
+subsets of first-order logic, typically eschew quantifiers altogether.  
 
 Generally, therefore, reasoning about inductive data structures, something
 trivial for a type-checker, can cause a model checker to wander into the realm
@@ -173,17 +171,24 @@ to spiral out of control.
 
 ## Unifying the two approaches with logically-qualified types
 
-Ideally, we would be able to pick and choose parts from both the model- and
-type-theoretic approaches to get the benefits of each.
-
 A _refinement type_[@RefinementTypesForML] is the a pairing of an ordinary,
-potentially polymorphic type (called the _base type_) and some logical
+nominally-polymorphic type (called the _base type_) and some logical
 predicate that _refines_ it.  For example, `{v: int | 0 <= v ∧ v < n}` refines
-the base type of the integers to be bound between 0 and some other program
-value `n`.  Since `n` is a program-level term, a refinement type is also a
-dependent type (in particular, the finite dependent sum type `Fin n`).  As
-before, the expressiveness of a refinement type depends on the expressiveness
-of the refining predicate's constraint domain.
+the base type of the integers to be bound between 0 and some other value `n`.
+Since `n` is a program-level term, a refinement type is also a dependent type
+(in particular, type zoologists will recognise a familiar sight: this is the
+dependent type `Fin n`).  As before, the expressiveness of a refinement type
+depends on the expressiveness of the refining predicate's constraint domain.  
+
+Critically: If the constraint domain is made up of boolean predicates over
+program terms, we can call such a refinement type a _logically-qualified
+(LiQuid) type_[@LiquidTypesPLDI08].  Ideally, we would be able to pick and
+choose parts from both the model- and type-theoretic approaches to get the
+benefits of each.  In particular, we'd like to exploit the structure of a
+refinement type: given the base type and refinement predicate are defined
+independently of one another, the hope is that we can apply pure type-theoretic
+mechanisms to the former and model-checking mechanisms to the latter, gain the
+advantages of both, and avoid destructive interference between them.
 
 ```python
 def avg(xs: List(Int) | len(xs) > 0) -> int
@@ -191,12 +196,31 @@ def avg(xs: List(Int) | len(xs) > 0) -> int
 avg(42) # Type-checking error
 avg([]) # Type-checking error
 ```
-_Figure 4: a logically qualified program that does not go wrong._
+_Figure 4: a logically-qualified program that does not go wrong._
 
-By contrast, liquid types[@LiquidTypesPLDI08] owns, dude.
+The procedure described in the authors' work[@LiquidTypesPLDI08] is primarily
+motivated by the type _reconstruction_ problem: given a program absent type
+annotations, infer "the best" annotation for program expressions[^2].  In so
+doing, for instance, the (partial) function `select: List[𝛼] -> int -> 𝛼` can
+become the total dependent function `select: Vec[n, 𝛼] -> Fin n -> 𝛼`.  In
+addition to safety improvements, prior work[@DependentML] showed the
+performance benefits of being able to elide runtime bounds checks.
 
+The authors here aim for the best of both worlds: a dependent type system rich
+enough to prove such safety properties, while _not_ being so expressive that
+reconstruction becomes impossible.
 
-## Historical overview and context
+Concretely, refinement predicates are drawn from expressions over integer,
+boolean, and array sorts, and whose terminals are either (well-typed)
+constants, program variables, or the special value variable bound within the
+type itself.  In other words, the quantifier-free theory of linear arithmetic
+and uninterpreted functions (QF-UFLIA)!  From this definition, it's clear that
+liquid types are more restrained in their expressivity than full dependent
+types, for which type checking and reconstruction quickly wander into the realm
+of undecidability[@SystemFUndecidable], but since QF-UFLIA is decidable, so too
+is the reconstruction of a liquid type!
+
+### Historical overview and context
 
 ## The technique
 
@@ -211,5 +235,8 @@ By contrast, liquid types[@LiquidTypesPLDI08] owns, dude.
 ## Limitations and Subsequent Work
 
 [^1]: In particular, those derived from the Hindley-Milner subset of System F,
-  which we can intuit as being more or less equivalent in expressiveness to
-  Java's Generics[@JavaGenerics].
+  which we can intuit as being more or less equivalent in expressiveness to ML,
+  Haskell, or Java's generics[@JavaGenerics].  A critical feature of H-M type
+  systems is that both type-checking and type reconstruction (inference) is
+  decidable and efficient.
+[^2]: That is to say: trivally typing everybody to `⊤` won't do!
