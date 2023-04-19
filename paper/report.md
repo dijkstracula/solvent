@@ -61,10 +61,9 @@ inherent runtime semantics[@Shapeless].
 
 ```{.python .numberLines}
 from typing import Any, Generic, TypeVar
+N,T = TypeVar("N", bound="Nat"), TypeVar("T")
 
 class Nat: pass
-M,N = TypeVar("M", bound=Nat), TypeVar("N", bound=Nat)
-
 class Z(Nat): pass
 class S(Nat, Generic[N]): pass
 
@@ -82,8 +81,7 @@ Notice that this is not the same as being indexed by _values_ of type `Nat`; we
 cannot write `List[2, Int]` as the term `2` and type `S[S[Z]]` occupy different
 syntactic domains.
 
-```{.python .numberLines startFrom="12"}
-T = TypeVar("T")
+```{.python .numberLines startFrom="11"}
 @dataclass
 class Vec(Generic[N,T]): # A Vector of N elements of type T
     l: list[T]
@@ -140,26 +138,31 @@ can you flesh this bit out?_
 
 Certainly, the logical statement `at no point will len(xs) be zero` feels very
 much a safety property, suggesting a straightforward "throw a tool for model
-checking like Slam[@SlamProject] or Saturn[@Saturn] at it" solution. Much like
-our non-higher order type systems, model checking techniques are sound,
-push-button in their human-in-the-loop requirements, and can scale up to tackle
-the practicalities of exploring the execution space in real-world software.
+checking like SLAM[@SlamProject], BLAST[@BLAST] or Houdini[@Houdini] at it"
+solution.  As it happens, each of the above tools use _predicate
+abstraction_[@PredicateAbstraction] as their computational workhorse; _TODO:
+add text about what's interesting about predicate abstraction, with an eye
+towards why it's useful for liquid type reconstruction_.  Much like our
+non-higher order type systems, model checking techniques are sound, push-button
+in their human-in-the-loop requirements, and can scale up to tackle the
+practicalities of exploring the execution space in real-world software.  
 
 Indeed, enumerating paths through a program is a property of model-checking
 that is not well-covered in the type theory space.  Type systems are typically
-_path-insensitive_ as most typechecking algorithms act upon program
-fragments, and then compose to operate over the program as a whole.  This
-"context-free" nature means the typechecker knows where it's going, but it
-doesn't know where it's been[@RoadtoNowhere], limiting the richness of the
-space of counterproofs that it can generate.
+_path-insensitive_ as most typechecking algorithms act upon program fragments,
+and then compose to operate over the program as a whole.  This "context-free"
+nature means the typechecker knows where it's going, but it doesn't know where
+it's been[@RoadtoNowhere], limiting the richness of the space of counterproofs
+that it can generate.
 
 The model checking approach is not strictly optimal, however.  Hidden within
 our straightforward type `List[T]` is in fact something problematic for model
 checkers: under Curry-Howard, a type variable corresponds to quantifying over
-propositions in constructive logic[@TaPL].  In that way, a natural reading of
-a polymorphic type is: `for all propositions P, T(P)`. Meanwhile, the encoding
-schemes for symbolically abstracting states into statesets such as BDDs and
-subsets of first-order logic, typically eschew quantifiers altogether.  
+propositions in constructive logic[@TaPL].  In that way, the reading of this
+a polymorphic type is: `for all propositions T, the proposition List(T) holds`.
+Meanwhile, the encoding schemes for symbolically abstracting states into
+statesets such as BDDs and subsets of first-order logic, typically eschew
+quantifiers altogether.  
 
 Generally, therefore, reasoning about inductive data structures, something
 trivial for a type-checker, can cause a model checker to wander into the realm
@@ -202,7 +205,7 @@ The procedure described in the authors' work[@LiquidTypesPLDI08] is primarily
 motivated by the type _reconstruction_ problem: given a program absent type
 annotations, infer "the best" annotation for program expressions[^2].  In so
 doing, for instance, the (partial) function `select: List[𝛼] -> int -> 𝛼` can
-become the total dependent function `select: Vec[n, 𝛼] -> Fin n -> 𝛼`.  In
+become the dependent total function `select: Vec[n, 𝛼] -> Fin n -> 𝛼`.  In
 addition to safety improvements, prior work[@DependentML] showed the
 performance benefits of being able to elide runtime bounds checks.
 
@@ -210,21 +213,75 @@ The authors here aim for the best of both worlds: a dependent type system rich
 enough to prove such safety properties, while _not_ being so expressive that
 reconstruction becomes impossible.
 
-Concretely, refinement predicates are drawn from expressions over integer,
-boolean, and array sorts, and whose terminals are either (well-typed)
+Refinement predicates are drawn from arithmatic and relational expressions over
+integer, boolean, and array sorts, and whose terminals are either (well-typed)
 constants, program variables, or the special value variable bound within the
-type itself.  In other words, the quantifier-free theory of linear arithmetic
-and uninterpreted functions (QF-UFLIA)!  From this definition, it's clear that
-liquid types are more restrained in their expressivity than full dependent
-types, for which type checking and reconstruction quickly wander into the realm
-of undecidability[@SystemFUndecidable], but since QF-UFLIA is decidable, so too
-is the reconstruction of a liquid type!
+type itself.  (While not exhaustively enumerated in the paper, the precise possible
+predicate types are documented [in the DSolve
+artifact](https://github.com/ucsd-progsys/dsolve/blame/master/README#L97-L154).)
+In other words, the quantifier-free theory of linear arithmetic and
+uninterpreted functions (QF-UFLIA)!  It's clear that liquid types are more
+restrained in their expressivity than full dependent types, for which type
+checking and reconstruction quickly wander into the realm of
+undecidability[@SystemFUndecidable].  
+
+Since QF-UFLIA is decidable, so too is the _typechecking_ of a liquid type,
+since while left almost as an afterthought in the paper's text, off-the-shelf
+SMT solvers like [Yices](https://yices.csl.sri.com/) or Z3 can be used to check
+whether a refinement predicate in this logic is valid.  If programmers were
+manually annotating all their program terms with refinement types, we could
+treat the internals of the SMT solver as magic, rub it on our problem, and go
+home early.  However, recall that our goal is type _reconstruction_; we need to
+divine a predicate appropriate for the refinement type that is neither too weak
+(i.e. too abstract to say anything meaningful) nor too strong (i.e. doesn't
+overfit to precisely the concrete values inhabited by the type).
+
+Recalling how the technique was applied to great effect whilst contemplating
+model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), Rondon et al.,
+a liquid type reconstruction algorithm consumes a set of predefined qualifiers
+with type holes indicating points that well-typed terms can be inserted, and
+produces a conjunction of those qualifiers.  Naturally, this induces a bias
+into the reconstruction output: whoever wrote down the set of qualifiers for
+predicate abstraction to choose from is in some sense determining the "basis
+set" that will comprise a reconstructed liquid type.
+
+```ocaml
+(* ./default_patterns *)
+qualif BOOL(v): ? v
+qualif BOOL(v): not (? v)
+qualif FALSE(_V): 1 = 0
+qualif I(_V) : _V { * * } ^
+qualif Id_rel_id_int(_V)(A:int) : _V { * * } ~A
+qualif Int_rel_array_id(_V) : Array.length _V { * * } ^
+qualif Id_eq_id(_V) : _V = ~A
+
+(* ./postests/vec/len.hquals *)
+qualif LVAR(_v)(A: int) : length _v { * * } ~A
+qualif LCONST(v) : length v { * * } [0, 1]
+qualif LVARV(v) : v { * * } length ~A
+qualif SETAPPEND(_v) : length _v = (length v > i ? length v : i + 1)
+qualif TOARR(v) : length t = Array.length v
+```
+_Figure 5: A selection of built-in qualifiers, and user-supplied qualifiers
+used in verifying a Rope[@RopeDS]-like `Vec` datatype, written in an internal
+pattern DSL. `**` and `^` are the operator and integer literal wildcards,
+respectively._
 
 ### Historical overview and context
+
+TODO: both type inference and model checking had been around for decades before
+this got published in 2008.  Why did this only appear then?  It's around the
+era that SMT solvers became practical enough to use as a component in a larger
+technique (TODO: look at the Decision Procedures book and see if there's a graph
+showing an elbow curve up and to the right around that time?)  What else?
 
 ## The technique
 
 ### From program expressions to base types
+
+In the paper, the only base types in play are `int`, `bool`, `list[int]`, and
+functions operating over base types - no liquid records or algebraic datatypes
+would appear until the followup work[@RefinementTypesForHaskell].
 
 ### Lifting base types into refined types
 
@@ -235,8 +292,8 @@ is the reconstruction of a liquid type!
 ## Limitations and Subsequent Work
 
 [^1]: In particular, those derived from the Hindley-Milner subset of System F,
-  which we can intuit as being more or less equivalent in expressiveness to ML,
-  Haskell, or Java's generics[@JavaGenerics].  A critical feature of H-M type
-  systems is that both type-checking and type reconstruction (inference) is
+  which we can intuit as being more or less equivalent in expressiveness to
+  Scala, Haskell, or polymorphic Java[@JavaGenerics].  A critical feature of
+  H-M type systems is that both type-checking and reconstruction (inference) is
   decidable and efficient.
 [^2]: That is to say: trivally typing everybody to `⊤` won't do!
