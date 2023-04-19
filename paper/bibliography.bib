@@ -171,6 +171,45 @@
     series = {PLDI '08}
 }
 
+@article{LiquidTypesDSVerificationPLDI09,
+    author = {Kawaguchi, Ming and Rondon, Patrick and Jhala, Ranjit},
+    title = {Type-Based Data Structure Verification},
+    year = {2009},
+    issue_date = {June 2009},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    volume = {44},
+    number = {6},
+    issn = {0362-1340},
+    url = {https://doi.org/10.1145/1543135.1542510},
+    doi = {10.1145/1543135.1542510},
+    journal = {SIGPLAN Not.},
+    month = {jun},
+    pages = {304–315},
+    numpages = {12},
+    keywords = {hindley-milner, predicate abstraction, dependent types, type inference}
+}
+
+
+@inproceedings{LowLevelLiquidTypesPOPL10,
+    author = {Rondon, Patrick Maxim and Kawaguchi, Ming and Jhala, Ranjit},
+    title = {Low-Level Liquid Types},
+    year = {2010},
+    isbn = {9781605584799},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/1706299.1706316},
+    doi = {10.1145/1706299.1706316},
+    booktitle = {Proceedings of the 37th Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages},
+    pages = {131–144},
+    numpages = {14},
+    keywords = {dependent types, type inference, c, liquid types},
+    location = {Madrid, Spain},
+    series = {POPL '10}
+}
+
+
+
 @inproceedings{RefinementTypesForHaskell,
     author = {Vazou, Niki and Seidel, Eric L. and Jhala, Ranjit and Vytiniotis, Dimitrios and Peyton-Jones, Simon},
     title = {Refinement Types for Haskell},
@@ -180,7 +219,6 @@
     address = {New York, NY, USA},
     url = {https://doi.org/10.1145/2628136.2628161},
     doi = {10.1145/2628136.2628161},
-    abstract = {SMT-based checking of refinement types for call-by-value languages is a well-studied subject. Unfortunately, the classical translation of refinement types to verification conditions is unsound under lazy evaluation. When checking an expression, such systems implicitly assume that all the free variables in the expression are bound to values. This property is trivially guaranteed by eager, but does not hold under lazy, evaluation. Thus, to be sound and precise, a refinement type system for Haskell and the corresponding verification conditions must take into account which subset of binders actually reduces to values. We present a stratified type system that labels binders as potentially diverging or not, and that (circularly) uses refinement types to verify the labeling. We have implemented our system in LIQUIDHASKELL and present an experimental evaluation of our approach on more than 10,000 lines of widely used Haskell libraries. We show that LIQUIDHASKELL is able to prove 96% of all recursive functions terminating, while requiring a modest 1.7 lines of termination-annotations per 100 lines of code.},
     booktitle = {Proceedings of the 19th ACM SIGPLAN International Conference on Functional Programming},
     pages = {269–282},
     numpages = {14},
@@ -189,11 +227,11 @@
 }
 
 @misc{RopeDS,
-   author = "Wikipedia",
-   title = "{Rope (data structure)} --- {W}ikipedia{,} The Free Encyclopedia",
-   year = "2023",
-   howpublished = {\url{http://en.wikipedia.org/w/index.php?title=Rope\%20(data\%20structure)\&oldid=1143394774}},
-   note = "[Online; accessed 18-April-2023]"
+    author = "Wikipedia",
+    title = "{Rope (data structure)} --- {W}ikipedia{,} The Free Encyclopedia",
+    year = "2023",
+    howpublished = {\url{http://en.wikipedia.org/w/index.php?title=Rope\%20(data\%20structure)\&oldid=1143394774}},
+    note = "[Online; accessed 18-April-2023]"
 }
 
 

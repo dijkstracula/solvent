@@ -1,29 +1,28 @@
 ## Overview and Motivation
 
-Type theory is inarguably the branch of formal methods that software developers
-most commonly exploit to reason about the behaviour of their programs.  While
-inexpressive relative to their counterparts in research languages, even
-"simple" type systems[^1] enjoyed by conventional industrial languages like Java or
-C# provide a powerful mechanism to statically reject invalid programs, such as
-the one in Figure 1.  Such type systems also enjoy strong metatheoretic
-properties.  Soundness (that is, invalid programs will always be rejected),
-reconstruction (that is, types can be inferred via terms' usage without human
-annotation), and termination are guaranteed, even when type-checking programs
-whose behaviour depends on runtime user input or data structures of unknown or
-unbounded size.  
+Enterprising formal methods researchers could do worse than position their
+work in the type-theoretic space.  While inexpressive relative to their
+counterparts in research languages, even "simple" type systems[^1] enjoyed by
+conventional industrial languages like Java or C# provide a powerful mechanism
+to statically reject invalid programs. Type systems also enjoy strong
+metatheoretic properties.  Soundness (that is, invalid programs will always be
+rejected), reconstruction (that is, types can be inferred via terms' usage
+without human annotation), and termination are guaranteed, even when
+type-checking programs whose behaviour depends on runtime user input or data
+structures of unknown or unbounded size.  In so doing, Milner's old canard that
+_"well-typed programs don't go wrong"_[@milner-type-poly] has entered the
+programmer's popular lexicon [@LiquidHaskellTutorial]; after all, type theory
+is inarguably the branch of formal methods that software developers most
+commonly exploit to reason about the behaviour of their programs.  
 
-In so doing, Milner's old canard that _"well-typed programs don't go
-wrong"_[@milner-type-poly] has entered the programmer's popular lexicon
-[@LiquidHaskellTutorial].
-
-However, as a form of abstract interpretation[@CousotCousot], this statement is
-in reality circumscribed by how much information is lost by the abstract
-transformation: in particular, the program in Figure 1 can, indeed, go wrong -
-the type system proves the _shape_ of the input datatype (morally, an iterable,
-indexable structure) but lost facts about _particular_ well-typed terms.
-Concretely: Since at the type level an empty list is indistinguishable from a
-non-empty one, it's impossible to reject a program that requires a _non-empty_
-list as input.
+However, as a form of abstract interpretation[@CousotCousot], Milner's _bon
+mot_ is in reality circumscribed by how much information is lost by the
+abstract transformation: in particular, the program in Figure 1 can, indeed, go
+wrong - the type system proves the _shape_ of the input datatype (morally, an
+iterable, indexable structure) but lost facts about _particular_ well-typed
+terms. Concretely: Since at the type level an empty list is indistinguishable
+from a non-empty one, it's impossible to reject a program that requires a
+_non-empty_ list as input.
 
 ```{.python .numberLines}
 def avg(xs):
@@ -57,7 +56,7 @@ typelevel definition of the Peano naturals as a type `Nat` with type
 constructors `Z` and `S[N <: Nat]` would allow a new encoding of natural
 numbers _within the type system_.  In contrast to the _term_ `3` (of type
 `int`), `S[S[S[Z]]]` is itself a _type_ (namely, a subtype of `Nat`) with no
-inherent runtime semantics[@Shapeless].  
+inherent runtime semantics (for a more complete example, see [@Shapeless]).  
 
 ```{.python .numberLines}
 from typing import Any, Generic, TypeVar
@@ -75,10 +74,12 @@ _Figure 2: A typelevel encoding of the natural numbers._
 Representing numbers this way would let us embed a second type parameter `L <:
 Nat` to a collection type `Vec[L, T]`, the vector of `L` elements of type `T`.
 As a concrete example, `[1,2]` might be typed as `List[S[S[Z], Int]`, and
-`cons` as `𝛼 → List[l, 𝛼] → List[S[l], 𝛼]`.  In so doing, we say that `Vec` is
-_indexed_ by the type `Nat`, and a fuller implementation of `Vec` (see Figure 3).  
-Notice that this is not the same as being indexed by _values_ of type `Nat`; we
-cannot write `List[2, Int]` as the term `2` and type `S[S[Z]]` occupy different
+`cons` as `𝛼 → List[l, 𝛼] → List[S[l], 𝛼]`.  The two constructors `nat` and
+`cons` enforce the invariant that the typelevel value of `L` always conforms to
+the length of the list.  In so doing, we say that `Vec` is _indexed_ by the
+type `Nat`, and a fuller implementation of `Vec` (see Figure 3).  Notice that
+this is not the same as being indexed by _values_ of type `Nat`; we cannot
+write `List[2, Int]` as the term `2` and type `S[S[Z]]` occupy different
 syntactic domains.
 
 ```{.python .numberLines startFrom="11"}
@@ -89,13 +90,15 @@ def nil() -> Vec[Z, T]: return Vec([])
 def cons(t: T, l: Vec[N, T]) -> Vec[S[N], T]: return Vec([t] + l.l)
 
 empty: Vec[Z, int] = nil()
-one_two:  Vec[Two, int]  = cons(1, cons(2, nil()))
-one_four: Vec[Four, int] = cons(1, cons(4, nil())) # error: Expression of type "Vec[S[S[S[S[Z]] | Z]], int]" cannot be assigned to declared type "Vec[S[S[S[S[Z]]]], int]"; TypeVar "N@Vec" is covariant; TypeVar "N@S" is covariant; TypeVar "N@S" is covariant; Type "S[S[Z]] | Z" cannot be assigned to type "S[S[Z]]"; "Z" is incompatible with "S[S[Z]]"
+one_three:  Vec[Two, int] = cons(1, cons(3, nil()))
+four_four: Vec[Four, int] = cons(4, cons(4, nil())) # error: Expression of type "Vec[S[S[S[S[Z]] | Z]], int]" cannot be assigned to declared type "Vec[S[S[S[S[Z]]]], int]"; TypeVar "N@Vec" is covariant; TypeVar "N@S" is covariant; TypeVar "N@S" is covariant; Type "S[S[Z]] | Z" cannot be assigned to type "S[S[Z]]"; "Z" is incompatible with "S[S[Z]]"
 
 def avg(l: Vec[S[N], int]) -> int:
     return sum(l.l) // len(l.l)
-avg(one_two)
+
+avg(42) # error: # error: Argument of type "Literal[42]" cannot be assigned to parameter "l" of type "Vec[S[N@avg], int]" in function "avg"   "Literal[42]" is incompatible with "Vec[S[N@avg], int]"
 avg(empty) # error: Argument of type "Vec[Z, int]" cannot be assigned to parameter "l" of type "Vec[S[N@avg], int]" in function "avg"; TypeVar "N@Vec" is covariant; "Z" is incompatible with "S[N@avg]"
+assert(avg(one_three) == 2) # Ok! S[S[Z]] unifies with type argument S[N]
 ```
 _Figure 3: A vector of elements whose length is indexed by the type system, and
 an implementation of `avg` that rejects an empty `Vec` with a difficult to
@@ -180,18 +183,23 @@ predicate that _refines_ it.  For example, `{v: int | 0 <= v ∧ v < n}` refines
 the base type of the integers to be bound between 0 and some other value `n`.
 Since `n` is a program-level term, a refinement type is also a dependent type
 (in particular, type zoologists will recognise a familiar sight: this is the
-dependent type `Fin n`).  As before, the expressiveness of a refinement type
-depends on the expressiveness of the refining predicate's constraint domain.  
+dependent type `Fin n`).  In so doing, for instance, the (partial) function
+`select: List[𝛼] -> int -> 𝛼` coulds become the dependent total function
+`select: Vec[n, 𝛼] -> Fin n -> 𝛼`, statically-rejecting out-of-bounds indices.
+In addition to safety improvements, prior work[@DependentML] showed the clear
+performance benefits of being able to elide runtime bounds checks.
 
-Critically: If the constraint domain is made up of boolean predicates over
-program terms, we can call such a refinement type a _logically-qualified
-(LiQuid) type_[@LiquidTypesPLDI08].  Ideally, we would be able to pick and
-choose parts from both the model- and type-theoretic approaches to get the
-benefits of each.  In particular, we'd like to exploit the structure of a
-refinement type: given the base type and refinement predicate are defined
-independently of one another, the hope is that we can apply pure type-theoretic
-mechanisms to the former and model-checking mechanisms to the latter, gain the
-advantages of both, and avoid destructive interference between them.
+As before, the expressiveness of a refinement type depends on the
+expressiveness of the refining predicate's constraint domain.  Critically: If
+the constraint domain is made up of boolean predicates over program terms, we
+can call such a refinement type a _logically-qualified (LiQuid)
+type_[@LiquidTypesPLDI08].  Ideally, we would be able to pick and choose parts
+from both the model- and type-theoretic approaches to get the benefits of each.
+In particular, we'd like to exploit the structure of a refinement type: given
+the base type and refinement predicate are expressed in different constraint
+domains, the hope is that we can apply pure type-theoretic mechanisms to the
+former and model-checking mechanisms to the latter, gain the advantages of
+both, and avoid destructive interference between them.
 
 ```python
 def avg(xs: List(Int) | len(xs) > 0) -> int
@@ -201,17 +209,29 @@ avg([]) # Type-checking error
 ```
 _Figure 4: a logically-qualified program that does not go wrong._
 
-The procedure described in the authors' work[@LiquidTypesPLDI08] is primarily
-motivated by the type _reconstruction_ problem: given a program absent type
-annotations, infer "the best" annotation for program expressions[^2].  In so
-doing, for instance, the (partial) function `select: List[𝛼] -> int -> 𝛼` can
-become the dependent total function `select: Vec[n, 𝛼] -> Fin n -> 𝛼`.  In
-addition to safety improvements, prior work[@DependentML] showed the
-performance benefits of being able to elide runtime bounds checks.
+The procedure described in the authors' initial work[@LiquidTypesPLDI08] is
+primarily motivated by the type _reconstruction_ problem: given a program
+absent type annotations, infer "the best" annotation for program
+expressions[^2].  For instance, we'd like to say more about a function `max x y
+= if x > y then x else y` than what we can infer from the base types, namely
+that `x:int -> y: int -> int`.  One could imagine a few reasonable choices for
+an inferred refinement: perhaps `{ i: int | i == x ∨ i == y }`?  Is that
+refinement more or less difficult to infer, or more or less _useful for the
+programmer_, than, say, `{ i: int | i >= x ∧ i >= y }`?  The authors here aim
+for the best of both worlds: a dependent type system rich enough to prove such
+safety properties, while _not_ being so expressive that reconstruction becomes
+impossible.
 
-The authors here aim for the best of both worlds: a dependent type system rich
-enough to prove such safety properties, while _not_ being so expressive that
-reconstruction becomes impossible.
+### From program expressions to base types
+
+In the paper, the only valid base types are `int`, `bool`, `list[int]`.  This 
+doesn't mean that these are the only types that program terms can type to, only
+that a liquid type can refine only a small, fixed number of built-in types.
+Contiguous arrays would appear later in their refinement work for
+C[@LowLevelLiquidTypesPOPL10], and liquid records and algebraic datatypes would
+appear later still[@RefinementTypesForHaskell].
+
+### Lifting base types into refined types
 
 Refinement predicates are drawn from arithmatic and relational expressions over
 integer, boolean, and array sorts, and whose terminals are either (well-typed)
@@ -235,6 +255,10 @@ home early.  However, recall that our goal is type _reconstruction_; we need to
 divine a predicate appropriate for the refinement type that is neither too weak
 (i.e. too abstract to say anything meaningful) nor too strong (i.e. doesn't
 overfit to precisely the concrete values inhabited by the type).
+
+### Subtyping through implications
+
+### Predicate abstraction and the journey home
 
 Recalling how the technique was applied to great effect whilst contemplating
 model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), Rondon et al.,
@@ -265,7 +289,8 @@ qualif TOARR(v) : length t = Array.length v
 _Figure 5: A selection of built-in qualifiers, and user-supplied qualifiers
 used in verifying a Rope[@RopeDS]-like `Vec` datatype, written in an internal
 pattern DSL. `**` and `^` are the operator and integer literal wildcards,
-respectively._
+respectively.  Note the use of the recursively-defined function `length` in
+certain qualifiers._
 
 ### Historical overview and context
 
@@ -274,20 +299,6 @@ this got published in 2008.  Why did this only appear then?  It's around the
 era that SMT solvers became practical enough to use as a component in a larger
 technique (TODO: look at the Decision Procedures book and see if there's a graph
 showing an elbow curve up and to the right around that time?)  What else?
-
-## The technique
-
-### From program expressions to base types
-
-In the paper, the only base types in play are `int`, `bool`, `list[int]`, and
-functions operating over base types - no liquid records or algebraic datatypes
-would appear until the followup work[@RefinementTypesForHaskell].
-
-### Lifting base types into refined types
-
-### Subtyping through implications
-
-### Predicate abstraction and the journey home
 
 ## Limitations and Subsequent Work
 
