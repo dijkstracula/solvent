@@ -143,7 +143,9 @@ def test_compare_if_statements():
 
 
 def test_return_statement():
-    assert Return.from_pyast(ast.parse("return").body[0]).val is None
+    with pytest.raises(errors.ASTError):
+        Return.from_pyast(ast.parse("return").body[0]).val
+
     ret = Return.from_pyast(ast.parse("return 42").body[0])
     assert isinstance(ret.val, Constant)
     assert ret.val.val == 42

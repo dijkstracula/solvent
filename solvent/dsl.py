@@ -9,17 +9,23 @@ import itertools
 from solvent import errors
 from solvent.syntax.quants import EvalT
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import GenericAlias
 from typing import Any, Callable, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
 
 from solvent.syntax.quants import QualifiedType
-from solvent.typechecker.unification import Constraint, CVar, UnificationEnv as Env
+from solvent.typechecker.unification import Constraint, CVar, UnificationEnv as Env, unifier
 
 PyAst = TypeVar("PyAst", bound=ast.AST, covariant=True)
 
+@dataclass(frozen=True)
+class ArrowType:
+    args: list["HMType"]
+    ret: "HMType"
+
+
 # These are what we expect H-M typechecking to spit out.
-HMType = Type[int] | Type[bool] | Type[list] | Type[Callable] | CVar
+HMType = Type[int] | Type[bool] | Type[list] | ArrowType | CVar
 
 
 def stmt_from_pyast(tree: ast.AST) -> "AstWrapper":
@@ -61,10 +67,19 @@ class AstWrapper(Generic[PyAst]):
         raise Exception(f"{type(self)}.constraints() not implemented")
 
 
+    def all_returns(self) -> Iterable["Return"]:
+        """ Produces all Return leaves that this AST node contains."""
+        # TODO: this feels ad-hoc.  Feels like this should be all control flow exits or something?
+        return []
+
+
+
 @dataclass(frozen=True)
 class FunctionDef(AstWrapper[ast.FunctionDef]):
     args: list["Name"]
     body: list[AstWrapper]
+    argtypes: list[CVar]
+    rettype: CVar
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "FunctionDef":
@@ -81,25 +96,58 @@ class FunctionDef(AstWrapper[ast.FunctionDef]):
             args.append(Name(aname))
         body = [stmt_from_pyast(stmt) for stmt in node.body]
 
-        return FunctionDef(args, body)
+        return FunctionDef(args, body, [CVar.next() for _ in args], CVar.next())
+
+    def constraints(self, env: Env) -> Iterable[Constraint]:
+        env = env.copy()  # New scope, new env
+        for name, typ in zip(self.args, self.argtypes):
+            env[name] = typ
+        for stmt in self.body:
+            for c in stmt.constraints(env):
+                yield c
+        for ret in self.all_returns():
+            yield Constraint(self.rettype, ret.val.type(env))
+
+    def type(self, env: Env) -> HMType:
+        return ArrowType(self.argtypes, self.rettype)
+
+    def all_returns(self) -> Iterable["Return"]:
+        for stmt in self.body:
+            for r in stmt.all_returns():
+                yield r
+
+    def unify_type(self, env: Env) -> ArrowType:
+        # I wonder if this should just be type()?
+        cstrs = list(self.constraints(env))
+        bindings = unifier(cstrs)
+        unified_args = []
+        for cvar in self.argtypes:
+            if cvar in bindings:
+                # We found a concrete type for this typevar
+                unified_args.append(bindings[cvar])
+            else:
+                unified_args.append(cvar)
+        return ArrowType(unified_args, bindings[self.rettype])
 
 
 @dataclass(frozen=True)
 class Return(AstWrapper[ast.Return]):
-    val: Optional["Expr"]
+    val: "Expr"
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "Return":
         assert isinstance(node, ast.Return)
-        if node.value:
-            val = expr_from_pyast(node.value)
-        else:
-            val = None
-
+        if not node.value:
+            raise errors.ASTError(node, "Returns must return a value")
+        val = expr_from_pyast(node.value)
         return Return(val)
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
-        return []
+        for c in self.val.constraints(env):
+            yield c
+
+    def all_returns(self) -> Iterable["Return"]:
+        return [self]
 
 
 @dataclass(frozen=True)
@@ -115,6 +163,7 @@ class AnnAssign(Generic[PyAst, EvalT], AstWrapper[ast.AnnAssign]):
             raise errors.MalformedAST(node.target, ast.Name)
 
         lhs = Name(node.target.id)
+        assert node.value
         rhs = expr_from_pyast(node.value)
 
         return AnnAssign(lhs, rhs, from_ast(lhs, node.annotation))
@@ -155,6 +204,25 @@ class If(Generic[PyAst], AstWrapper[ast.If]):
         tru = [stmt_from_pyast(stmt) for stmt in node.body]
         fls = [stmt_from_pyast(stmt) for stmt in node.orelse]
         return If(test, tru, fls)
+
+    def constraints(self, env: Env) -> Iterable[Constraint]:
+        for c in self.test.constraints(env):
+            yield c
+        for stmt in self.tru:
+            for c in stmt.constraints(env):
+                yield c
+        for stmt in self.fls:
+            for c in stmt.constraints(env):
+                yield c
+
+    def all_returns(self) -> Iterable[Return]:
+        for stmt in self.tru:
+            for r in stmt.all_returns():
+                yield r
+        for stmt in self.fls:
+            for r in stmt.all_returns():
+                yield r
+
 
 # Expressions
 
@@ -305,7 +373,7 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
             case "Eq":
                 opName = "="
             case "NotEq":
-                opName = "!="  # TODO: Not sure that this is right.
+                opName = "!="  # TODO: Not sure that this is right (presumably this becomes part of a z3 expr)
             case "Gt":
                 opName = ">"
             case "GtE":
@@ -318,7 +386,11 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
             yield c
         for c in self.rhs.constraints(env):
             yield c
-        yield Constraint(self.lhs.type(env), self.rhs.type(env));
+        if self.op in ["<", "<=", ">", ">="]:
+            yield Constraint(self.lhs.type(env), int)
+            yield Constraint(self.rhs.type(env), int)
+        else:
+            yield Constraint(self.lhs.type(env), self.rhs.type(env));
 
     def type(self, env: Env) -> Union[Type, CVar]:
         return bool

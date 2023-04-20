@@ -1,7 +1,7 @@
 import pytest
 
 from solvent.dsl import *
-from solvent.typechecker.unification import unifier
+
 
 @pytest.fixture(autouse=True)
 def before_all():
@@ -14,6 +14,12 @@ def str_to_ast_expr(source: str):
         raise errors.MalformedAST(tree, ast.Expr)
     return tree.value
 
+
+def str_to_ast_stmt(source: str):
+    tree = ast.parse(source).body[0]
+    if not isinstance(tree, ast.stmt):
+        raise errors.MalformedAST(tree, ast.stmt)
+    return tree
 
 def test_constant_types():
     expr = Constant(42)
@@ -107,3 +113,55 @@ def test_subscript_ops():
     constraints = set(expr.constraints({}))
     assert constraints == {Constraint(int, int), Constraint(int, bool)}
     assert expr.type({}) == int
+
+
+def test_const_function_ops():
+    fn = FunctionDef.from_pyast(str_to_ast_stmt("def forty_two(): return 42"))
+    constraints = set(fn.constraints({}))
+    assert constraints == {Constraint(CVar(1), int)}
+    assert fn.type({}) == ArrowType([], CVar(1))
+    assert fn.unify_type({}) == ArrowType([], int)
+
+
+def test_unary_function_ops():
+    fn = FunctionDef.from_pyast(str_to_ast_stmt("def inc(i): return i + 1"))
+    constraints = set(fn.constraints({}))
+    assert fn.type({}) == ArrowType([CVar(1)], CVar(2))
+    assert constraints == {
+        Constraint(int, CVar(1)),  # arg
+        Constraint(int, int),      # body
+        Constraint(CVar(2), int)   # ret
+    }
+    assert fn.unify_type({}) == ArrowType([int], int)
+
+
+def test_binary_function_op():
+    fn = FunctionDef.from_pyast(str_to_ast_stmt("def sum(x, y): return x + y"))
+    constraints = set(fn.constraints({}))
+    assert fn.type({}) == ArrowType([CVar(1), CVar(2)], CVar(3))
+    assert constraints == {
+        Constraint(int, CVar(1)),
+        Constraint(int, CVar(2)),
+        Constraint(CVar(3), int)
+    }
+    assert fn.unify_type({}) == ArrowType([int, int], int)
+
+
+def test_max_fn():
+    fn = """
+def max(x, y):
+    if x > y:
+        return x
+    else:
+        return y
+"""
+    fn = FunctionDef.from_pyast(str_to_ast_stmt(fn))
+    assert fn.type({}) == ArrowType([CVar(1), CVar(2)], CVar(3))
+    constraints = set(fn.constraints({}))
+    assert constraints == {
+        Constraint(CVar(1), int),
+        Constraint(CVar(2), int),
+        Constraint(CVar(3), CVar(1)),
+        Constraint(CVar(3), CVar(2)),
+    }
+    assert fn.unify_type({}) == ArrowType([int, int], int)

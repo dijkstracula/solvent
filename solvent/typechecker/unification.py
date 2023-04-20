@@ -81,7 +81,10 @@ def subst_env(env: Env, x: Union[CVar, T]) -> Union[CVar, T]:
     return x
 
 
-def unifier(constraints: list[Constraint]) -> Env:
+UnificationEnv = dict["Name", Union[Type, CVar]]
+
+
+def unifier(constraints: list[Constraint]) -> UnificationEnv:
     """ Return something that unifies with the constraints, or None
     if there's a contradiction."""
     env = {}
@@ -98,5 +101,4 @@ def flip(lhs: list[Any], rhs: list[Any]) -> list[Constraint]:
     return [Constraint(l, r) for l, r in zip(lhs, rhs)]
 
 
-UnificationEnv = dict["Name", Union[Type, CVar]]
 
