@@ -4,6 +4,7 @@ from .syntax.types import PyT, BaseType, from_py_type
 from dataclasses import dataclass
 from typing import Union, Type
 
+
 @dataclass
 class LiquidVar(RefinementType[PyT]):
     """ A binding of a name to a type.  the `ident` metavariable name should
@@ -24,4 +25,3 @@ class LiquidVar(RefinementType[PyT]):
             # from `fromPyType()` but I'm not sure how to thread it through.
             self.t = from_py_type(t)
         self.ident = ident
-

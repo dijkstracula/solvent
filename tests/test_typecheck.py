@@ -1,4 +1,5 @@
 import pytest
+import ast
 
 from solvent.dsl import *
 
@@ -20,6 +21,7 @@ def str_to_ast_stmt(source: str):
     if not isinstance(tree, ast.stmt):
         raise errors.MalformedAST(tree, ast.stmt)
     return tree
+
 
 def test_constant_types():
     expr = Constant(42)

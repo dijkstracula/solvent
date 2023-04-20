@@ -40,6 +40,7 @@ def test_unifier_of_equality_constraints():
     env = unifier(constraints)
     assert env == {CVar(1): 0, CVar(2): 0, CVar(3): 0}
 
+
 def test_unifier():
     constraints = [
         Constraint(CVar(1), CVar(2)),

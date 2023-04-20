@@ -9,14 +9,15 @@ import itertools
 from solvent import errors
 from solvent.syntax.quants import EvalT
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import GenericAlias
-from typing import Any, Callable, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
+from typing import Any, Generic, Iterable, Literal, TypeVar, Type, Union
 
 from solvent.syntax.quants import RefinementType
 from solvent.typechecker.unification import Constraint, CVar, UnificationEnv as Env, unifier
 
 PyAst = TypeVar("PyAst", bound=ast.AST, covariant=True)
+
 
 @dataclass(frozen=True)
 class ArrowType:
@@ -66,12 +67,10 @@ class AstWrapper(Generic[PyAst]):
     def constraints(self, env: Env) -> Iterable[Constraint]:
         raise Exception(f"{type(self)}.constraints() not implemented")
 
-
     def all_returns(self) -> Iterable["Return"]:
         """ Produces all Return leaves that this AST node contains."""
         # TODO: this feels ad-hoc.  Feels like this should be all control flow exits or something?
         return []
-
 
 
 @dataclass(frozen=True)
@@ -256,7 +255,7 @@ class Constant(Expr[ast.Constant, Union[bool, int]]):
         return type(self.val)
 
     def ConstType(self) -> RefinementType[bool]:
-        #return L
+        # return L
         pass
 
 
@@ -467,7 +466,7 @@ def from_ast(var: Name, t: ast.AST) -> Union[Expr, RefinementType]:
             return RefinementType(eval(blob))  # Yee haw!
     elif isinstance(t, ast.Call):
         # TODO: Hopefuly this is a call to a liquid type constructor, eek, what do??
-        expr = Call.from_pyast(t)
+        _expr = Call.from_pyast(t)
         raise Exception("TODO")
 
     # Hm, okay, I guess what we have here is a program expression
