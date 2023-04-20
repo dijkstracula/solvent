@@ -225,12 +225,12 @@ base types, which is that `x:int → y:int → int`.
 One could imagine a few reasonable choices for an inferred refinement of the
 return type: perhaps `max` could be typed as `x:int → y:int → { i: int | i == x
 ∨ i == y }`?  Is the return type's refinement more or less difficult to infer,
-or more or less _useful for the programmer_, than, say, `{ i: int | i >= x ∧ i
->= y }`, or, if we had an oracle that told us that `max` can only be called 
-with arguments 31 and 99, the singleton type `{i : int | i == 99}`? The authors
-must aim for the best of both worlds: a dependent type system rich enough to
-prove useful safety properties, while _not_ being so expressive that
-reconstruction becomes impossible.
+or more or less _useful for the programmer_, than, say, `{ i: int | i >= x ∧ i >= y }`, 
+or, if we had an oracle that told us that `max` can only be called with
+arguments 31 and 99, the singleton type `{i : int | i == 99}`? The authors must
+aim for the best of both worlds: a dependent type system rich enough to prove
+useful safety properties, while _not_ being so expressive that reconstruction
+becomes impossible.
 
 ### From program expressions to base types
 
@@ -245,7 +245,27 @@ still[@RefinementTypesForHaskell].
 Base types are inferred via the Hindley-Milner (H-M) type inference
 algorithm[@TaPL], an absolute bog-standard procedure that we describe here only
 so that it can be compared to the refinement predicate inference procedure that
-follows.
+follows.  
+
+H-M begins from an unannotated syntax tree and, as it walks the tree, generates
+a collection of type constraints which relate program types or type variables
+standing in for unknown types to each other.  A _unifier_ comprising a final
+mapping from program terms to types then computed from these constraints.  If
+the constraint set is not satisfiable, then one or more constraints clash (e.g.
+two disperate types are constrained as equal) and the origin of that
+contradicting constraint is the location of the type error.  
+
+If the constraint set is underspecified, some term will map only to a type
+variable and not a concrete type, so as to say "any type will do here".  This
+generality is critical: unification is guaranteed to provide the _most general_
+(or minimal)_ sequence of substitutions in its mapping; in this way, we say the
+_principal type_ for each term is reconstructed.  While this ensures that we do
+not unnecessarily constrain a term's type, there are also operational
+implications: because a term's principal type will always be generated, there's
+no value in recomputing it once additional constraints have been computed.  As
+a result, there's no need to eagerly unify the full constraint set at once:
+_lazy_ unification means inference and typechecking can be done
+incrementally[@TaPL].
 
 ### Lifting base types into refined types
 
@@ -273,7 +293,7 @@ divine a predicate appropriate for the refinement type that is neither too weak
 (i.e. too abstract to say anything meaningful) nor too strong (i.e. doesn't
 overfit to precisely the concrete values inhabited by the type).
 
-### Subtyping through implications
+### Constraint generation and subtyping through implications
 
 ### Predicate abstraction and the journey home
 
@@ -303,11 +323,11 @@ qualif LVARV(v) : v { * * } length ~A
 qualif SETAPPEND(_v) : length _v = (length v > i ? length v : i + 1)
 qualif TOARR(v) : length t = Array.length v
 ```
-_Figure 5: A selection of built-in qualifiers, and user-supplied qualifiers
-used in verifying a Rope[@RopeDS]-like `Vec` datatype, written in an internal
-pattern DSL. `**` and `^` are the operator and integer literal wildcards,
-respectively.  Note the use of the recursively-defined function `length` in
-certain qualifiers._
+_Figure 5: A selection of built-in qualifiers, and user-supplied ones used in
+verifying a Rope[@RopeDS]-like `Vec` datatype, written in an internal pattern
+DSL. `**` and `^` are the operator and integer literal wildcards, respectively.
+Note the use of the recursively-defined function `length` in certain
+qualifiers._
 
 ### Historical overview and context
 
@@ -318,6 +338,9 @@ technique (TODO: look at the Decision Procedures book and see if there's a graph
 showing an elbow curve up and to the right around that time?)  What else?
 
 ## Limitations and Subsequent Work
+
+TODO: Low-level liquid types; and, don't forget about the gradual liquid types
+followup paper from OOPSLA 2018.  Maybe also F*?
 
 [^1]: In particular, those derived from the Hindley-Milner subset of System F,
   which we can intuit as being more or less equivalent in expressiveness to
