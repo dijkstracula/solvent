@@ -64,6 +64,10 @@ def test_assign_wrapper():
 
 def test_annassign_wrapper():
     assign = AnnAssign.from_pyast(str_to_assign("i: i > 0 = 42"))
+    assert assign.annotation == Compare(Name("i"), ">", Constant(0))
+
+    assign = AnnAssign.from_pyast(str_to_assign("i: int = 42"))
+    assert assign.annotation == int
 
 
 def test_arith_expr_wrapper():

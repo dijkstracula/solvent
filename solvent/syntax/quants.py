@@ -22,18 +22,18 @@ from . import types
 from .. import errors
 
 from .types import PyT, PyT2, EvalT
-from .types import LiquidType, Bool, Int
+from .types import BaseType, Bool, Int
 
 from dataclasses import dataclass
 from typing import Generic, Type, Union
 
 
 @dataclass
-class QualifiedType(Generic[PyT]):
-    t: LiquidType[PyT]
+class RefinementType(Generic[PyT]):
+    t: BaseType[PyT]
 
-    def __init__(self, tp: Union[Type[PyT], LiquidType[PyT]]):
-        if isinstance(tp, LiquidType):
+    def __init__(self, tp: Union[Type[PyT], BaseType[PyT]]):
+        if isinstance(tp, BaseType):
             self.t = tp
         else:
             # TODO: At present, we lose the type parameter on the type returned
@@ -45,77 +45,77 @@ class QualifiedType(Generic[PyT]):
 
     # AST creation methods
 
-    def eq(self: "QualifiedType[PyT]", other: PyT | "QualifiedType[PyT]") -> "Eq":
+    def eq(self: "RefinementType[PyT]", other: PyT | "RefinementType[PyT]") -> "Eq":
         return Eq(self, other)
 
-    def lt(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Lt":
+    def lt(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Lt":
         return Lt(self, other)
 
-    def le(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Le":
+    def le(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Le":
         return Le(self, other)
 
-    def gt(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Gt":
+    def gt(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Gt":
         return Gt(self, other)
 
-    def ge(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Ge":
+    def ge(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Ge":
         return Ge(self, other)
 
-    def band(self: "QualifiedType[bool]", other: Union[bool, "QualifiedType[bool]"]) -> "And":
+    def band(self: "RefinementType[bool]", other: Union[bool, "RefinementType[bool]"]) -> "And":
         return And(self, other)
 
-    def bor(self: "QualifiedType[bool]", other: Union[bool, "QualifiedType[bool]"]) -> "Or":
+    def bor(self: "RefinementType[bool]", other: Union[bool, "RefinementType[bool]"]) -> "Or":
         return Or(self, other)
 
-    def add(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Add":
+    def add(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Add":
         return Add(self, other)
 
-    def sub(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Sub":
+    def sub(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Sub":
         return Sub(self, other)
 
-    def mul(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Mul":
+    def mul(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Mul":
         return Mul(self, other)
 
-    def div(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Div":
+    def div(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Div":
         return Div(self, other)
 
-    def mod(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Mod":
+    def mod(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Mod":
         return Mod(self, other)
 
-    def len(self: "QualifiedType[list[PyT]]"):
+    def len(self: "RefinementType[list[PyT]]"):
         return ArrayLen(self)
 
     # Operator overloading
-    def __add__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Add":
+    def __add__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Add":
         return self.add(other)
 
-    def __sub__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Sub":
+    def __sub__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Sub":
         return self.sub(other)
 
-    def __mul__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Mul":
+    def __mul__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Mul":
         return self.mul(other)
 
-    def __truediv__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Div":
+    def __truediv__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Div":
         return self.div(other)
 
-    def __mod__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Mod":
+    def __mod__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Mod":
         return self.mod(other)
 
-    def __and__(self: "QualifiedType[bool]", other: Union[bool, "QualifiedType[bool]"]) -> "QualifiedType[bool]":
+    def __and__(self: "RefinementType[bool]", other: Union[bool, "RefinementType[bool]"]) -> "RefinementType[bool]":
         return self.band(other)
 
-    def __or__(self: "QualifiedType[bool]", other: Union[bool, "QualifiedType[bool]"]) -> "QualifiedType[bool]":
+    def __or__(self: "RefinementType[bool]", other: Union[bool, "RefinementType[bool]"]) -> "RefinementType[bool]":
         return self.bor(other)
 
-    def __le__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Le":
+    def __le__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Le":
         return self.le(other)
 
-    def __lt__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Lt":
+    def __lt__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Lt":
         return self.lt(other)
 
-    def __gt__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Gt":
+    def __gt__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Gt":
         return self.gt(other)
 
-    def __ge__(self: "QualifiedType[int]", other: Union[int, "QualifiedType[int]"]) -> "Ge":
+    def __ge__(self: "RefinementType[int]", other: Union[int, "RefinementType[int]"]) -> "Ge":
         return self.ge(other)
 
 
@@ -124,19 +124,19 @@ class QualifiedType(Generic[PyT]):
 # Expressions
 
 @dataclass
-class UnaryOp(Generic[PyT, EvalT], QualifiedType[EvalT]):
+class UnaryOp(Generic[PyT, EvalT], RefinementType[EvalT]):
     """ A uniary operation on a liquid variable. """
-    target: QualifiedType[PyT]
+    target: RefinementType[PyT]
 
 
-class BinOp(Generic[PyT, PyT2, EvalT], QualifiedType[EvalT]):
+class BinOp(Generic[PyT, PyT2, EvalT], RefinementType[EvalT]):
     """ A binary operation on a liquid variable and a concrete Python one."""
-    lhs: QualifiedType[PyT]
-    rhs: PyT2 | QualifiedType[PyT2]
+    lhs: RefinementType[PyT]
+    rhs: PyT2 | RefinementType[PyT2]
 
-    def __init__(self, t: LiquidType[EvalT], lhs: QualifiedType[PyT], rhs: PyT2 | QualifiedType[PyT2]):
+    def __init__(self, t: BaseType[EvalT], lhs: RefinementType[PyT], rhs: PyT2 | RefinementType[PyT2]):
         super().__init__(t)
-        if isinstance(rhs, QualifiedType):
+        if isinstance(rhs, RefinementType):
             if lhs.t.python_type != rhs.t.python_type:
                 raise errors.BinopTypeMismatch(lhs, self, rhs)
         else:
@@ -149,14 +149,14 @@ class BinOp(Generic[PyT, PyT2, EvalT], QualifiedType[EvalT]):
 
 @dataclass
 class Eq(BinOp[PyT, PyT, bool]):
-    def __init__(self, lhs: QualifiedType[PyT], rhs: Union[PyT, QualifiedType[PyT]]):
+    def __init__(self, lhs: RefinementType[PyT], rhs: Union[PyT, RefinementType[PyT]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 ### Numeric comparisons
 
 class NumericBinOp(BinOp[int, int, EvalT]):
-    def __init__(self, t: LiquidType[EvalT], lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, t: BaseType[EvalT], lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         if lhs.t.python_type != int:
             raise errors.BinopTypeMismatch(self, self, rhs)
         super().__init__(t, lhs, rhs)
@@ -164,25 +164,25 @@ class NumericBinOp(BinOp[int, int, EvalT]):
 
 @dataclass
 class Le(NumericBinOp[bool]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 @dataclass
 class Lt(NumericBinOp[bool]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 @dataclass
 class Ge(NumericBinOp[bool]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Bool(), lhs, rhs)
 
 
 @dataclass
 class Gt(NumericBinOp[bool]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Bool(), lhs, rhs)
 
 
@@ -190,38 +190,38 @@ class Gt(NumericBinOp[bool]):
 
 @dataclass
 class Add(NumericBinOp[int]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 @dataclass
 class Sub(NumericBinOp[int]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 @dataclass
 class Mul(NumericBinOp[int]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 @dataclass
 class Div(NumericBinOp[int]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 @dataclass
 class Mod(NumericBinOp[int]):
-    def __init__(self, lhs: QualifiedType[int], rhs: Union[int, QualifiedType[int]]):
+    def __init__(self, lhs: RefinementType[int], rhs: Union[int, RefinementType[int]]):
         super().__init__(Int(), lhs, rhs)
 
 
 ### Boolean operations
 
 class BooleanBinOp(BinOp[bool, bool, bool]):
-    def __init__(self, lhs: QualifiedType[bool], rhs: Union[bool, QualifiedType[bool]]):
+    def __init__(self, lhs: RefinementType[bool], rhs: Union[bool, RefinementType[bool]]):
         if lhs.t.python_type != bool:
             raise errors.BinopTypeMismatch(lhs, self, rhs)
         super().__init__(Bool(), lhs, rhs)
@@ -229,13 +229,13 @@ class BooleanBinOp(BinOp[bool, bool, bool]):
 
 @dataclass
 class And(BooleanBinOp):
-    def __init__(self, lhs: QualifiedType[bool], rhs: Union[bool, QualifiedType[bool]]):
+    def __init__(self, lhs: RefinementType[bool], rhs: Union[bool, RefinementType[bool]]):
         super().__init__(lhs, rhs)
 
 
 @dataclass
 class Or(BooleanBinOp):
-    def __init__(self, lhs: QualifiedType[bool], rhs: Union[bool, QualifiedType[bool]]):
+    def __init__(self, lhs: RefinementType[bool], rhs: Union[bool, RefinementType[bool]]):
         super().__init__(lhs, rhs)
 
 
@@ -243,10 +243,10 @@ class Or(BooleanBinOp):
 
 @dataclass
 class ArrayLen(Generic[PyT], UnaryOp[list[PyT], int]):
-    def __init__(self, l: QualifiedType[list[PyT]]):
+    def __init__(self, l: RefinementType[list[PyT]]):
         super().__init__(l, target=l)
         if l.t.python_type != list:
             raise errors.UnaryTypeMismatch(self, l)
 
 
-Predicate = QualifiedType[bool]
+Predicate = RefinementType[bool]

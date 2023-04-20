@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from types import GenericAlias
 from typing import Any, Callable, Generic, Iterable, Literal, Optional, TypeVar, Type, Union
 
-from solvent.syntax.quants import QualifiedType
+from solvent.syntax.quants import RefinementType
 from solvent.typechecker.unification import Constraint, CVar, UnificationEnv as Env, unifier
 
 PyAst = TypeVar("PyAst", bound=ast.AST, covariant=True)
@@ -154,7 +154,7 @@ class Return(AstWrapper[ast.Return]):
 class AnnAssign(Generic[PyAst, EvalT], AstWrapper[ast.AnnAssign]):
     lhs: "Name"
     rhs: "Expr"
-    annotation: Union[QualifiedType, "Expr"]
+    annotation: Union[RefinementType, "Expr"]
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "AnnAssign":
@@ -232,7 +232,7 @@ class Expr(Generic[PyAst, EvalT], AstWrapper[PyAst]):
         raise Exception(f"{type(self)}.type() not implemented")
 
     # TODO: Rondon's thesis calls the output of this function ConstType; am I conflating things
-    def ConstType(self) -> QualifiedType[EvalT]:
+    def ConstType(self) -> RefinementType[EvalT]:
         raise Exception(f"{type(self)}.template() not implemented")
 
 
@@ -255,7 +255,7 @@ class Constant(Expr[ast.Constant, Union[bool, int]]):
     def type(self, env: Env) -> Union[Type, CVar]:
         return type(self.val)
 
-    def ConstType(self) -> QualifiedType[bool]:
+    def ConstType(self) -> RefinementType[bool]:
         #return L
         pass
 
@@ -453,18 +453,18 @@ class Subscript(Generic[PyAst, EvalT], Expr[ast.Subscript, EvalT]):
         return at.__args__[0]
 
 
-def from_ast(var: Name, t: ast.AST) -> Union[Expr, QualifiedType]:
+def from_ast(var: Name, t: ast.AST) -> Union[Expr, RefinementType]:
     if isinstance(t, ast.Name):
         if t.id in ["int", "bool", "list"]:
             # A simple monomorphic type literal
             blob = ast.unparse(t)
-            return QualifiedType(eval(blob))  # Yee haw!
+            return RefinementType(eval(blob))  # Yee haw!
         # TODO: if it isn't, then it feels like the Name could be an in-scope variable.
     elif isinstance(t, ast.Subscript):
         if t.value.id == "list":
             # A polymorphic list
             blob = ast.unparse(t)
-            return QualifiedType(eval(blob))  # Yee haw!
+            return RefinementType(eval(blob))  # Yee haw!
     elif isinstance(t, ast.Call):
         # TODO: Hopefuly this is a call to a liquid type constructor, eek, what do??
         expr = Call.from_pyast(t)

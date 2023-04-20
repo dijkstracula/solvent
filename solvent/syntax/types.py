@@ -34,7 +34,7 @@ PyT = TypeVar("PyT", int, bool, list)
 PyT2 = TypeVar("PyT2", int, bool, list)
 
 
-class LiquidType(Generic[PyT]):
+class BaseType(Generic[PyT]):
     """A liquid type, parameterised over some particular Python type."""
     python_type: type
 
@@ -43,31 +43,31 @@ class LiquidType(Generic[PyT]):
 
 
 @dataclass
-class Int(LiquidType[int]):
+class Int(BaseType[int]):
     def __init__(self): super().__init__(int)
 
 
 @dataclass
-class Bool(LiquidType[bool]):
+class Bool(BaseType[bool]):
     def __init__(self): super().__init__(bool)
 
 
 @dataclass
-class Array(Generic[PyT], LiquidType[list[PyT]]):
-    elem_type: LiquidType[PyT]
+class Array(Generic[PyT], BaseType[list[PyT]]):
+    elem_type: BaseType[PyT]
 
     # TODO: We need a way of quantifying over all the elements, which I don't think
     # this syntax lets us do precisely.  Think about how to do that - we need ultimately
     # i = Int(); a = Array(i);
     # a.suchThat(a.len() > 0)
     # a.suchThat(i > 0)
-    def __init__(self, et: LiquidType[PyT]):
+    def __init__(self, et: BaseType[PyT]):
         # TODO: can we avoid type erasure here somehow???
         super().__init__(list)
         self.elem_type = et
 
 
-def from_py_type(t: Type[PyT]) -> LiquidType:
+def from_py_type(t: Type[PyT]) -> BaseType:
     """ Transforms a Python native type that is supported into its Liquid equivalent."""
     if t == bool:
         return Bool()
