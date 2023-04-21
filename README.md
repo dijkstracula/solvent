@@ -18,6 +18,11 @@ $ poetry install
 $ poetry run pytest
 ```
 
+## Presentation
+
+To edit the presentation: `poetry run jupyter notebook`
+To show the presentation: `poetry run jupyter nbconvert paper/Presentation.ipynb --to slides --post serve`
+
 ## Overview
 
 A liquid type is a type system that refines a conventional base type with
