@@ -4,7 +4,10 @@ Enterprising formal methods researchers could do worse than position their
 work in the type-theoretic space.  While inexpressive relative to their
 counterparts in research languages, even "simple" type systems[^1] enjoyed by
 conventional industrial languages like Java or C# provide a powerful mechanism
-to statically reject invalid programs. Type systems also enjoy strong
+to statically reject invalid programs.  Under the Curry-Howard correspondence[@TaPL]
+we can consider, at least to a first approximation, that a program passing the
+typechecker corresponds to a proof in a constructive
+logic[@ProgramEqualsProof].  As a logical system, type systems enjoy strong
 metatheoretic properties.  Soundness (that is, invalid programs will always be
 rejected), reconstruction (that is, types can be inferred via terms' usage
 without human annotation), and termination are guaranteed, even when
@@ -67,8 +70,9 @@ class Nat: pass
 class Z(Nat): pass
 class S(Nat, Generic[N]): pass
 
-Two: type = S[S[Z]]
-Four: type = S[S[Two]]
+# Note: `Two` and `Four` are typedefs for subtypes of Nat, not terms with a concrete value!
+Two = S[S[Z]]
+Four = S[S[Two]]
 ```
 _Figure 2: A typelevel encoding of the natural numbers._
 
@@ -82,7 +86,7 @@ Notice that this is not the same as being indexed by _values_ of type `Nat` or
 `int`; terms and types in non-dependently typed programming languages occupy
 different syntactic domains and are not interchangable in this way.
 
-```{.python .numberLines startFrom="11"}
+```{.python .numberLines startFrom="12"}
 @dataclass
 class Vec(Generic[N,T]): # A Vector of N elements of type T
     l: list[T]
@@ -101,8 +105,8 @@ avg(empty) # error: Argument of type "Vec[Z, int]" cannot be assigned to paramet
 assert(avg(one_three) == 2)
 ```
 _Figure 3: A vector of elements whose length is indexed by the type system, and
-an implementation of `avg` that rejects an empty `Vec` with a difficult to
-understand error._
+an implementation of `avg` that rejects ill-typed arguments, but with a
+difficult to understand error._
 
 While some may consider contorting an existing type system in this way to be a
 hack, the benefits are clear: as we have not introduced any new mechanism into
@@ -236,7 +240,7 @@ aim for the best of both worlds: a dependent type system rich enough to prove
 useful safety properties, while _not_ being so expressive that reconstruction
 becomes impossible.
 
-### From program expressions to base types
+## From program expressions to base types
 
 In the paper, the only valid base types are `int`, `bool`, and `list[int]`.
 This doesn't mean that these are the only types that program terms can type to,
@@ -272,7 +276,7 @@ _lazy_ unification means inference and typechecking can be done
 incrementally[@TaPL] or interleaved with each other, which is important for
 more sophisticated _bidirectional_ typing algorithms.
 
-### Lifting base types into refined types
+## Lifting base types into refined types
 
 Refinement predicates are drawn from arithmetic and relational expressions over
 integer, boolean, and array sorts, and conjunctions thereof.   Their terminals
@@ -306,39 +310,20 @@ to say anything meaningful) nor too strong (i.e. doesn't overfit to precisely
 the concrete values inhabited by the type).  We saw before that the principal
 type property of H-M type inference made "a good base typing" simply fall out
 through unification; by contrast, conceivably, any number of "good refinement
-typings" could be synthesized.
+typings" could be synthesized.  
 
-### Refinement type constraint generation
-
-TODO: Lift base types that we've inferred into refinement types with constraint
-variables that we'll solve for.  
-
-TODO: Two ways to constrain our unknown predicates: if we want to synthesize a
-qualifier that uses some program term (for instance, the predicate `x > y` for
-the `max()` function example), that term of course needs to be in scope, and be
-of the appropriate base type. This is a _scope_ constraint and helps us ensure
-that our types only depend on values that make sense.
-
-TODO: We can also constrain them by facts that follow from the control flow of
-the program: for instance, in all terms getting typechecked within the `else`
-branch of an `if x > 0 then {...} else {...}` statement, we know that `x <= 0`
-is true.  This is a _flow constraint_ and gives us path sensitivity.
-
-TODO: Once we've built up these constraints, we need to turn them into
-a qualifier for our type.  That's where predicate abstraction comes in babeyyy
-(should say something about how neither refutation/unification/etc is appropriate
-here - something about an infinite space of possible substitutions or something)
-
-### Predicate abstraction and subtyping through implications
+### Predicate abstraction as the computational workhorse
 
 Recalling how the technique was applied to great effect whilst contemplating
-model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), Rondon et al.,
-a liquid type reconstruction algorithm consumes a set of predefined qualifiers
-with type holes indicating points that well-typed terms can be inserted, and
-produces a conjunction of those qualifiers.  Naturally, this induces a bias
-into the reconstruction output: whoever wrote down the set of qualifiers for
-predicate abstraction to choose from is in some sense determining the "basis
-set" that will comprise a reconstructed liquid type.
+model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), Rondon et al.
+constructed a liquid type reconstruction algorithm that consumes a set of
+_predefined qualifiers_ which they treat as a sort of basis set that refinements
+will be constructed from.  To simplify the exposition, in the paper the authors
+
+can be inserted, and produces a conjunction of those qualifiers.  Naturally,
+this induces a bias into the reconstruction output: whoever wrote down the set
+of qualifiers for predicate abstraction to choose from is in some sense
+determining the "basis set" that will comprise a reconstructed liquid type.
 
 ```ocaml
 (* ./default_patterns *)
@@ -364,6 +349,28 @@ Note the use of the recursively-defined function `length` in certain
 qualifiers._
 
 TODO: once we have qualifiers in Solvent, should we show those instead?
+
+
+### Refinement type constraint generation
+
+TODO: Lift base types that we've inferred into refinement types with constraint
+variables that we'll solve for.  
+
+TODO: Two ways to constrain our unknown predicates: if we want to synthesize a
+qualifier that uses some program term (for instance, the predicate `x > y` for
+the `max()` function example), that term of course needs to be in scope, and be
+of the appropriate base type. This is a _scope_ constraint and helps us ensure
+that our types only depend on values that make sense.
+
+TODO: We can also constrain them by facts that follow from the control flow of
+the program: for instance, in all terms getting typechecked within the `else`
+branch of an `if x > 0 then {...} else {...}` statement, we know that `x <= 0`
+is true.  This is a _flow constraint_ and gives us path sensitivity.
+
+TODO: Once we've built up these constraints, we need to turn them into
+a qualifier for our type.  That's where predicate abstraction comes in babeyyy
+(should say something about how neither refutation/unification/etc is appropriate
+here - something about an infinite space of possible substitutions or something)
 
 ### Historical overview and context
 
