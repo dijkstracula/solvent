@@ -63,6 +63,17 @@ def expr_from_pyast(tree: ast.AST) -> "Expr":
     raise errors.UnsupportedAST(tree)
 
 
+def type_from_annotation(tree: ast.Name) -> Union[Type, CVar]:
+    if tree is None:
+        return CVar.next()
+
+    match tree.id:
+        case "int": return Type[int]
+        case "bool": return Type[bool]
+        case _:
+            raise Exception(f"{tree.id} is not a supported annotation!")
+
+
 class AstWrapper(Generic[PyAst]):
     def constraints(self, env: Env) -> Iterable[Constraint]:
         raise Exception(f"{type(self)}.constraints() not implemented")
@@ -77,7 +88,7 @@ class AstWrapper(Generic[PyAst]):
 class FunctionDef(AstWrapper[ast.FunctionDef]):
     args: list["Name"]
     body: list[AstWrapper]
-    argtypes: list[CVar]
+    argtypes: list[Union[Type, CVar]]
     rettype: CVar
 
     @classmethod
@@ -89,13 +100,23 @@ class FunctionDef(AstWrapper[ast.FunctionDef]):
             raise errors.ASTError(node, "varargs not supported")
         if pyargs.kwarg:
             raise errors.ASTError(node, "kwargs not supported")
+
+        # go through arguments converting them to our DSL
         args = []
+        argtypes = []
         for arg in pyargs.args:
             aname = arg.arg
             args.append(Name(aname))
+
+            # add the type for this argument if we have it
+            # otherwise use a constraint variable
+            argtypes.append(type_from_annotation(arg.annotation))
+
         body = [stmt_from_pyast(stmt) for stmt in node.body]
 
-        return FunctionDef(args, body, [CVar.next() for _ in args], CVar.next())
+        # construct the return type if we have it
+
+        return FunctionDef(args, body, argtypes, type_from_annotation(node.returns))
 
     def constraints(self, env: Env) -> Iterable[Constraint]:
         env = env.copy()  # New scope, new env
@@ -283,13 +304,13 @@ class Call(Generic[PyAst, EvalT], Expr[ast.Call, EvalT]):
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "Call":
         assert isinstance(node, ast.Call)
-        #TODO
+        # TODO
 
 
 @dataclass(frozen=True)
 class ArithOp(Expr[ast.BinOp, int]):
     lhs: Expr
-    op: Any # TODO
+    op: Any  # TODO
     rhs: Expr
 
     @classmethod

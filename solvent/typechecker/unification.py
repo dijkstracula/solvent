@@ -99,6 +99,3 @@ def unifier(constraints: list[Constraint]) -> UnificationEnv:
 def flip(lhs: list[Any], rhs: list[Any]) -> list[Constraint]:
     """ A helper to transform two structurally-similar lists into constraints"""
     return [Constraint(l, r) for l, r in zip(lhs, rhs)]
-
-
-
