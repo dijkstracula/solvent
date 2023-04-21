@@ -47,7 +47,10 @@ class Constraint(Generic[T, U]):
     rhs: Union[CVar, U]
 
     def unify(self, env: Env) -> Env:
-        """ See if x and y match given the bindings."""
+        """
+        See if x and y match given the bindings.
+        """
+
         if env is None:
             return None
         if self.lhs == self.rhs:
@@ -57,6 +60,9 @@ class Constraint(Generic[T, U]):
         if isinstance(self.rhs, CVar):
             return unify_variable(self.rhs, self.lhs, env)
         return None
+
+    def __repr__(self):
+        return f"{self.lhs}={self.rhs}"
 
 
 def unify_variable(var: CVar, x: Union[CVar, T], env: Env) -> Env:
@@ -85,8 +91,11 @@ UnificationEnv = dict["Name", Union[Type, CVar]]
 
 
 def unifier(constraints: list[Constraint]) -> UnificationEnv:
-    """ Return something that unifies with the constraints, or None
-    if there's a contradiction."""
+    """
+    Return something that unifies with the constraints, or None
+    if there's a contradiction.
+    """
+
     env = {}
     for c in constraints:
         print(c, env)

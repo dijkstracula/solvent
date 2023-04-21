@@ -68,8 +68,8 @@ def type_from_annotation(tree: ast.Name) -> Union[Type, CVar]:
         return CVar.next()
 
     match tree.id:
-        case "int": return Type[int]
-        case "bool": return Type[bool]
+        case "int": return int
+        case "bool": return bool
         case _:
             raise Exception(f"{tree.id} is not a supported annotation!")
 
@@ -89,7 +89,7 @@ class FunctionDef(AstWrapper[ast.FunctionDef]):
     args: list["Name"]
     body: list[AstWrapper]
     argtypes: list[Union[Type, CVar]]
-    rettype: CVar
+    rettype: Union[Type, CVar]
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "FunctionDef":
@@ -140,6 +140,7 @@ class FunctionDef(AstWrapper[ast.FunctionDef]):
         # I wonder if this should just be type()?
         cstrs = list(self.constraints(env))
         bindings = unifier(cstrs)
+        print(bindings)
         unified_args = []
         for cvar in self.argtypes:
             if cvar in bindings:
@@ -147,7 +148,10 @@ class FunctionDef(AstWrapper[ast.FunctionDef]):
                 unified_args.append(bindings[cvar])
             else:
                 unified_args.append(cvar)
-        return ArrowType(unified_args, bindings[self.rettype])
+        if isinstance(self.rettype, CVar):
+            return ArrowType(unified_args, bindings[self.rettype])
+        else:
+            return ArrowType(unified_args, self.rettype)
 
 
 @dataclass(frozen=True)
