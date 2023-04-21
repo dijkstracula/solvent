@@ -59,8 +59,9 @@ numbers _within the type system_.  In contrast to the _term_ `3` (of type
 inherent runtime semantics (for a more complete example, see [@Shapeless]).  
 
 ```{.python .numberLines}
+from __future__ import annotations
 from typing import Any, Generic, TypeVar
-N,T = TypeVar("N", bound="Nat"), TypeVar("T")
+N,T = TypeVar("N", bound=Nat), TypeVar("T")
 
 class Nat: pass
 class Z(Nat): pass
