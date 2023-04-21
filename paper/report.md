@@ -8,7 +8,7 @@ to statically reject invalid programs. Type systems also enjoy strong
 metatheoretic properties.  Soundness (that is, invalid programs will always be
 rejected), reconstruction (that is, types can be inferred via terms' usage
 without human annotation), and termination are guaranteed, even when
-type-checking programs whose behaviour depends on runtime user input or data
+typechecking programs whose behaviour depends on runtime user input or data
 structures of unknown or unbounded size.  In so doing, Milner's old canard that
 _"well-typed programs don't go wrong"_[@milner-type-poly] has entered the
 programmer's popular lexicon [@LiquidHaskellTutorial]; after all, type theory
@@ -173,7 +173,7 @@ statesets such as BDDs and subsets of first-order logic, typically eschew
 quantifiers altogether.  
 
 Generally, therefore, reasoning about inductive data structures, something
-trivial for a type-checker, can cause a model checker to wander into the realm
+trivial for a typechecker, can cause a model checker to wander into the realm
 of undecidability.  Either users are therefore forced to either give up full
 automation in their models[@Dafny], or model checker implementers are required
 to add new axioms on a per-data structure basis[@LinkedListVerification] or
@@ -208,12 +208,15 @@ mechanisms to the former and model-checking mechanisms to the latter, gain the
 advantages of both, and avoid destructive interference between them.
 
 ```python
+@solvent.check
 def avg(xs: List(Int) | len(xs) > 0) -> int
     return sum(xs) // len(xs)
 avg(42) # Type-checking error
 avg([]) # Type-checking error
 ```
-_Figure 4: a logically-qualified program that does not go wrong._
+_Figure 4: a logically-qualified program, checked with the
+[Solvent](https://github.com/dijkstracula/solvent) liquid typechecker for
+Python, that does not go wrong._
 
 The procedure described in the authors' initial work[@LiquidTypesPLDI08] is
 primarily motivated by the type _reconstruction_ problem: given a program
@@ -269,29 +272,39 @@ incrementally[@TaPL].
 
 ### Lifting base types into refined types
 
-Refinement predicates are drawn from arithmatic and relational expressions over
-integer, boolean, and array sorts, and whose terminals are either (well-typed)
-constants, program variables, or the special value variable bound within the
-type itself.  (While not exhaustively enumerated in the paper, the precise possible
-predicate types are documented [in the authors' implementation of liquid types
-for
+Refinement predicates are drawn from arithmetic and relational expressions over
+integer, boolean, and array sorts, and conjunctions thereof.   Their terminals
+are either (well-typed) constants, program variables, or the special value
+variable bound within the type itself.  (While not exhaustively enumerated in
+the paper, the precise possible predicate types are documented [in the authors'
+implementation of liquid types for
 OCaml](https://github.com/ucsd-progsys/dsolve/blame/master/README#L97-L154).)
 In other words, the quantifier-free theory of linear arithmetic and
-uninterpreted functions (QF-UFLIA)!  It's clear that liquid types are more
-restrained in their expressivity than full dependent types, for which type
-checking and reconstruction quickly wander into the realm of
-undecidability[@SystemFUndecidable].  
+uninterpreted functions (QF-UFLIA)!  
 
-Since QF-UFLIA is decidable, so too is the _typechecking_ of a liquid type,
-since while left almost as an afterthought in the paper's text, off-the-shelf
-SMT solvers like [Yices](https://yices.csl.sri.com/) or Z3 can be used to check
-whether a refinement predicate in this logic is valid.  If programmers were
-manually annotating all their program terms with refinement types, we could
-treat the internals of the SMT solver as magic, rub it on our problem, and go
-home early.  However, recall that our goal is type _reconstruction_; we need to
-divine a predicate appropriate for the refinement type that is neither too weak
-(i.e. too abstract to say anything meaningful) nor too strong (i.e. doesn't
-overfit to precisely the concrete values inhabited by the type).
+It's clear that liquid types are more restrained in their expressivity than
+full dependent types, for which type checking and reconstruction quickly wander
+into the realm of undecidability[@SystemFUndecidable].  But, the tradeoff
+pays dividends:  Since QF-UFLIA is decidable, so too is the _typechecking_ of a
+liquid type, since off-the-shelf SMT solvers like
+[Yices](https://yices.csl.sri.com/) or Z3 can be used to check whether a
+refinement predicate in this logic is valid.  It's interesting that the initial
+paper[@LiquidTypesPLDI08] mentions using an SMT solver almost as an
+afterthought, whereas the subsequent work([@LiquidTypesDSVerificationPLDI09],
+[@RefinementTypesForHaskell], [@LowLevelLiquidTypesPOPL10],
+[@GradualLiquidTypeInference]) makes sure to mention it explicitly and right in
+the abstract.
+
+If programmers were manually annotating all their program terms with refinement
+types, we could treat the internals of the SMT solver as magic, rub it on our
+problem, and go home early.  However, recall that our goal is type
+_reconstruction_, not just _typechecking_; we need to divine a predicate
+appropriate for the refinement type that is neither too weak (i.e. too abstract
+to say anything meaningful) nor too strong (i.e. doesn't overfit to precisely
+the concrete values inhabited by the type).  We saw before that the principal
+type property of H-M type inference made "a good base typing" simply fall out
+through unification; by contrast, conceivably, any number of "good refinement
+typings" could be synthesized.
 
 ### Constraint generation and subtyping through implications
 
@@ -340,11 +353,11 @@ showing an elbow curve up and to the right around that time?)  What else?
 ## Limitations and Subsequent Work
 
 TODO: Low-level liquid types; and, don't forget about the gradual liquid types
-followup paper from OOPSLA 2018.  Maybe also F*?
+followup paper[@GradualLiquidTypeInference].  Maybe also F*[@FStar]?
 
 [^1]: In particular, those derived from the Hindley-Milner subset of System F,
   which we can intuit as being more or less equivalent in expressiveness to
   Scala, Haskell, or polymorphic Java[@JavaGenerics].  A critical feature of
-  H-M type systems is that both type-checking and reconstruction (inference) is
+  H-M type systems is that both typechecking and reconstruction (inference) is
   decidable and efficient.
 [^2]: That is to say: trivally typing everybody to `⊤` won't do!
