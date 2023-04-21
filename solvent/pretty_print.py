@@ -9,7 +9,12 @@ def pretty_print(stmt: syn.Stmt):
 
 
 def pstring_expr(expr: syn.Expr):
-    return "hi"
+    match expr:
+        case syn.Variable(name=x): return f"{x}"
+        case syn.IntLiteral(value=v): return f"{v}"
+        case syn.BoolLiteral(value=v): return f"{v}"
+        case syn.BoolOp(lhs=l, op=op, rhs=r):
+            return f"{pstring_expr(l)} {op} {pstring_expr(r)}"
 
 
 def pstring_type(typ: syn.Type):
@@ -23,6 +28,9 @@ def pstring_type(typ: syn.Type):
                 ", ".join(map(pstring_type, args)),
                 pstring_type(ret)
             )
+        case x:
+            print(x)
+            raise NotImplementedError
 
 
 def pstring_base_type(typ: syn.BaseType):

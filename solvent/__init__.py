@@ -26,3 +26,6 @@ class LiquidVar(RefinementType[PyT]):
             # from `fromPyType()` but I'm not sure how to thread it through.
             self.t = from_py_type(t)
         self.ident = ident
+
+
+V = None

@@ -1,9 +1,9 @@
-
-from solvent import frontend
+from __future__ import annotations
+from solvent import frontend, V
 
 
 @frontend.check
-def test_max(x, y: int):
+def test_max(x, y):
     return x + y
     # if x > y:
     #     return x

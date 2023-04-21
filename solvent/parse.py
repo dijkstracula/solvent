@@ -41,9 +41,24 @@ def parse_annotation(ann: Union[ast.Str, ast.Name]) -> Optional[syn.RType]:
             case ast.Name(id="int"):
                 return syn.RType.base(syn.Int())
             case ast.Name(id="bool"):
-                return syn.RType.base(syn.Bool()) 
+                return syn.RType.base(syn.Bool())
             case ast.Constant(value=v):
                 return parse_refinement(v)
+            case ast.Set(
+                    elts=[ast.Compare(
+                        left=ast.BinOp(
+                            left=base,
+                            op=ast.BitOr(),
+                            right=rhs),
+                        ops=[op],
+                        comparators=[val])]):
+                base_type = parse_annotation(base)
+                base_type.predicate = syn.BoolOp(
+                        lhs=parse_expr(rhs),
+                        op=binop_str(op),
+                        rhs=parse_expr(val)
+                    )
+                return base_type
             case _:
                 print(ast.dump(ann, indent=2))
                 raise NotImplementedError
@@ -61,7 +76,7 @@ def parse_expr(expr) -> syn.Expr:
             right = comps[0]
             return syn.BoolOp(
                 lhs=parse_expr(left),
-                op=op,
+                op=binop_str(op),
                 rhs=parse_expr(right),
             )
         case ast.Name(id=name):
@@ -69,7 +84,7 @@ def parse_expr(expr) -> syn.Expr:
         case ast.BinOp(left=left, op=op, right=right):
             return syn.ArithBinOp(
                 lhs=parse_expr(left),
-                op=op,
+                op=binop_str(op),
                 rhs=parse_expr(right),
             )
         case ast.Constant(value=val):
@@ -97,3 +112,18 @@ def parse_refinement(input: str) -> syn.RType:
             return syn.RType(syn.Bool(), refine_expr)
         case _:
             raise NotImplementedError
+
+
+def binop_str(op):
+    match op:
+        case ast.Eq(): return "=="
+        case ast.NotEq(): return "!="
+        case ast.Lt(): return "<"
+        case ast.LtE(): return "<="
+        case ast.Gt(): return ">"
+        case ast.GtE(): return ">="
+        case ast.Add(): return "+"
+        case ast.Sub(): return "-"
+        case ast.Mult(): return "*"
+        case ast.Div(): return "/"
+        case x: return f"`{x}`"
