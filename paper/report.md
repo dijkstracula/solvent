@@ -268,7 +268,8 @@ implications: because a term's principal type will always be generated, there's
 no value in recomputing it once additional constraints have been computed.  As
 a result, there's no need to eagerly unify the full constraint set at once:
 _lazy_ unification means inference and typechecking can be done
-incrementally[@TaPL].
+incrementally[@TaPL] or interleaved with each other, which is important for
+more sophisticated _bidirectional_ typing algorithms.
 
 ### Lifting base types into refined types
 
@@ -306,9 +307,28 @@ type property of H-M type inference made "a good base typing" simply fall out
 through unification; by contrast, conceivably, any number of "good refinement
 typings" could be synthesized.
 
-### Constraint generation and subtyping through implications
+### Refinement type constraint generation
 
-### Predicate abstraction and the journey home
+TODO: Lift base types that we've inferred into refinement types with constraint
+variables that we'll solve for.  
+
+TODO: Two ways to constrain our unknown predicates: if we want to synthesize a
+qualifier that uses some program term (for instance, the predicate `x > y` for
+the `max()` function example), that term of course needs to be in scope, and be
+of the appropriate base type. This is a _scope_ constraint and helps us ensure
+that our types only depend on values that make sense.
+
+TODO: We can also constrain them by facts that follow from the control flow of
+the program: for instance, in all terms getting typechecked within the `else`
+branch of an `if x > 0 then {...} else {...}` statement, we know that `x <= 0`
+is true.  This is a _flow constraint_ and gives us path sensitivity.
+
+TODO: Once we've built up these constraints, we need to turn them into
+a qualifier for our type.  That's where predicate abstraction comes in babeyyy
+(should say something about how neither refutation/unification/etc is appropriate
+here - something about an infinite space of possible substitutions or something)
+
+### Predicate abstraction and subtyping through implications
 
 Recalling how the technique was applied to great effect whilst contemplating
 model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), Rondon et al.,
@@ -341,6 +361,8 @@ verifying a Rope[@RopeDS]-like `Vec` datatype, written in an internal pattern
 DSL. `**` and `^` are the operator and integer literal wildcards, respectively.
 Note the use of the recursively-defined function `length` in certain
 qualifiers._
+
+TODO: once we have qualifiers in Solvent, should we show those instead?
 
 ### Historical overview and context
 
