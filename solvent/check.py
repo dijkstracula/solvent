@@ -1,4 +1,5 @@
 """
+
 The Hindley-Milner type-checker for our little language.
 """
 
@@ -89,6 +90,17 @@ def check_expr(context, expr: syn.Expr):
             return (RType.bool(), lhs_constrs + rhs_constrs + [
                 Constraint(lhs=lhs_ty, rhs=RType.bool()),
                 Constraint(lhs=rhs_ty, rhs=RType.bool()),
+            ])
+        case syn.Call(function_name=name, arglist=args):
+            fn_ty, constrs = check_expr(context, name)
+            types = []
+            for e in args:
+                ty, cs = check_expr(context, e)
+                types += [ty]
+                constrs += cs
+            ret_type = syn.TypeVar.fresh()
+            return (ret_type, constrs + [
+                Constraint(lhs=fn_ty, rhs=ArrowType(args=types, ret=ret_type))
             ])
         case x:
             print(x)

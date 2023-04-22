@@ -28,6 +28,8 @@ def pstring_type(typ: syn.Type):
                 ", ".join(map(pstring_type, args)),
                 pstring_type(ret)
             )
+        case syn.TypeVar(name=name):
+            return f"'{name}"
         case x:
             print(x)
             raise NotImplementedError

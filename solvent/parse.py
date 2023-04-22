@@ -94,6 +94,11 @@ def parse_expr(expr) -> syn.Expr:
                 return syn.BoolLiteral(value=val)
             else:
                 raise NotImplementedError
+        case ast.Call(func=func, args=args):
+            return syn.Call(
+                function_name=parse_expr(func),
+                arglist=[parse_expr(e) for e in args]
+            )
         case _:
             print(ast.dump(expr, indent=2))
             raise NotImplementedError

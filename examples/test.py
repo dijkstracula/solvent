@@ -3,8 +3,8 @@ from solvent import frontend, V
 
 
 @frontend.check
-def test_max(x, y):
-    return x + y
+def test_max(f, y):
+    return f(y)
     # if x > y:
     #     return x
     # else:
