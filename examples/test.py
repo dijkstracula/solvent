@@ -3,12 +3,11 @@ from solvent import frontend, V
 
 
 @frontend.check
-def test_max(f, y):
-    return f(y)
-    # if x > y:
-    #     return x
-    # else:
-    #     return y
+def my_max(x, y):
+    if x > y:
+        return x
+    else:
+        return y
 
 
 def my_sum(k):

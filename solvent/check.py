@@ -8,7 +8,6 @@ from typing import List
 
 from solvent import syn
 from solvent.syn import RType, Type, ArrowType
-from solvent.pretty_print import pretty_print, pstring_type
 
 
 @dataclass
@@ -19,14 +18,20 @@ class Constraint:
 
 def typecheck(stmt: syn.Stmt):
     typ, constrs, _ = check_stmt({}, stmt)
-    print(pstring_type(typ))
-    for c in constrs:
-        print(f"{pstring_type(c.lhs)} = {pstring_type(c.rhs)}")
+    # TODO: avoid circular import by not pprinting in here (side-effecting stuff
+    # like that probably should live in the frontend, anyway)
+    #print(pstring_type(typ))
     solution = dict(unify(constrs))
     final = finish(typ, solution)
     print(final)
-    print(pstring_type(final))
+    #print(pstring_type(final))
     return final
+
+
+def check_stmts(context, stmts: list[syn.Stmt]):
+    for stmt in stmts:
+        typ, constraints, context = check_stmt(context, stmt)
+    return typ, constraints, context
 
 
 def check_stmt(context, stmt: syn.Stmt):
@@ -58,11 +63,19 @@ def check_stmt(context, stmt: syn.Stmt):
             return this_type, new_constraints, context
 
         case syn.If(test=test, body=body, orelse=orelse):
-            raise NotImplementedError
+            # TODO: Sammy, decrease my 386L grade if I got this wrong
+            # (in particular: fine to discard the context from the body and else  Python
+            # has weird not-really-lexical scoping that I don't fully grok?)
+            test_typ, test_constrs = check_expr(context, test)
+            body_typ, body_constrs, _ = check_stmts(context, body)
+            else_typ, else_constrs, _ = check_stmts(context, orelse)
+            cstrs = [Constraint(test_typ, test_typ.bool())]
+            return body_typ, cstrs + test_constrs + body_constrs + else_constrs, context
         case syn.Return(value=value):
             ty, constrs = check_expr(context, value)
             return ty, constrs, context
-        case _:
+        case x:
+            print(x)
             raise NotImplementedError
 
 
@@ -84,6 +97,13 @@ def check_expr(context, expr: syn.Expr):
             ])
         case syn.BoolLiteral(_):
             return (RType.bool(), [])
+        case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
+            lhs_ty, lhs_constrs = check_expr(context, lhs)
+            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            return (RType.bool(), lhs_constrs + rhs_constrs + [
+                Constraint(lhs=lhs_ty, rhs=RType.int()),
+                Constraint(lhs=rhs_ty, rhs=RType.int()),
+            ])
         case syn.BoolOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)
