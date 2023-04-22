@@ -253,6 +253,8 @@ def shrink(solution):
                     args=[lookup(a, solution) for a in args],
                     ret=lookup(ret, solution)
                 )
+            case x:
+                return x
 
     new_solution = solution.copy()
     for k, v in solution.items():
@@ -268,7 +270,7 @@ def finish(typ: Type, solution) -> Type:
     match typ:
         case TypeVar(name=n):
             if n in solution:
-                return solution[n]
+                return finish(solution[n], solution)
             else:
                 return typ
         case RType():
