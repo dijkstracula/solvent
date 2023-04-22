@@ -10,6 +10,7 @@ from solvent import syn
 from solvent.syn import RType, Type, ArrowType
 
 
+
 @dataclass
 class Constraint:
     lhs: Type
@@ -69,7 +70,10 @@ def check_stmt(context, stmt: syn.Stmt):
             test_typ, test_constrs = check_expr(context, test)
             body_typ, body_constrs, _ = check_stmts(context, body)
             else_typ, else_constrs, _ = check_stmts(context, orelse)
-            cstrs = [Constraint(test_typ, test_typ.bool())]
+            cstrs = [
+                Constraint(test_typ, test_typ.bool()),
+                Constraint(body_typ, else_typ),
+            ]
             return body_typ, cstrs + test_constrs + body_constrs + else_constrs, context
         case syn.Return(value=value):
             ty, constrs = check_expr(context, value)
@@ -145,9 +149,8 @@ def unify(constrs):
             return unify(subst(rX, top.lhs, rest)) + [(rX, top.lhs)]
         # if both are functions variables
         else:
-            print(top)
             print(lX)
-            raise NotImplementedError
+            raise Exception(f"Can't unify {top.lhs} with {top.rhs}")
 
 
 def tvar_name(typ: Type):
@@ -193,7 +196,7 @@ def finish(typ: Type, solution) -> Type:
     match typ:
         case RType():
             if tvar_name(typ) in solution:
-                return solution[tvar_name(typ)]
+                return finish(solution[tvar_name(typ)], solution)
             else:
                 return typ
         case ArrowType(args=args, ret=ret):
