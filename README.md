@@ -22,7 +22,6 @@ $ poetry run pytest
 ## Presentation
 
 To edit the presentation: `poetry run jupyter notebook`
-To show the presentation: `poetry run jupyter nbconvert paper/Presentation.ipynb --to slides --post serve`
 
 ## Overview
 
