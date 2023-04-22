@@ -9,6 +9,7 @@ UT Austin.
 
 ```
 Nathan Taylor <ntaylor@cs.utexas.edu>
+Sam Thomas <sgt@cs.utexas.edu>
 ```
 
 ## Setup
