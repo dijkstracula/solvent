@@ -30,8 +30,9 @@ def infer_base_constraints(func):
     pyast = ast.parse(inspect.getsource(func))
     res = parse(pyast)
     typ, constrs, ctx = solvent.check.check_stmt({}, res)
-    print("Constraints:    " + "; ".join([pp.pstring_cvar(c) for c in constrs]))
-    print("Ununified type: " + pp.pstring_type(typ))
+    print(f"Function: {pyast.body[0].name}")
+    print("  Constraints:    " + "; ".join([pp.pstring_cvar(c) for c in constrs]))
+    print("  Ununified type: " + pp.pstring_type(typ))
     return func
 
 
@@ -44,7 +45,14 @@ def infer_base(func):
     # here because I imagine liquid var typechecking will also happen
     # in there - if not we can just call it directly.
     typ, constrs, _ = solvent.check.check_stmt({}, res)
+    print(f"Function: {pyast.body[0].name}")
+    print("  Ununified type: " + pp.pstring_type(typ))
+    print("  Constraints:    " + "; ".join([pp.pstring_cvar(c) for c in constrs]))
     solution = dict(solvent.check.unify(constrs))
+    solution = solvent.check.shrink(solution)
+    print("  Solution:")
+    for k, v in solution.items():
+        print(f"    {k} := {pp.pstring_type(v)}")
     final = solvent.check.finish(typ, solution)
-    print("Reconstructed base type: " + pp.pstring_type(final))
+    print("  Reconstructed base type: " + pp.pstring_type(final))
     return func

@@ -35,19 +35,19 @@ _cvar_counter = 0
 
 
 @dataclass
-class TypeVar(BaseType):
-    name: str
-
-    @staticmethod
-    def fresh():
-        global _cvar_counter
-        _cvar_counter += 1
-        return TypeVar(_cvar_counter)
+class Type:
+    pass
 
 
 @dataclass
-class Type:
-    pass
+class TypeVar(Type):
+    name: str
+
+    @staticmethod
+    def fresh(name=""):
+        global _cvar_counter
+        _cvar_counter += 1
+        return TypeVar(f"{name}{_cvar_counter}")
 
 
 @dataclass
@@ -70,8 +70,8 @@ class RType(Type):
 
 @dataclass
 class ArrowType(Type):
-    args: List[RType]
-    ret: RType
+    args: List[Type]
+    ret: Type
 
 
 @dataclass

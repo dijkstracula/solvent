@@ -6,9 +6,9 @@ The Hindley-Milner type-checker for our little language.
 from dataclasses import dataclass
 from typing import List
 
+from solvent import pp
 from solvent import syn
-from solvent.syn import RType, Type, ArrowType
-
+from solvent.syn import RType, Type, ArrowType, TypeVar
 
 
 @dataclass
@@ -46,7 +46,7 @@ def check_stmt(context, stmt: syn.Stmt):
                 if a.annotation is not None:
                     t = a.annotation
                 else:
-                    t = RType.base(syn.TypeVar.fresh())
+                    t = TypeVar.fresh(name=a.name)
                 argtypes += [t]
                 body_context[a.name] = t
 
@@ -122,13 +122,31 @@ def check_expr(context, expr: syn.Expr):
                 ty, cs = check_expr(context, e)
                 types += [ty]
                 constrs += cs
-            ret_type = syn.TypeVar.fresh()
+            ret_type = TypeVar.fresh()
             return (ret_type, constrs + [
                 Constraint(lhs=fn_ty, rhs=ArrowType(args=types, ret=ret_type))
             ])
         case x:
             print(x)
             raise NotImplementedError
+
+
+def type_eq(t1: Type, t2: Type) -> bool:
+    """
+    We can probably override __eq__ at some point. I'm lazy right now.
+    This function implements equality between types
+    """
+
+    match (t1, t2):
+        case (TypeVar(name=n1), TypeVar(name=n2)):
+            return n1 == n2
+        case (RType(value=v1, predicate=_), RType(value=v2, predicate=_)):
+            return v1 == v2
+        case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
+            args_eq = all(map(lambda a: type_eq(a[0], a[1]), zip(args1, args2)))
+            return args_eq and type_eq(ret1, ret2)
+        case _: 
+            return False
 
 
 def unify(constrs):
@@ -139,8 +157,8 @@ def unify(constrs):
         rest = constrs[1:]
         lX = tvar_name(top.lhs)
         rX = tvar_name(top.rhs)
-        if top.lhs.value == top.rhs.value:
-            return unify(constrs[1:])
+        if type_eq(top.lhs, top.rhs):
+            return unify(rest)
         # if lhs is variable
         elif lX is not None and lX not in free_vars(top.rhs):
             return unify(subst(lX, top.rhs, rest)) + [(lX, top.rhs)]
@@ -148,6 +166,15 @@ def unify(constrs):
         elif rX is not None and rX not in free_vars(top.lhs):
             return unify(subst(rX, top.lhs, rest)) + [(rX, top.lhs)]
         # if both are functions variables
+        elif (isinstance(top.lhs, ArrowType)
+            and isinstance(top.rhs, ArrowType)
+            and len(top.lhs.args) == len(top.rhs.args)):
+            arg_constrs = list(map(
+                lambda a: Constraint(lhs=a[0], rhs=a[1]),
+                zip(top.lhs.args, top.rhs.args)
+            ))
+            ret_constr = Constraint(lhs=top.lhs.ret, rhs=top.rhs.ret)
+            return unify(arg_constrs + [ret_constr] +  rest)
         else:
             print(lX)
             raise Exception(f"Can't unify {top.lhs} with {top.rhs}")
@@ -155,18 +182,19 @@ def unify(constrs):
 
 def tvar_name(typ: Type):
     match typ:
-        case RType(value=syn.TypeVar(name=name)):
+        case TypeVar(name=name):
             return name
 
 
 def free_vars(typ: Type):
     match typ:
-        case RType(value=syn.TypeVar(name=name)):
+        case TypeVar(name=name):
             return [name]
         case RType():
+            # TODO: is this true??
             return []
         case ArrowType(args=args, ret=ret):
-            return free_vars(args) + free_vars(ret)
+            return sum([free_vars(a) for a in args], []) + free_vars(ret)
         case _:
             return NotImplementedError
 
@@ -180,25 +208,71 @@ def subst(name: str, typ: Type, constrs: List[Constraint]) -> List[Constraint]:
 
 def subst_one(name: str, tar: Type, src: Type) -> Type:
     match src:
-        case RType(value=value):
-            if tvar_name(src) == name:
+        case TypeVar(name=n):
+            if name == n:
                 return tar
             else:
                 return src
+        case RType():
+            return src
         case ArrowType(args=args, ret=ret):
             return ArrowType(
                 args=[subst_one(name, tar, x) for x in args],
-                ret=[subst_one(name, tar, ret)]
+                ret=subst_one(name, tar, ret)
             )
+        case x:
+            print("subst_one:", x)
+            raise NotImplementedError
+
+
+def shrink(solution):
+    """
+    Returns a solution where every entry maps to something that isn't
+    in the solution.
+
+    For example:
+      3 := '4
+      4 := '5
+    Get's turned into:
+      3 := '5
+      4 := '5
+
+    I'm doing the dumbest thing right now. This can definitely be improved.
+    """
+
+    def lookup(typ: Type, solution) -> Type:
+        """For composite types, I need to potentially dig into the type."""
+        match typ:
+            case TypeVar(name=n):
+                if n in solution:
+                    return solution[n]
+                else:
+                    return typ
+            case ArrowType(args=args, ret=ret):
+                return ArrowType(
+                    args=[lookup(a, solution) for a in args],
+                    ret=lookup(ret, solution)
+                )
+
+    new_solution = solution.copy()
+    for k, v in solution.items():
+        new_solution[k] = lookup(v, solution)
+    if new_solution == solution:
+        return new_solution
+    else:
+        return shrink(new_solution)
+
 
 
 def finish(typ: Type, solution) -> Type:
     match typ:
-        case RType():
-            if tvar_name(typ) in solution:
-                return finish(solution[tvar_name(typ)], solution)
+        case TypeVar(name=n):
+            if n in solution:
+                return solution[n]
             else:
                 return typ
+        case RType():
+            return typ
         case ArrowType(args=args, ret=ret):
             return ArrowType(
                 args=[finish(t, solution) for t in args],

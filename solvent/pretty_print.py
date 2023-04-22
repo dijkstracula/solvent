@@ -1,13 +1,5 @@
-
 from solvent import syn
-import pprint
-
 from solvent.check import Constraint
-
-
-def pretty_print(stmt: syn.Stmt):
-    pp = pprint.PrettyPrinter(indent=2)
-    pp.pprint(stmt)
 
 
 def pstring_expr(expr: syn.Expr):
@@ -42,7 +34,6 @@ def pstring_base_type(typ: syn.BaseType):
         case syn.Int(): return "int"
         case syn.Bool(): return "bool"
         case syn.Unit(): return "unit"
-        case syn.TypeVar(name=name): return f"'{name}"
 
 
 def pstring_cvar(c: Constraint):

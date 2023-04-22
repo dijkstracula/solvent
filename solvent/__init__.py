@@ -29,3 +29,12 @@ class LiquidVar(RefinementType[PyT]):
 
 
 V = None
+
+
+import pprint
+from . import syn
+
+def pp(stmt: syn.Stmt):
+    pp = pprint.PrettyPrinter(indent=2)
+    pp.pprint(stmt)
+
