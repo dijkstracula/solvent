@@ -11,15 +11,16 @@ from functools import reduce
 
 def subtype(assumes, typ1, typ2):
 
-    assumes_smt = reduce(
-        lambda a, b: z3.And(a, b),
-        [expr_to_smt(e) for e in assumes],
-        True
-    )
-
     match (typ1, typ2):
         case (syn.RType(value=t1, predicate=p1),
               syn.RType(value=t2, predicate=p2)) if t1 == t2:
+
+            assumes_smt = reduce(
+                lambda a, b: z3.And(a, b),
+                [expr_to_smt(e) for e in assumes],
+                True
+            )
+
             to_check = z3.Implies(
                 z3.And(assumes_smt, expr_to_smt(p1)),
                 expr_to_smt(p2)

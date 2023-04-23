@@ -65,6 +65,8 @@ def check_stmt(context, assums: List[syn.Expr], stmt: syn.Stmt):
                 if a.annotation is not None:
                     t = a.annotation
                 else:
+                    # t = RType.template(TypeVar.fresh(name=a.name))
+                    # the above is the correct version. simplifying for now
                     t = RType.base(TypeVar.fresh(name=a.name))
                 argtypes += [t]
                 body_context[a.name] = t
@@ -76,7 +78,7 @@ def check_stmt(context, assums: List[syn.Expr], stmt: syn.Stmt):
             if ret is not None:
                 ret_typ = ret
             else:
-                ret_typ = RType.base(TypeVar.fresh(name="guess"))
+                ret_typ = RType.template(TypeVar.fresh(name="guess"))
                 
             body_context[name] = syn.ArrowType(
                 args=argtypes,
@@ -297,11 +299,22 @@ def finish(typ: Type, solution) -> Type:
     """
 
     match typ:
-        case RType(value=TypeVar(name=n), predicate=p) if n in solution:
-            base_ty = solution[n].value
+        case RType(value=v, predicate=p):
+            changed = False
+            if isinstance(v, TypeVar):
+                base_ty = solution[v.name].value
+                changed = True
+            else:
+                base_ty = v
+
             if isinstance(p, TypeVar) and p.name in solution:
+                changed = True
                 p = solution[p.name]
-            return finish(RType(base_ty, p), solution)
+
+            if changed:
+                return finish(RType(base_ty, p), solution)
+            else:
+                return RType(base_ty, p)
         case ArrowType(args=args, ret=ret):
             return ArrowType(
                 args=[finish(t, solution) for t in args],

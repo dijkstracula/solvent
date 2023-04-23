@@ -19,6 +19,8 @@ def pstring_expr(expr: syn.Expr):
             return f"{fn}({', '.join(args)})"
         case syn.TypeVar(name=n):
             return f"'{n}"
+        case [*exprs]:
+            return " and ".join([pstring_expr(e) for e in exprs])
         case x:
             return f"`{x}`"
 
