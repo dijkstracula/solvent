@@ -3,13 +3,14 @@ from solvent import frontend, V
 
 
 @frontend.infer_base
-def my_max(x: {int | V < 10}, y):
+def my_max(x, y):
     if x > y:
         return x
     else:
         return y
 
 
+#@frontend.infer_base
 def my_sum(k):
     if k < 0:
         return 0
@@ -18,6 +19,6 @@ def my_sum(k):
         return s + k
 
 
-@frontend.infer_base
+#@frontend.infer_base_constraints
 def double(f, x):
     return f(f(x, x), f(x, x))
