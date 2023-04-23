@@ -196,7 +196,7 @@ def unify(constrs):
             return unify(arg_constrs + [ret_constr] +  rest)
         else:
             print(lX)
-            raise Exception(f"Can't unify {top.lhs} with {top.rhs}")
+            raise Exception(f"{pp.pstring_type(top.lhs)} is incompatible with {pp.pstring_type(top.rhs)}")
 
 
 def tvar_name(typ: Type):
