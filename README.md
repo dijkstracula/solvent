@@ -21,7 +21,7 @@ $ poetry run pytest
 
 ## Presentation
 
-To edit the presentation: `poetry run jupyter notebook`
+To edit the presentation: `poetry run jupyter notebook paper/Presentation.ipynb`
 
 ## Overview
 
