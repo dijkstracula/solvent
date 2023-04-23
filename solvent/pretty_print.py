@@ -1,5 +1,5 @@
 from solvent import syn
-from solvent.check import Constraint, Eq, SubType
+from solvent.check import Constraint, BaseEq, SubType
 
 
 def pstring_expr(expr: syn.Expr):
@@ -17,6 +17,8 @@ def pstring_expr(expr: syn.Expr):
             fn = pstring_expr(x)
             args = [pstring_expr(a) for a in args]
             return f"{fn}({', '.join(args)})"
+        case syn.TypeVar(name=n):
+            return f"'{n}"
         case x:
             return f"`{x}`"
 
@@ -56,8 +58,8 @@ def pstring_base_type(typ: syn.BaseType):
 
 def pstring_cvar(c: Constraint):
     match c:
-        case Eq(lhs=lhs, rhs=rhs):
-            return f"{pstring_type(lhs, False)} = {pstring_type(rhs, False)}"
+        case BaseEq(lhs=lhs, rhs=rhs):
+            return f"{pstring_type(lhs)} = {pstring_type(rhs)}"
         case SubType(assumes=assumes, lhs=lhs, rhs=rhs):
             asm_str = ", ".join([pstring_expr(e) for e in assumes])
             return f"{asm_str} |- {pstring_type(lhs)} <: {pstring_type(rhs)}"

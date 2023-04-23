@@ -60,6 +60,10 @@ class RType(Type):
         return RType(value=base_type, predicate=BoolLiteral(value=True))
 
     @staticmethod
+    def template(base_type: BaseType):
+        return RType(value=base_type, predicate=TypeVar.fresh("t"))
+
+    @staticmethod
     def bool():
         return RType(value=Bool(), predicate=BoolLiteral(value=True))
 

@@ -45,20 +45,29 @@ def parse_annotation(ann: Union[ast.Str, ast.Name]) -> Optional[syn.RType]:
             case ast.Constant(value=v):
                 return parse_refinement(v)
             case ast.Set(
-                    elts=[ast.Compare(
-                        left=ast.BinOp(
+                    elts=[
+                        ast.BinOp(
                             left=base,
                             op=ast.BitOr(),
-                            right=rhs),
-                        ops=[op],
-                        comparators=[val])]):
+                            right=refinement)]):
                 base_type = parse_annotation(base)
-                base_type.predicate = syn.BoolOp(
-                        lhs=parse_expr(rhs),
-                        op=binop_str(op),
-                        rhs=parse_expr(val)
-                    )
+                base_type.predicate = parse_expr(refinement)
                 return base_type
+            # case ast.Set(
+            #         elts=[ast.Compare(
+            #             left=ast.BinOp(
+            #                 left=base,
+            #                 op=ast.BitOr(),
+            #                 right=rhs),
+            #             ops=[op],
+            #             comparators=[val])]):
+            #     base_type = parse_annotation(base)
+            #     base_type.predicate = syn.BoolOp(
+            #             lhs=parse_expr(rhs),
+            #             op=binop_str(op),
+            #             rhs=parse_expr(val)
+            #         )
+            #     return base_type
             case _:
                 print(ast.dump(ann, indent=2))
                 raise NotImplementedError
@@ -79,6 +88,8 @@ def parse_expr(expr) -> syn.Expr:
                 op=binop_str(op),
                 rhs=parse_expr(right),
             )
+        case ast.Name(id=name) if name == "V":
+            return syn.V()
         case ast.Name(id=name):
             return syn.Variable(name=name)
         case ast.BinOp(left=left, op=op, right=right):

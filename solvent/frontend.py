@@ -4,7 +4,7 @@ import ast
 import solvent.pretty_print as pp
 import solvent.check
 from solvent.parse import parse
-from solvent.check import typecheck, Eq, SubType, RType
+from solvent.check import typecheck, BaseEq, SubType, RType
 from solvent.subtype import subtype
 from solvent.syn import BoolLiteral, BoolOp
 
@@ -36,7 +36,7 @@ def infer_base(func):
     for c in constrs:
         match c:
             # TODO: This is janky and displeases me.
-            case Eq():
+            case BaseEq():
                 print(f"    {pp.pstring_cvar(c)}")
             case SubType(lhs=RType(predicate=BoolLiteral(True))):
                 print(f"    {pp.pstring_cvar(c)}")
@@ -77,7 +77,7 @@ def infer(func):
 
     typ, constrs, _ = solvent.check.check_stmt({}, [], res)
     eq_constrs = list(filter(
-        lambda x: isinstance(x, Eq),
+        lambda x: isinstance(x, BaseEq),
         constrs
     ))
     subtype_constrs = list(filter(
@@ -91,7 +91,7 @@ def infer(func):
         print(f"    {pp.pstring_cvar(c)}")
 
     print("  Ununified type: " + pp.pstring_type(typ))
-    solution = dict(solvent.check.unify(constrs))
+    solution = dict(solvent.check.unify(constrs, show_work=True))
 
     print("  Solution:")
     for k, v in solution.items():
@@ -104,7 +104,10 @@ def infer(func):
     for c in subtype_constrs:
         c.lhs = solvent.check.finish(c.lhs, solution)
         c.rhs = solvent.check.finish(c.rhs, solution)
-        print(f"    {pp.pstring_cvar(c)}")
-        subtype(c.assumes, c.lhs, c.rhs)
+        if subtype(c.assumes, c.lhs, c.rhs):
+            print(f"       {pp.pstring_cvar(c)}")
+        else:
+            print(f"[fail] {pp.pstring_cvar(c)}")
+        
 
     return func

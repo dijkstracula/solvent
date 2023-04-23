@@ -18,10 +18,18 @@ def expr_to_smt(e: syn.Expr):
             return expr_to_smt(l) > expr_to_smt(r)
         case syn.BoolOp(lhs=l, op="==", rhs=r):
             return expr_to_smt(l) == expr_to_smt(r)
+        case syn.BoolOp(lhs=l, op="<=", rhs=r):
+            return expr_to_smt(l) <= expr_to_smt(r)
+        case syn.BoolOp(lhs=l, op="<", rhs=r):
+            return expr_to_smt(l) < expr_to_smt(r)
         case syn.BoolLiteral(value=v):
             return v
         case syn.Neg(expr=e):
             return z3.Not(expr_to_smt(e))
+        case syn.TypeVar(name=n):
+            # will need to infer this type eventually.
+            # when that happens, this becomes an error
+            return True
         case x:
             print(x)
             raise NotImplementedError
