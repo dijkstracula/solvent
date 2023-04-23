@@ -9,6 +9,8 @@ def pstring_expr(expr: syn.Expr):
         case syn.BoolLiteral(value=v): return f"{v}"
         case syn.BoolOp(lhs=l, op=op, rhs=r):
             return f"{pstring_expr(l)} {op} {pstring_expr(r)}"
+        case syn.Neg(expr=e):
+            return f"-({pstring_expr(e)})"
         case syn.V():
             return "V"
         case syn.Call(function_name=x, arglist=args):
@@ -19,12 +21,15 @@ def pstring_expr(expr: syn.Expr):
             return f"`{x}`"
 
 
-def pstring_type(typ: syn.Type):
+def pstring_type(typ: syn.Type, exact=True):
     match typ:
         case syn.RType(value=value, predicate=syn.BoolLiteral(value=True)):
             return f"{pstring_base_type(value)}"
         case syn.RType(value=value, predicate=pred):
-            return (f"{{ {pstring_base_type(value)} | {pstring_expr(pred)} }}")
+            if exact:
+                return (f"{{ {pstring_base_type(value)} | {pstring_expr(pred)} }}")
+            else:
+                return f"{pstring_base_type(value)}"
         case syn.ArrowType(args=args, ret=ret):
             return "({}) -> {}".format(
                 ", ".join(map(pstring_type, args)),
@@ -52,6 +57,7 @@ def pstring_base_type(typ: syn.BaseType):
 def pstring_cvar(c: Constraint):
     match c:
         case Eq(lhs=lhs, rhs=rhs):
-            return f"{pstring_type(lhs)} = {pstring_type(rhs)}"
-        case SubType(lhs=lhs, rhs=rhs):
-            return f"{pstring_type(lhs)} <: {pstring_type(rhs)}"
+            return f"{pstring_type(lhs, False)} = {pstring_type(rhs, False)}"
+        case SubType(assumes=assumes, lhs=lhs, rhs=rhs):
+            asm_str = ", ".join([pstring_expr(e) for e in assumes])
+            return f"{asm_str} |- {pstring_type(lhs)} <: {pstring_type(rhs)}"

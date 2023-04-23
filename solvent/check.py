@@ -1,5 +1,4 @@
 """
-
 The Hindley-Milner type-checker for our little language.
 """
 
@@ -24,6 +23,7 @@ class Eq:
 
 @dataclass
 class SubType:
+    assumes: List[syn.Expr]
     lhs: Type
     rhs: Type
 
@@ -90,13 +90,18 @@ def check_stmt(context, assums: List[syn.Expr], stmt: syn.Stmt):
             test_typ, test_constrs = check_expr(context, assums, test)
             body_typ, body_constrs, _ = check_stmts(context, [test] + assums, body)
             else_typ, else_constrs, _ = check_stmts(context, [syn.Neg(test)] + assums, orelse)
-            ret_typ = TypeVar.fresh("ifRes")
+            ret_typ = RType.base(TypeVar.fresh("ifRes"))
             cstrs = [
-                Eq(test_typ, RType.bool()),  # test is a boolean
-                SubType(body_typ, RType.base(ret_typ)),  # body is a subtype of ret type
-                SubType(else_typ, RType.base(ret_typ)),  # else is a subtype of ret type
+                # test is a boolean
+                Eq(test_typ, RType.bool()),
+                # base types of branches are equal
+                Eq(body_typ, else_typ),
+                # body is a subtype of ret type
+                SubType([test] + assums, body_typ, ret_typ),  
+                # else is a subtype of ret type
+                SubType([syn.Neg(test)] + assums, else_typ, ret_typ),  
             ]
-            return RType.base(ret_typ), cstrs + test_constrs + body_constrs + else_constrs, context
+            return ret_typ, cstrs + test_constrs + body_constrs + else_constrs, context
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
             # for now just throw away the predicate of ty
@@ -120,8 +125,8 @@ def check_expr(context, assums, expr: syn.Expr):
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
             return (RType.int(), lhs_constrs + rhs_constrs + [
-                SubType(lhs=lhs_ty, rhs=RType.int()),
-                SubType(lhs=rhs_ty, rhs=RType.int()),
+                Eq(lhs_ty, RType.int()),
+                Eq(rhs_ty, RType.int()),
             ])
         case syn.BoolLiteral(_):
             return (RType.bool(), [])
@@ -129,8 +134,8 @@ def check_expr(context, assums, expr: syn.Expr):
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
             return (RType.bool(), lhs_constrs + rhs_constrs + [
-                SubType(lhs=lhs_ty, rhs=RType.int()),
-                SubType(lhs=rhs_ty, rhs=RType.int()),
+                Eq(lhs_ty, RType.int()),
+                Eq(rhs_ty, RType.int()),
             ])
         case syn.Call(function_name=name, arglist=args):
             fn_ty, constrs = check_expr(context, assums, name)
@@ -181,6 +186,7 @@ def unify(constrs):
     else:
         top = constrs[0]
         rest = constrs[1:]
+
         lX = tvar_name(top.lhs)
         rX = tvar_name(top.rhs)
         if base_type_eq(top.lhs, top.rhs):
@@ -203,7 +209,11 @@ def unify(constrs):
             return unify(arg_constrs + [ret_constr] +  rest)
         else:
             print(lX)
-            raise Exception(f"{pp.pstring_type(top.lhs)} is incompatible with {pp.pstring_type(top.rhs)}")
+            raise Exception(" ".join([
+                pp.pstring_type(top.lhs),
+                " is incompatible with ",
+                pp.pstring_type(top.rhs)
+            ]))
 
 
 def tvar_name(typ: Type):
@@ -248,56 +258,15 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             raise NotImplementedError
 
 
-# don't actually need this
-# def shrink(solution):
-#     """
-#     Returns a solution where every entry maps to something that isn't
-#     in the solution.
-
-#     For example:
-#       3 := '4
-#       4 := '5
-#     Get's turned into:
-#       3 := '5
-#       4 := '5
-
-#     I'm doing the dumbest thing right now. This can definitely be improved.
-#     """
-
-#     def lookup(typ: Type, solution) -> Type:
-#         """For composite types, I need to potentially dig into the type."""
-#         match typ:
-#             case TypeVar(name=n):
-#                 if n in solution:
-#                     return solution[n]
-#                 else:
-#                     return typ
-#             case ArrowType(args=args, ret=ret):
-#                 return ArrowType(
-#                     args=[lookup(a, solution) for a in args],
-#                     ret=lookup(ret, solution)
-#                 )
-#             case x:
-#                 return x
-
-#     new_solution = solution.copy()
-#     for k, v in solution.items():
-#         new_solution[k] = lookup(v, solution)
-#     if new_solution == solution:
-#         return new_solution
-#     else:
-#         return shrink(new_solution)
-
-
-
 def finish(typ: Type, solution) -> Type:
     """
     Given a type, resolve all type variables using `solution'.
     """
 
     match typ:
-        case RType(value=TypeVar(name=n)) if n in solution:
-            return finish(solution[n], solution)
+        case RType(value=TypeVar(name=n), predicate=p) if n in solution:
+            base_ty = solution[n].value
+            return finish(RType(base_ty, p), solution)
         case ArrowType(args=args, ret=ret):
             return ArrowType(
                 args=[finish(t, solution) for t in args],

@@ -2,7 +2,7 @@ from __future__ import annotations
 from solvent import frontend, V
 
 
-@frontend.infer_base
+@frontend.infer
 def my_max(x, y):
     if x > y:
         return x
@@ -10,7 +10,7 @@ def my_max(x, y):
         return y
 
 
-@frontend.infer_base
+# @frontend.infer_base
 def my_sum(k):
     if k < 0:
         return 0

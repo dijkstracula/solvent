@@ -5,6 +5,7 @@ import solvent.pretty_print as pp
 import solvent.check
 from solvent.parse import parse
 from solvent.check import typecheck, Eq, SubType, RType
+from solvent.subtype import subtype
 from solvent.syn import BoolLiteral, BoolOp
 
 
@@ -75,15 +76,35 @@ def infer(func):
     res = parse(pyast)
 
     typ, constrs, _ = solvent.check.check_stmt({}, [], res)
+    eq_constrs = list(filter(
+        lambda x: isinstance(x, Eq),
+        constrs
+    ))
+    subtype_constrs = list(filter(
+        lambda x: isinstance(x, SubType),
+        constrs
+    ))
     print(f"Function: {pyast.body[0].name}")
+
     print("  Constraints:")
-    for c in constrs:
+    for c in eq_constrs:
         print(f"    {pp.pstring_cvar(c)}")
+
     print("  Ununified type: " + pp.pstring_type(typ))
     solution = dict(solvent.check.unify(constrs))
+
     print("  Solution:")
     for k, v in solution.items():
         print(f"    '{k} := {pp.pstring_type(v)}")
     final = solvent.check.finish(typ, solution)
+
     print("  Reconstructed type: " + pp.pstring_type(final))
+
+    print("  Subtype Constraints:")
+    for c in subtype_constrs:
+        c.lhs = solvent.check.finish(c.lhs, solution)
+        c.rhs = solvent.check.finish(c.rhs, solution)
+        print(f"    {pp.pstring_cvar(c)}")
+        subtype(c.assumes, c.lhs, c.rhs)
+
     return func
