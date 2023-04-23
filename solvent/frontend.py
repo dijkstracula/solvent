@@ -34,10 +34,14 @@ def infer_base(func):
     print("  Constraints:")
     for c in constrs:
         match c:
+            # TODO: This is janky and displeases me.
             case Eq():
                 print(f"    {pp.pstring_cvar(c)}")
             case SubType(lhs=RType(predicate=BoolLiteral(True))):
                 print(f"    {pp.pstring_cvar(c)}")
+            case SubType(lhs=lhs, rhs=rhs):
+                lifted_c = SubType(RType.base(lhs.value), rhs)
+                print(f"    {pp.pstring_cvar(lifted_c)}")
 
     print("  Ununified type: " + pp.pstring_type(typ))
     solution = dict(solvent.check.unify(constrs))
