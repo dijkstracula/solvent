@@ -22,7 +22,7 @@ def pstring_expr(expr: syn.Expr):
 def pstring_type(typ: syn.Type):
     match typ:
         case syn.RType(value=value, predicate=syn.BoolLiteral(value=True)):
-            return f"{{ {pstring_base_type(value)} }}"
+            return f"{pstring_base_type(value)}"
         case syn.RType(value=value, predicate=pred):
             return (f"{{ {pstring_base_type(value)} | {pstring_expr(pred)} }}")
         case syn.ArrowType(args=args, ret=ret):
