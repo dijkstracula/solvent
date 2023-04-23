@@ -10,13 +10,12 @@ def my_max(x, y):
         return y
 
 
-#@frontend.infer_base
+@frontend.infer_base
 def my_sum(k):
     if k < 0:
         return 0
     else:
-        s = my_sum(k - 1)
-        return s + k
+        return my_sum(k - 1) + k
 
 
 #@frontend.infer_base_constraints

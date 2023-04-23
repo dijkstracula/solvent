@@ -61,23 +61,30 @@ def check_stmt(context, assums: List[syn.Expr], stmt: syn.Stmt):
                 argtypes += [t]
                 body_context[a.name] = t
 
-            # now typecheck the body
-            last_type = RType.base(syn.Unit())
-            new_constraints = []
-            for s in body:
-                last_type, constrs, body_context = check_stmt(body_context, assums, s)
-                # for c in constrs:
-                #     print(pp.pstring_cvar(c))
-                new_constraints += constrs
-
+            # we want to add the name of the function currently being defined
+            # to the context so that we can define recursive functions.
+            # if we don't know the return type before typecehcking, just
+            # invent a new type variable.
             if ret is not None:
-                last_type = ret
+                ret_typ = ret
+            else:
+                ret_typ = RType.base(TypeVar.fresh(name="guess"))
+                
+            body_context[name] = syn.ArrowType(
+                args=argtypes,
+                ret=ret_typ
+            )
+
+            # now typecheck the body
+            typ, constrs, context = check_stmts(body_context, assums, body)
+
+            ret_typ_constr = Eq(lhs=ret_typ, rhs=typ)
 
             this_type = syn.ArrowType(
                 args=argtypes,
-                ret=last_type
+                ret=typ
             )
-            return this_type, new_constraints, context
+            return this_type, constrs + [ret_typ_constr], context
 
         case syn.If(test=test, body=body, orelse=orelse):
             test_typ, test_constrs = check_expr(context, assums, test)
@@ -110,8 +117,8 @@ def check_expr(context, assums, expr: syn.Expr):
         case syn.IntLiteral(_):
             return (RType.int(), [])
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
-            lhs_ty, lhs_constrs = check_expr(context, lhs)
-            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
+            rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
             return (RType.int(), lhs_constrs + rhs_constrs + [
                 SubType(lhs=lhs_ty, rhs=RType.int()),
                 SubType(lhs=rhs_ty, rhs=RType.int()),
