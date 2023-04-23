@@ -31,16 +31,8 @@ class Bool(BaseType):
     pass
 
 
-_cvar_counter = 0
-
-
 @dataclass
-class Type:
-    pass
-
-
-@dataclass
-class TypeVar(Type):
+class TypeVar(BaseType):
     name: str
 
     @staticmethod
@@ -48,6 +40,14 @@ class TypeVar(Type):
         global _cvar_counter
         _cvar_counter += 1
         return TypeVar(f"{name}{_cvar_counter}")
+
+
+_cvar_counter = 0
+
+
+@dataclass
+class Type:
+    pass
 
 
 @dataclass
@@ -80,6 +80,12 @@ class Expr:
 
 
 @dataclass
+class V(Expr):
+    """Represents the special v variable in a refinement."""
+    pass
+
+
+@dataclass
 class Variable(Expr):
     name: str
 
@@ -106,6 +112,11 @@ class BoolOp(Expr):
     lhs: Expr
     op: Any
     rhs: Expr
+
+
+@dataclass
+class Neg(Expr):
+    expr: Expr
 
 
 @dataclass
