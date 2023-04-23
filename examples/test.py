@@ -3,7 +3,7 @@ from solvent import frontend, V
 
 
 @frontend.infer
-def my_max(x, y) -> { int | (V < x) }:
+def my_max(x, y):
     if x > y:
         return x
     else:

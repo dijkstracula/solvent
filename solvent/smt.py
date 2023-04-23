@@ -22,6 +22,12 @@ def expr_to_smt(e: syn.Expr):
             return expr_to_smt(l) <= expr_to_smt(r)
         case syn.BoolOp(lhs=l, op="<", rhs=r):
             return expr_to_smt(l) < expr_to_smt(r)
+        case syn.BoolOp(lhs=l, op=">", rhs=r):
+            return expr_to_smt(l) > expr_to_smt(r)
+        case syn.BoolOp(lhs=l, op=">=", rhs=r):
+            return expr_to_smt(l) >= expr_to_smt(r)
+        case syn.BoolOp(lhs=l, op="and", rhs=r):
+            return z3.And(expr_to_smt(l), expr_to_smt(r))
         case syn.BoolLiteral(value=v):
             return v
         case syn.Neg(expr=e):

@@ -4,6 +4,12 @@ from typing import Union, Optional
 import re
 
 
+
+def string_to_expr(string: str) -> syn.Expr:
+    pyast = ast.parse(string)
+    return parse_expr(pyast.body[0].value)
+
+
 def parse(tree: ast.AST) -> syn.Stmt:
     match tree:
         case ast.Module(body=body):
@@ -97,6 +103,12 @@ def parse_expr(expr) -> syn.Expr:
                 lhs=parse_expr(left),
                 op=binop_str(op),
                 rhs=parse_expr(right),
+            )
+        case ast.BoolOp(op=ast.And(), values=[lhs, rhs]):
+            return syn.BoolOp(
+                lhs=parse_expr(lhs),
+                op="and",
+                rhs=parse_expr(rhs)
             )
         case ast.Constant(value=val):
             if type(val) == int:

@@ -107,6 +107,7 @@ def check_stmt(context, assums: List[syn.Expr], stmt: syn.Stmt):
                 BaseEq(test_typ, RType.bool()),
                 # base types of branches are equal
                 BaseEq(shape_typ(body_typ), shape_typ(else_typ)),
+                BaseEq(shape_typ(body_typ), shape_typ(ret_typ)),
                 # body is a subtype of ret type
                 SubType([test] + assums, body_typ, ret_typ),  
                 # else is a subtype of ret type
@@ -298,6 +299,8 @@ def finish(typ: Type, solution) -> Type:
     match typ:
         case RType(value=TypeVar(name=n), predicate=p) if n in solution:
             base_ty = solution[n].value
+            if isinstance(p, TypeVar) and p.name in solution:
+                p = solution[p.name]
             return finish(RType(base_ty, p), solution)
         case ArrowType(args=args, ret=ret):
             return ArrowType(

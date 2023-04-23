@@ -3,7 +3,7 @@ import ast
 
 import solvent.pretty_print as pp
 import solvent.check
-from solvent.parse import parse
+from solvent.parse import parse, string_to_expr
 from solvent.check import typecheck, BaseEq, SubType, RType
 from solvent.subtype import subtype
 from solvent.syn import BoolLiteral, BoolOp
@@ -101,6 +101,7 @@ def infer(func):
     print("  Reconstructed type: " + pp.pstring_type(final))
 
     print("  Subtype Constraints:")
+    # solution["t4"] = string_to_expr("(x <= V) and (y <= V)")
     for c in subtype_constrs:
         c.lhs = solvent.check.finish(c.lhs, solution)
         c.rhs = solvent.check.finish(c.rhs, solution)

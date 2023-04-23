@@ -28,8 +28,13 @@ def subtype(assumes, typ1, typ2):
             # print(f"    {to_check}")
 
             s = z3.Solver()
-            s.add(to_check)
-            return s.check() == z3.sat
+            s.add(z3.Not(to_check))
+
+            if s.check() == z3.unsat:
+                return True
+            else:
+                print(s.model())
+                return False
             
         case x:
             print(x)
