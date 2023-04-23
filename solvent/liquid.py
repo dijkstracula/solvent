@@ -46,12 +46,12 @@ def constraints_valid(constrs, solution):
 
     for c in constrs:
         if isinstance(c, check.SubType):
-            if not subtype.subtype(
-                    c.assumes,
-                    check.finish(c.lhs, solution),
-                    check.finish(c.rhs, solution)
-            ):
+            lhs = check.finish(c.lhs, solution)
+            rhs = check.finish(c.rhs, solution)
+            if not subtype.subtype(c.assumes, lhs, rhs):
+                #print(f"NBT: {pp.pstring_type(lhs)} ! <: {pp.pstring_type(rhs)}")
                 return constraints_valid(constrs, weaken(c, solution))
+            #print(f"NBT: {pp.pstring_type(lhs)} <: {pp.pstring_type(rhs)}")
 
     return solution
 

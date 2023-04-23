@@ -34,7 +34,7 @@ def subtype(assumes, typ1, typ2):
             if s.check() == z3.unsat:
                 return True
             else:
-                print(s.model())
+                #print(s.model())
                 return False
             
         case x:

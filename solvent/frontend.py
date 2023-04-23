@@ -5,7 +5,6 @@ import solvent.pretty_print as pp
 import solvent.check
 from solvent.parse import parse
 from solvent.check import Constraint, typecheck, BaseEq, SubType, RType
-from solvent.check import Constraint, typecheck, BaseEq, SubType, RType
 from solvent.subtype import subtype
 from solvent.syn import ArrowType, BoolLiteral, BoolOp, Type
 from solvent import liquid, syn
@@ -55,9 +54,10 @@ def infer_base(func):
     res = parse(pyast)
 
     typ, constrs, _ = solvent.check.check_stmt({}, [], res)
+    typ = baseify_type(typ)
+    constrs = [baseify_constraint(c) for c in constrs]
     print(f"Function: {pyast.body[0].name}")
     print("  Constraints:")
-    constrs = [baseify_constraint(c) for c in constrs]
     for c in constrs:
         print(f"    {pp.pstring_cvar(c)}")
 
@@ -87,6 +87,31 @@ def infer_constraints(func):
 
 
 def infer(func):
+    """ Cuts to the chance and just prints the full inferred program type. """
+    pyast = ast.parse(inspect.getsource(func))
+    res = parse(pyast)
+
+    typ, constrs, _ = solvent.check.check_stmt({}, [], res)
+    eq_constrs = list(filter(
+        lambda x: isinstance(x, BaseEq),
+        constrs
+    ))
+    print(f"Function: {pyast.body[0].name}")
+
+    solution = dict(solvent.check.unify(constrs))
+
+    for c in constrs:
+        c.lhs = solvent.check.finish(c.lhs, solution)
+        c.rhs = solvent.check.finish(c.rhs, solution)
+    solution = liquid.solve(constrs, solution)
+
+    final = solvent.check.finish(typ, solution)
+    print("  Reconstructed type: " + pp.pstring_type(final))
+
+    return func
+
+
+def infer_full(func):
     """ Prints the inferred base type and scope/flow contraints,
     then the full inferred program type. """
     pyast = ast.parse(inspect.getsource(func))
@@ -104,7 +129,7 @@ def infer(func):
         print(f"    {pp.pstring_cvar(c)}")
 
     print("  Ununified type: " + pp.pstring_type(typ))
-    solution = dict(solvent.check.unify(constrs, show_work=False))
+    solution = dict(solvent.check.unify(constrs))
 
     print("  Solution:")
     for k, v in solution.items():
