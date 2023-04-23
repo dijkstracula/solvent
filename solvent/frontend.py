@@ -4,9 +4,10 @@ import ast
 import solvent.pretty_print as pp
 import solvent.check
 from solvent.parse import parse, string_to_expr
-from solvent.check import typecheck, BaseEq, SubType, RType
+from solvent.check import Constraint, typecheck, BaseEq, SubType, RType
+from solvent.check import Constraint, typecheck, BaseEq, SubType, RType
 from solvent.subtype import subtype
-from solvent.syn import BoolLiteral, BoolOp
+from solvent.syn import ArrowType, BoolLiteral, BoolOp, Type
 
 
 def check(func):
@@ -24,6 +25,28 @@ def check(func):
 
     return func
 
+def baseify_type(typ: Type) -> Type:
+    """ Removes all refinements from a type.  (Needed for infer_base because
+    we want to show base inference in isolation from predicate refinement)"""
+    match typ:
+        case RType(value=value):
+            return RType.base(value)
+        case ArrowType(args=args, ret=ret):
+            return ArrowType([baseify_type(t) for t in args], baseify_type(ret))
+        case _:
+            return typ  # and hope for the best!
+
+
+def baseify_constraint(c: Constraint) -> Constraint:
+    """ Removes all refinements from a type constraint.  (Needed for infer_base
+    because we want to show base inference in isolation from predicate refinement)"""
+    match c:
+        # TODO: This is janky and displeases me.
+        case BaseEq(lhs=lhs, rhs=rhs):
+            return BaseEq(baseify_type(lhs), baseify_type(rhs))
+        case SubType(lhs=lhs, rhs=rhs):
+            return SubType([], baseify_type(lhs), baseify_type(rhs))
+
 
 def infer_base(func):
     """ Prints the inferred base type and stops checking there."""
@@ -33,16 +56,9 @@ def infer_base(func):
     typ, constrs, _ = solvent.check.check_stmt({}, [], res)
     print(f"Function: {pyast.body[0].name}")
     print("  Constraints:")
+    constrs = [baseify_constraint(c) for c in constrs]
     for c in constrs:
-        match c:
-            # TODO: This is janky and displeases me.
-            case BaseEq():
-                print(f"    {pp.pstring_cvar(c)}")
-            case SubType(lhs=RType(predicate=BoolLiteral(True))):
-                print(f"    {pp.pstring_cvar(c)}")
-            case SubType(lhs=lhs, rhs=rhs):
-                lifted_c = SubType(RType.base(lhs.value), rhs)
-                print(f"    {pp.pstring_cvar(lifted_c)}")
+        print(f"    {pp.pstring_cvar(c)}")
 
     print("  Ununified type: " + pp.pstring_type(typ))
     solution = dict(solvent.check.unify(constrs))
