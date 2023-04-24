@@ -57,11 +57,12 @@ def infer_base(func):
     typ = baseify_type(typ)
     constrs = [baseify_constraint(c) for c in constrs]
     print(f"Function: {pyast.body[0].name}")
+    print("  Ununified type: " + pp.pstring_type(typ))
     print("  Constraints:")
     for c in constrs:
-        print(f"    {pp.pstring_cvar(c)}")
+        if isinstance(c, BaseEq):
+            print(f"    {pp.pstring_cvar(c)}")
 
-    print("  Ununified type: " + pp.pstring_type(typ))
     solution = dict(solvent.check.unify(constrs))
     print("  Solution:")
     for k, v in solution.items():

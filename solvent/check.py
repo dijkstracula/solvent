@@ -331,3 +331,44 @@ def shape_typ(typ: Type) -> Type:
     """
 
     return RType.base(typ.value)
+
+
+# don't actually need this
+def shrink(solution):
+    """
+    Returns a solution where every entry maps to something that isn't
+    in the solution.
+
+    For example:
+      3 := '4
+      4 := '5
+    Get's turned into:
+      3 := '5
+      4 := '5
+
+    I'm doing the dumbest thing right now. This can definitely be improved.
+    """
+
+    def lookup(typ: Type, solution) -> Type:
+        """For composite types, I need to potentially dig into the type."""
+        match typ:
+            case TypeVar(name=n):
+                if n in solution:
+                    return solution[n]
+                else:
+                    return typ
+            case ArrowType(args=args, ret=ret):
+                return ArrowType(
+                    args=[lookup(a, solution) for a in args],
+                    ret=lookup(ret, solution)
+                )
+            case x:
+                return x
+
+    new_solution = solution.copy()
+    for k, v in solution.items():
+        new_solution[k] = lookup(v, solution)
+    if new_solution == solution:
+        return new_solution
+    else:
+        return shrink(new_solution)
