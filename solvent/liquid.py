@@ -6,12 +6,22 @@ from solvent import check, subtype, parse, liquid, pretty_print as pp, syn
 
 from functools import reduce
 
+DEFAULT_QUALS = [# "(0 < V)",
+    "(0 <= V)",
+    "(x <= V)",
+    "(y <= V)",
+    "(V < x)",
+    "(V < y)",
+]
 
-def solve(constrs, solution):
+
+def solve(constrs, solution, quals=None):
+    if quals is None:
+        quals = DEFAULT_QUALS
 
     refinement_vars = set()
 
-    print("SubTyping constraints")
+    print(f"SubTyping constraints with f{quals}")
     for c in constrs:
         if isinstance(c, check.SubType):
             print(pp.pstring_cvar(c))
@@ -24,14 +34,7 @@ def solve(constrs, solution):
     # TODO: generate this automatically
     #  * < 
     for rv in refinement_vars:
-        solution[rv] = list(map(parse.string_to_expr, [
-            # "(0 < V)",
-            "(0 <= V)",
-            "(x <= V)",
-            "(y <= V)",
-            "(V < x)",
-            "(V < y)",
-        ]))
+        solution[rv] = list(map(parse.string_to_expr, quals))
 
     print("======")
     return liquid.constraints_valid(constrs, solution)

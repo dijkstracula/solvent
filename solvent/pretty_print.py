@@ -7,6 +7,8 @@ def pstring_expr(expr: syn.Expr):
         case syn.Variable(name=x): return f"{x}"
         case syn.IntLiteral(value=v): return f"{v}"
         case syn.BoolLiteral(value=v): return f"{v}"
+        case syn.ArithBinOp(lhs=l, op=op, rhs=r):
+            return f"{pstring_expr(l)} {op} {pstring_expr(r)}"
         case syn.BoolOp(lhs=l, op=op, rhs=r):
             return f"{pstring_expr(l)} {op} {pstring_expr(r)}"
         case syn.Neg(expr=e):

@@ -90,6 +90,7 @@ def infer_constraints(func):
     return func
 
 
+
 def infer(func):
     """ Cuts to the chance and just prints the full inferred program type. """
     pyast = ast.parse(inspect.getsource(func))
@@ -110,51 +111,52 @@ def infer(func):
     solution = liquid.solve(constrs, solution)
 
     final = solvent.check.finish(typ, solution)
-    print("  Reconstructed type: " + pp.pstring_type(final))
-
-    return func
-
-
-def infer_full(func):
-    """ Prints the inferred base type and scope/flow contraints,
-    then the full inferred program type. """
-    pyast = ast.parse(inspect.getsource(func))
-    res = parse(pyast)
-
-    typ, constrs, _ = solvent.check.check_stmt({}, [], res)
-    eq_constrs = list(filter(
-        lambda x: isinstance(x, BaseEq),
-        constrs
-    ))
-    print(f"Function: {pyast.body[0].name}")
-
-    print("  Constraints:")
-    for c in eq_constrs:
-        print(f"    {pp.pstring_cvar(c)}")
-
-    print("  Ununified type: " + pp.pstring_type(typ))
-    solution = dict(solvent.check.unify(constrs))
-
-    print("  HM Solution:")
-    for k, v in solution.items():
-        print(f"    '{k} := {pp.pstring_type(v)}")
-
-    for c in constrs:
-        c.lhs = solvent.check.finish(c.lhs, solution)
-        c.rhs = solvent.check.finish(c.rhs, solution)
-    solution = liquid.solve(constrs, solution)
-
-    print("  Final Solution:")
-    for k, v in solution.items():
-        match v:
-            case syn.Type():
-                print(f"    '{k} := {pp.pstring_type(v)}")
-            case syn.Expr():
-                print(f"    '{k} := {pp.pstring_expr(v)}")
-            case [*exprs]:
-                print(f"    '{k} := {[pp.pstring_expr(x) for x in exprs]}")
-
-    final = solvent.check.finish(typ, solution)
     print("Reconstructed type: " + pp.pstring_type(final))
 
     return func
+
+
+def infer_full(quals):
+    def inner(func):
+        """ Prints the inferred base type and scope/flow contraints,
+        then the full inferred program type. """
+        pyast = ast.parse(inspect.getsource(func))
+        res = parse(pyast)
+
+        typ, constrs, _ = solvent.check.check_stmt({}, [], res)
+        eq_constrs = list(filter(
+            lambda x: isinstance(x, BaseEq),
+            constrs
+        ))
+        print(f"Function: {pyast.body[0].name}")
+
+        print("  Constraints:")
+        for c in eq_constrs:
+            print(f"    {pp.pstring_cvar(c)}")
+
+        print("  Ununified type: " + pp.pstring_type(typ))
+        solution = dict(solvent.check.unify(constrs))
+
+        print("  HM Solution:")
+        for k, v in solution.items():
+            print(f"    '{k} := {pp.pstring_type(v)}")
+
+        for c in constrs:
+            c.lhs = solvent.check.finish(c.lhs, solution)
+            c.rhs = solvent.check.finish(c.rhs, solution)
+        solution = liquid.solve(constrs, solution, quals)
+
+        print("  Final Solution:")
+        for k, v in solution.items():
+            match v:
+                case syn.Type():
+                    print(f"    '{k} := {pp.pstring_type(v)}")
+                case syn.Expr():
+                    print(f"    '{k} := {pp.pstring_expr(v)}")
+                case [*exprs]:
+                    print(f"    '{k} := {[pp.pstring_expr(x) for x in exprs]}")
+
+        final = solvent.check.finish(typ, solution)
+        print("Reconstructed type: " + pp.pstring_type(final))
+
+    return inner

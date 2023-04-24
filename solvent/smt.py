@@ -15,6 +15,16 @@ def expr_to_smt(e: syn.Expr):
         case syn.V():
             # TODO, look up type
             return z3.Int(".v")
+        case syn.Call(function_name=syn.Variable(name=name), arglist=args):
+            print(f"NBT: {args}")
+            fn = z3.Function(name, *[z3.IntSort() for _ in args], z3.IntSort())
+            call = fn(*[expr_to_smt(a) for a in args])
+            print(f"NBT: {call}")
+            return call
+        case syn.ArithBinOp(lhs=l, op="+", rhs=r):
+            return expr_to_smt(l) + expr_to_smt(r)
+        case syn.ArithBinOp(lhs=l, op="-", rhs=r):
+            return expr_to_smt(l) - expr_to_smt(r)
         case syn.BoolOp(lhs=l, op=">", rhs=r):
             return expr_to_smt(l) > expr_to_smt(r)
         case syn.BoolOp(lhs=l, op="==", rhs=r):
