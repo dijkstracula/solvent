@@ -1,13 +1,8 @@
 import inspect
 import ast
 
-import solvent.pretty_print as pp
 import solvent.check
-from solvent.parse import parse
-from solvent.check import Constraint, typecheck, BaseEq, SubType, RType
-from solvent.subtype import subtype
-from solvent.syn import ArrowType, BoolLiteral, BoolOp, Type
-from solvent import liquid, syn
+from solvent import parse, check, subtype, syn, liquid
 
 
 def check(func):
@@ -57,18 +52,18 @@ def infer_base(func):
     typ = baseify_type(typ)
     constrs = [baseify_constraint(c) for c in constrs]
     print(f"Function: {pyast.body[0].name}")
-    print("  Ununified type: " + pp.pstring_type(typ))
+    print(f"  Ununified type: {typ}")
     print("  Constraints:")
     for c in constrs:
         if isinstance(c, BaseEq):
-            print(f"    {pp.pstring_cvar(c)}")
+            print(f"    {c}")
 
     solution = dict(solvent.check.unify(constrs))
     print("  Solution:")
     for k, v in solution.items():
-        print(f"    '{k} := {pp.pstring_type(v)}")
+        print(f"    '{k} := {v}")
     final = solvent.check.finish(typ, solution)
-    print("  Reconstructed base type: " + pp.pstring_type(final))
+    print(f"  Reconstructed base type: {final}")
     return func
 
 
@@ -86,7 +81,7 @@ def infer_constraints(func):
             case SubType(lhs=RType(predicate=BoolOp())):
                 c.lhs = solvent.check.finish(c.lhs, solution)
                 c.rhs = solvent.check.finish(c.rhs, solution)
-                print(f"    {pp.pstring_cvar(c)}")
+                print(f"    {c}")
     return func
 
 
@@ -111,7 +106,7 @@ def infer(func):
     solution = liquid.solve(constrs, solution)
 
     final = solvent.check.finish(typ, solution)
-    print("Reconstructed type: " + pp.pstring_type(final))
+    print(f"Reconstructed type: {final}")
 
     return func
 
@@ -150,13 +145,13 @@ def infer_full(quals):
         for k, v in solution.items():
             match v:
                 case syn.Type():
-                    print(f"    '{k} := {pp.pstring_type(v)}")
+                    print(f"    '{k} := {v}")
                 case syn.Expr():
-                    print(f"    '{k} := {pp.pstring_expr(v)}")
+                    print(f"    '{k} := {v}")
                 case [*exprs]:
-                    print(f"    '{k} := {[pp.pstring_expr(x) for x in exprs]}")
+                    print(f"    '{k} := {[str(x) for x in exprs]}")
 
         final = solvent.check.finish(typ, solution)
-        print("Reconstructed type: " + pp.pstring_type(final))
+        print(f"Reconstructed type: {final}")
 
     return inner

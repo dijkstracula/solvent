@@ -2,11 +2,11 @@
 Implement Liquid Type inference
 """
 
-from solvent import check, subtype, parse, liquid, pretty_print as pp, syn
+from solvent import check, subtype, parse, liquid, syn
 
-from functools import reduce
 
-DEFAULT_QUALS = [# "(0 < V)",
+DEFAULT_QUALS = [
+    # "(0 < V)",
     "(0 <= V)",
     "(x <= V)",
     "(y <= V)",
@@ -21,10 +21,10 @@ def solve(constrs, solution, quals=None):
 
     refinement_vars = set()
 
-    print(f"SubTyping constraints with f{quals}")
+    print(f"SubTyping constraints with {quals}")
     for c in constrs:
         if isinstance(c, check.SubType):
-            print(pp.pstring_cvar(c))
+            print(c)
             if isinstance(c.lhs.predicate, syn.TypeVar):
                 refinement_vars.add(c.lhs.predicate.name)
             if isinstance(c.rhs.predicate, syn.TypeVar):
@@ -32,7 +32,6 @@ def solve(constrs, solution, quals=None):
 
     # add qualifiers to the solution
     # TODO: generate this automatically
-    #  * < 
     for rv in refinement_vars:
         solution[rv] = list(map(parse.string_to_expr, quals))
 
@@ -49,8 +48,8 @@ def constraints_valid(constrs, solution):
 
     for c in constrs:
         if isinstance(c, check.SubType):
-            lhs = check.finish(c.lhs, solution)
-            rhs = check.finish(c.rhs, solution)
+            lhs = check.apply(c.lhs, solution)
+            rhs = check.apply(c.rhs, solution)
             if not subtype.subtype(c.assumes, lhs, rhs):
                 # print(f"NBT: {pp.pstring_type(lhs)} ! <: {pp.pstring_type(rhs)}")
                 return constraints_valid(constrs, weaken(c, solution))
@@ -67,7 +66,7 @@ def weaken(c, solution):
     of the other forms. I probably should.
     """
 
-    print(f"Weakening {pp.pstring_cvar(c)}")
+    print(f"Weakening {c}")
 
     if not isinstance(c.rhs.predicate, syn.TypeVar):
         raise NotImplementedError("Can only weaken lists of constraints.")
@@ -83,7 +82,7 @@ def weaken(c, solution):
             assumes += solution[c.lhs.predicate.name]
             lhs = syn.RType.base(c.lhs.value)  # kind of a hack
 
-        print(f" trying {pp.pstring_expr(q)}", end=": ")
+        print(f" trying {q}", end=": ")
         if subtype.subtype(assumes, lhs, syn.RType(c.rhs.value, q)):
             print("valid")
             qs += [q]
@@ -94,8 +93,8 @@ def weaken(c, solution):
     for k, v in solution.items():
         match v:
             case syn.Type():
-                print(f"  {k}: {pp.pstring_type(v)}")
+                print(f"  {k}: {v}")
             case x:
-                print(f"  {k}: {pp.pstring_expr(x)}")
+                print(f"  {k}: {x}")
 
     return solution

@@ -6,14 +6,18 @@ is transformed into this more manageable sublanguage.
 from dataclasses import dataclass
 from typing import Optional, List, Any
 
-# ==========
-# Base types
-# ==========
-
 
 @dataclass
 class BaseType:
-    pass
+    def __str__(self):
+        match self:
+            case Int(): return "int"
+            case Bool(): return "bool"
+            case Unit(): return "unit"
+            case TypeVar(name=n): return f"'{n}"
+            case x:
+                print(x)
+                raise NotImplementedError
 
 
 @dataclass
@@ -34,42 +38,82 @@ class Bool(BaseType):
 @dataclass
 class TypeVar(BaseType):
     name: str
+    _cvar_counter = 0
 
     @staticmethod
     def fresh(name=""):
-        global _cvar_counter
-        _cvar_counter += 1
-        return TypeVar(f"{name}{_cvar_counter}")
+        TypeVar._cvar_counter += 1
+        return TypeVar(f"{name}{TypeVar._cvar_counter}")
 
 
-_cvar_counter = 0
+@dataclass
+class Predicate:
+    def __str__(self):
+        match self:
+            case Conjoin(preds):
+                return " and ".join([str(p) for p in preds])
+            case PredicateVar(name=n):
+                return f"'{n}"
+
+
+@dataclass
+class Conjoin(Predicate):
+    conjuncts: List["Expr"]
+
+
+@dataclass
+class PredicateVar(Predicate):
+    name: str
+
+    _pvar_counter = 0
+
+    @staticmethod
+    def fresh(name=""):
+        PredicateVar._pvar_counter += 1
+        return PredicateVar(f"{name}{PredicateVar._pvar_counter}")
 
 
 @dataclass
 class Type:
-    pass
+    def __str__(self):
+        match self:
+            case RType(base=base, predicate=BoolLiteral(value=True)):
+                return f"{base}"
+            case RType(base=base, predicate=pred):
+                return (f"{{ {base} | {pred} }}")
+            case ArrowType(args=args, ret=ret):
+                return "({}) -> {}".format(
+                    ", ".join([str(a) for a in args]),
+                    ret
+                )
+            case x:
+                print(x)
+                raise NotImplementedError
 
 
 @dataclass
 class RType(Type):
-    value: BaseType
-    predicate: "Expr"
+    base: BaseType
+    predicate: Predicate
 
     @staticmethod
-    def base(base_type: BaseType):
-        return RType(value=base_type, predicate=BoolLiteral(value=True))
+    def lift(base_type: BaseType):
+        return RType(
+            base=base_type,
+            predicate=Conjoin([BoolLiteral(value=True)])
+        )
 
     @staticmethod
     def template(base_type: BaseType):
-        return RType(value=base_type, predicate=TypeVar.fresh("t"))
+        return RType(base=base_type, predicate=PredicateVar.fresh("k"))
 
     @staticmethod
     def bool():
-        return RType(value=Bool(), predicate=BoolLiteral(value=True))
+        return RType(base=Bool(), predicate=Conjoin([BoolLiteral(value=True)]))
 
     @staticmethod
     def int():
-        return RType(value=Int(), predicate=BoolLiteral(value=True))
+        return RType(base=Int(), predicate=Conjoin([BoolLiteral(value=True)]))
 
 
 @dataclass
@@ -80,7 +124,29 @@ class ArrowType(Type):
 
 @dataclass
 class Expr:
-    pass
+    def __str__(self):
+        match self:
+            case Variable(name=x): return f"{x}"
+            case IntLiteral(value=v): return f"{v}"
+            case BoolLiteral(value=v): return f"{v}"
+            case ArithBinOp(lhs=l, op=op, rhs=r):
+                return f"{l} {op} {r}"
+            case BoolOp(lhs=l, op=op, rhs=r):
+                return f"{l} {op} {r}"
+            case Neg(expr=e):
+                return f"-({e})"
+            case V():
+                return "V"
+            case Call(function_name=fn, arglist=args):
+                args = [str(a) for a in args]
+                return f"{fn}({', '.join(args)})"
+            case TypeVar(name=n):
+                return f"'{n}"
+            case [*_]:
+                raise Exception("bad")
+                # return " and ".join([str(e) for e in exprs])
+            case x:
+                return f"`{x}`"
 
 
 @dataclass
@@ -125,14 +191,14 @@ class Neg(Expr):
 
 @dataclass
 class Call(Expr):
-    function_name: str
+    function_name: Expr
     arglist: List[Expr]
 
 
 @dataclass
 class Argument:
     name: str
-    annotation: Optional[str]
+    annotation: Optional[Type]
 
 
 @dataclass
@@ -144,7 +210,7 @@ class Stmt:
 class FunctionDef(Stmt):
     name: str
     args: List[Argument]
-    return_annotation: Optional[str]
+    return_annotation: Optional[Type]
     body: List[Stmt]
 
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
-from solvent import frontend, V
+import solvent
+from solvent import V
+from typing import Callable
 
 
-@frontend.infer_full
+@solvent.infer(["* <= V", "V <= *"])
 def my_max(x, y):
     if x > y:
         return x
@@ -18,6 +20,6 @@ def my_sum(k):
         return my_sum(k - 1) + k
 
 
-#@frontend.infer_base_constraints
+# @frontend.infer_base_constraints
 def double(f, x):
     return f(f(x, x), f(x, x))
