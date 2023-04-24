@@ -78,11 +78,14 @@ def infer_constraints(func):
     res = parse(pyast)
 
     typ, constrs, _ = solvent.check.check_stmt({}, [], res)
+    solution = dict(solvent.check.unify(constrs))
     print(f"Function: {pyast.body[0].name}")
     print("  Constraints:")
     for c in constrs:
         match c:
             case SubType(lhs=RType(predicate=BoolOp())):
+                c.lhs = solvent.check.finish(c.lhs, solution)
+                c.rhs = solvent.check.finish(c.rhs, solution)
                 print(f"    {pp.pstring_cvar(c)}")
     return func
 
@@ -132,7 +135,7 @@ def infer_full(func):
     print("  Ununified type: " + pp.pstring_type(typ))
     solution = dict(solvent.check.unify(constrs))
 
-    print("  Solution:")
+    print("  HM Solution:")
     for k, v in solution.items():
         print(f"    '{k} := {pp.pstring_type(v)}")
 
@@ -140,7 +143,6 @@ def infer_full(func):
         c.lhs = solvent.check.finish(c.lhs, solution)
         c.rhs = solvent.check.finish(c.rhs, solution)
     solution = liquid.solve(constrs, solution)
-    print(solution)
 
     print("  Final Solution:")
     for k, v in solution.items():
@@ -153,6 +155,6 @@ def infer_full(func):
                 print(f"    '{k} := {[pp.pstring_expr(x) for x in exprs]}")
 
     final = solvent.check.finish(typ, solution)
-    print("  Reconstructed type: " + pp.pstring_type(final))
+    print("Reconstructed type: " + pp.pstring_type(final))
 
     return func

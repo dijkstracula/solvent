@@ -25,12 +25,12 @@ def solve(constrs, solution):
     #  * < 
     for rv in refinement_vars:
         solution[rv] = list(map(parse.string_to_expr, [
-            "(0 < V)",
+            # "(0 < V)",
             "(0 <= V)",
             "(x <= V)",
             "(y <= V)",
-            "(V > x)",
-            "(V > y)",
+            "(V < x)",
+            "(V < y)",
         ]))
 
     print("======")
@@ -49,9 +49,9 @@ def constraints_valid(constrs, solution):
             lhs = check.finish(c.lhs, solution)
             rhs = check.finish(c.rhs, solution)
             if not subtype.subtype(c.assumes, lhs, rhs):
-                print(f"NBT: {pp.pstring_type(lhs)} ! <: {pp.pstring_type(rhs)}")
+                # print(f"NBT: {pp.pstring_type(lhs)} ! <: {pp.pstring_type(rhs)}")
                 return constraints_valid(constrs, weaken(c, solution))
-            print(f"NBT: {pp.pstring_type(lhs)} <: {pp.pstring_type(rhs)}")
+            # print(f"NBT: {pp.pstring_type(lhs)} <: {pp.pstring_type(rhs)}")
 
     return solution
 
@@ -80,8 +80,19 @@ def weaken(c, solution):
             assumes += solution[c.lhs.predicate.name]
             lhs = syn.RType.base(c.lhs.value)  # kind of a hack
 
+        print(f" trying {pp.pstring_expr(q)}", end=": ")
         if subtype.subtype(assumes, lhs, syn.RType(c.rhs.value, q)):
+            print("valid")
             qs += [q]
 
     solution[name] = qs
+
+    print("sol:")
+    for k, v in solution.items():
+        match v:
+            case syn.Type():
+                print(f"  {k}: {pp.pstring_type(v)}")
+            case x:
+                print(f"  {k}: {pp.pstring_expr(x)}")
+
     return solution
