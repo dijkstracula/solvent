@@ -29,8 +29,8 @@ def solve(constrs, solution):
             "(0 <= V)",
             "(x <= V)",
             "(y <= V)",
-            "(V <= x)",
-            "(V <= y)",
+            "(V > x)",
+            "(V > y)",
         ]))
 
     print("======")
@@ -49,9 +49,9 @@ def constraints_valid(constrs, solution):
             lhs = check.finish(c.lhs, solution)
             rhs = check.finish(c.rhs, solution)
             if not subtype.subtype(c.assumes, lhs, rhs):
-                #print(f"NBT: {pp.pstring_type(lhs)} ! <: {pp.pstring_type(rhs)}")
+                print(f"NBT: {pp.pstring_type(lhs)} ! <: {pp.pstring_type(rhs)}")
                 return constraints_valid(constrs, weaken(c, solution))
-            #print(f"NBT: {pp.pstring_type(lhs)} <: {pp.pstring_type(rhs)}")
+            print(f"NBT: {pp.pstring_type(lhs)} <: {pp.pstring_type(rhs)}")
 
     return solution
 

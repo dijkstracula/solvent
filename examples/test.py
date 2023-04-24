@@ -2,7 +2,7 @@ from __future__ import annotations
 from solvent import frontend, V
 
 
-@frontend.infer
+@frontend.infer_full
 def my_max(x, y):
     if x > y:
         return x
