@@ -2,7 +2,7 @@
 Translate types into SMT expressions.
 """
 
-from solvent import syn
+from solvent import syntax as syn
 
 import z3
 from functools import reduce

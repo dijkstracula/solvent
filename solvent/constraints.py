@@ -9,8 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
-from solvent import syn
-from solvent.syn import Predicate, RType, Type, ArrowType, TypeVar, Conjoin
+from solvent import syntax as syn
+from solvent.syntax import Predicate, RType, Type, ArrowType, TypeVar, Conjoin
 
 
 Env = dict[str, Type]

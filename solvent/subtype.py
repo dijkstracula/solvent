@@ -2,7 +2,7 @@
 Implement decidable subypting from the liquid type paper.
 """
 
-from solvent import syn, smt
+from solvent import syntax as syn, smt
 
 import z3
 from functools import reduce

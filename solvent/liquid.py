@@ -9,20 +9,9 @@ from solvent import (
     qualifiers,
     subtype,
     liquid,
-    syn,
+    syntax as syn,
     qualifiers as quals,
-    unification as uni,
 )
-
-
-# DEFAULT_QUALS = [
-#     # "(0 < V)",
-#     "(0 <= V)",
-#     "(x <= V)",
-#     "(y <= V)",
-#     "(V < x)",
-#     "(V < y)",
-# ]
 
 Solution = Dict[str, syn.Conjoin]
 

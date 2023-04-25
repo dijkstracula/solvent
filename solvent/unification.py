@@ -2,7 +2,7 @@
 Implementation of the Hindley-Milner Unification Algorithm
 """
 
-from solvent.syn import Type, TypeVar, RType, ArrowType
+from solvent.syntax import Type, TypeVar, RType, ArrowType
 from solvent.constraints import Constraint, Env, SubType, BaseEq
 
 from typing import Dict, List, Tuple, cast

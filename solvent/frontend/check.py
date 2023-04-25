@@ -1,4 +1,4 @@
-from solvent import qualifiers, syn, constraints, unification, liquid
+from solvent import qualifiers, syntax as syn, constraints, unification, liquid
 
 from typing import List, cast
 

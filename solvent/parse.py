@@ -1,5 +1,5 @@
 import ast
-from solvent import syn
+from solvent import syntax as syn
 from typing import List
 
 
