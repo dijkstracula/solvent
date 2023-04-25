@@ -22,10 +22,8 @@ def from_expr(e: syn.Expr):
             # TODO, look up type
             return z3.Int(".v")
         case syn.Call(function_name=syn.Variable(name=name), arglist=args):
-            print(f"NBT: {args}")
             fn = z3.Function(name, *[z3.IntSort() for _ in args], z3.IntSort())
             call = fn(*[from_expr(a) for a in args])
-            print(f"NBT: {call}")
             return call
         case syn.ArithBinOp(lhs=l, op="+", rhs=r):
             return from_expr(l) + from_expr(r)

@@ -28,7 +28,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
         for k, v in solution.items():
             print(f"{k} := {v}")
 
-    inferred_base_typ = unification.apply_constr(typ, solution)
+    inferred_base_typ = unification.apply(typ, solution)
     context = unification.apply_context(context, solution)
 
     subtype_eqs = cast(
@@ -41,4 +41,22 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
         for k, v in predvar_solution.items():
             print(f"{k} := {v}")
 
-    return liquid.apply(inferred_base_typ, predvar_solution)
+    return alpha_rename(liquid.apply(inferred_base_typ, predvar_solution))
+
+
+NAMES = "abcdefghijklmnopqrstuvwxyz"
+
+
+def alpha_rename(typ: syn.Type) -> syn.Type:
+    """
+    Renames type variables in `typ'.
+    """
+
+    rename_map = {}
+    for i, var in enumerate(set(unification.free_vars(typ))):
+        if i < len(NAMES):
+            rename_map[var] = syn.TypeVar(NAMES[i])
+        else:
+            raise NotImplementedError
+
+    return unification.apply(typ, rename_map)

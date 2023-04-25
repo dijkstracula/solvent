@@ -3,7 +3,10 @@ import solvent
 from solvent import V, _, Q
 
 
-@solvent.infer([_ < V, _ > V, _ <= V, _ >= V, Q[0] <= V], debug=True)
+quals = [_ < V, _ > V, _ <= V, _ >= V, Q[0] <= V]
+
+
+@solvent.infer(quals, debug=False)
 def my_max(x, y):
     if x > y:
         return x
@@ -19,6 +22,6 @@ def my_sum(k):
         return my_sum(k - 1) + k
 
 
-# @solvent.infer([_ < V, _ > V, _ <= V, _ >= V, Q[0] <= V])
+@solvent.infer(quals, debug=False)
 def double(f, x):
     return f(f(x, x), f(x, x))

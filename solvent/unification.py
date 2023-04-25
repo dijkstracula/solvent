@@ -99,7 +99,7 @@ def unify(
         name: str = worklist.pop()
         match solution[name]:
             case ArrowType():
-                raise NotImplementedError
+                solution[name] = apply(solution[name], solution)
             # if this name maps to a variable in the solution,
             # update solution, and add name back to the worklist.
             # it may need to be updated again.
@@ -163,7 +163,7 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             raise NotImplementedError
 
 
-def apply_constr(typ: Type, solution: Solution) -> Type:
+def apply(typ: Type, solution: Solution) -> Type:
     """
     Given a type, resolve all type variables using `solution'.
     """
@@ -172,13 +172,13 @@ def apply_constr(typ: Type, solution: Solution) -> Type:
         case RType(base=TypeVar(name=n), predicate=p) if n in solution:
             new = solution[n]
             if isinstance(new, RType):
-                return apply_constr(RType(new.base, p), solution)
+                return apply(RType(new.base, p), solution)
             else:
-                raise NotImplementedError
+                return new
         case ArrowType(args=args, ret=ret):
             return ArrowType(
-                args=[apply_constr(t, solution) for t in args],
-                ret=apply_constr(ret, solution),
+                args=[apply(t, solution) for t in args],
+                ret=apply(ret, solution),
             )
         case _:
             return typ
@@ -189,7 +189,7 @@ def apply_context(context: Env, solution) -> Env:
     Given a type, resolve all type variables using `solution'.
     """
 
-    return {k: apply_constr(v, solution) for k, v in context.items()}
+    return {k: apply(v, solution) for k, v in context.items()}
 
 
 def apply_constraints(
@@ -199,15 +199,13 @@ def apply_constraints(
     for c in constrs:
         match c:
             case BaseEq(lhs=lhs, rhs=rhs):
-                res += [
-                    BaseEq(apply_constr(lhs, solution), apply_constr(rhs, solution))
-                ]
+                res += [BaseEq(apply(lhs, solution), apply(rhs, solution))]
             case SubType(assumes=asms, lhs=lhs, rhs=rhs):
                 res += [
                     SubType(
                         assumes=asms,
-                        lhs=apply_constr(lhs, solution),
-                        rhs=apply_constr(rhs, solution),
+                        lhs=apply(lhs, solution),
+                        rhs=apply(rhs, solution),
                     )
                 ]
     return res

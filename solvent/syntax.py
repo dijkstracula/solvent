@@ -103,6 +103,8 @@ class Type:
         match self:
             case RType(base=base, predicate=Conjoin([BoolLiteral(value=True)])):
                 return f"{base}"
+            case RType(base=base, predicate=Conjoin([])):
+                return f"{base}"
             case RType(base=base, predicate=pred):
                 return f"{{ {base} | {pred} }}"
             case ArrowType(args=args, ret=ret):
