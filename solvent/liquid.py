@@ -2,7 +2,7 @@
 Implement Liquid Type inference
 """
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, cast
 
 from solvent import (
     constraints as constr,
@@ -18,20 +18,22 @@ Solution = Dict[str, syn.Conjoin]
 
 def solve(
     context: constr.Env,
-    constrs: List[constr.SubType],
+    constrs: List[constr.Constraint],
     quals: List[quals.Qualifier],
     show_work=False,
 ) -> Solution:
-    pred_vars = set()
+    solution: Solution = {}
 
     for c in constrs:
-        pred_vars.add(get_predicate_vars(c.lhs))
-        pred_vars.add(get_predicate_vars(c.rhs))
+        match c:
+            case constr.Scope(
+                context=ctx, typ=syn.RType(predicate=syn.PredicateVar(name=n))
+            ):
+                solution[n] = qualifiers.predicate(ctx, quals)
 
-    pred_vars.remove(None)
-
-    # add qualifiers to the solution
-    solution: Solution = {pv: qualifiers.predicate(context, quals) for pv in pred_vars}
+    print("context:")
+    for k, v in context.items():
+        print(f"{k}: {v}")
 
     if show_work:
         print("Initial Predicates:")
@@ -39,7 +41,20 @@ def solve(
             print(f"{k} := {v}")
         print("======")
 
-    return liquid.constraints_valid(constrs, solution, show_work)
+    subtype_eqs = cast(
+        List[constr.SubType],
+        list(filter(lambda x: isinstance(x, constr.SubType), constrs)),
+    )
+    scope_eqs = cast(
+        List[constr.Scope],
+        list(filter(lambda x: isinstance(x, constr.Scope), constrs)),
+    )
+    print("== scope ==")
+    for e in scope_eqs:
+        print(e)
+    print("== scope ==")
+
+    return liquid.constraints_valid(subtype_eqs, solution, show_work)
 
 
 def constraints_valid(

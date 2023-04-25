@@ -1,6 +1,6 @@
 from solvent import qualifiers, syntax as syn, constraints, unification, liquid
 
-from typing import List, cast
+from typing import List
 
 
 def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False):
@@ -21,7 +21,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     if debug:
         print("== Unification ==")
 
-    constrs, solution = unification.unify(constrs, show_work=debug)
+    constrs, solution = unification.unify(constrs, show_work=False)
 
     if debug:
         print("== Solution ==")
@@ -31,11 +31,9 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     inferred_base_typ = unification.apply(typ, solution)
     context = unification.apply_context(context, solution)
 
-    subtype_eqs = cast(
-        List[constraints.SubType],
-        list(filter(lambda x: isinstance(x, constraints.SubType), constrs)),
-    )
-    predvar_solution = liquid.solve(context, subtype_eqs, quals, show_work=debug)
+    print("== Constraints ==")
+    print("\n".join([str(c) for c in constrs]))
+    predvar_solution = liquid.solve(context, constrs, quals, show_work=debug)
 
     if debug:
         for k, v in predvar_solution.items():

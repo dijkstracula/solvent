@@ -78,7 +78,10 @@ class Predicate:
     def __str__(self):
         match self:
             case Conjoin(preds):
-                return " and ".join([str(p) for p in preds])
+                if len(preds) == 0:
+                    return "True"
+                else:
+                    return " and ".join([str(p) for p in preds])
             case PredicateVar(name=n):
                 return f"'{n}"
 

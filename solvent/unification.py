@@ -3,7 +3,7 @@ Implementation of the Hindley-Milner Unification Algorithm
 """
 
 from solvent.syntax import Type, TypeVar, RType, ArrowType
-from solvent.constraints import Constraint, Env, SubType, BaseEq
+from solvent.constraints import Constraint, Env, SubType, BaseEq, Scope
 
 from typing import Dict, List, Tuple, cast
 
@@ -206,6 +206,13 @@ def apply_constraints(
                         assumes=asms,
                         lhs=apply(lhs, solution),
                         rhs=apply(rhs, solution),
+                    )
+                ]
+            case Scope(context=ctx, typ=typ):
+                res += [
+                    Scope(
+                        context={k: apply(v, solution) for k, v in ctx.items()},
+                        typ=apply(typ, solution),
                     )
                 ]
     return res

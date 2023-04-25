@@ -25,6 +25,9 @@ class Constraint:
             case SubType(assumes=assumes, lhs=lhs, rhs=rhs):
                 asm_str = ", ".join([str(e) for e in assumes])
                 return f"{asm_str} |- {lhs} <: {rhs}"
+            case Scope(context=ctx, typ=typ):
+                asm_str = ", ".join([f"{k}: {v}" for k, v in ctx.items()])
+                return f"{asm_str} |- {typ}"
 
 
 @dataclass
@@ -46,6 +49,16 @@ class SubType(Constraint):
     assumes: List[syn.Expr]
     lhs: Type
     rhs: Type
+
+
+@dataclass
+class Scope(Constraint):
+    """
+    Represents the context of an expression
+    """
+
+    context: Env
+    typ: Type
 
 
 def check_stmts(
@@ -89,6 +102,12 @@ def check_stmt(
             # context, so that we can support recursive uses
             body_context[name] = syn.ArrowType(args=argtypes, ret=ret_typ)
 
+            # scope constraints
+            scope_constr = [
+                *[Scope(context.copy(), t) for t in argtypes],
+                Scope(body_context.copy(), ret_typ),
+            ]
+
             # now typecheck the body
             inferred_typ, constrs, context = check_stmts(body_context, assums, body)
 
@@ -98,7 +117,7 @@ def check_stmt(
             ]
 
             this_type = syn.ArrowType(args=argtypes, ret=ret_typ)
-            return this_type, constrs + ret_typ_constr, context
+            return this_type, constrs + ret_typ_constr + scope_constr, context
 
         case syn.If(test=test, body=body, orelse=orelse):
             test_typ, test_constrs = check_expr(context, assums, test)
@@ -117,6 +136,7 @@ def check_stmt(
                 SubType([test] + assums, body_typ, ret_typ),
                 # else is a subtype of ret type
                 SubType([syn.Neg(test)] + assums, else_typ, ret_typ),
+                Scope(context.copy(), ret_typ),
             ]
             return ret_typ, cstrs + test_constrs + body_constrs + else_constrs, context
         case syn.Return(value=value):
