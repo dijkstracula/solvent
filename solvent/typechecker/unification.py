@@ -18,7 +18,8 @@ _cvar_counter = 0
 
 @dataclass(frozen=True)
 class CVar:
-    """ A logic variable to be unified against either other variables or a concrete value. """
+    """A logic variable to be unified against either other variables or a concrete value."""
+
     id: int
 
     @staticmethod
@@ -32,7 +33,7 @@ class CVar:
 
     @staticmethod
     def reset():
-        """ For testing/debugging purposes only."""
+        """For testing/debugging purposes only."""
         global _cvar_counter
         _cvar_counter = 0
 
@@ -42,7 +43,8 @@ Env = Optional[dict[CVar, Any]]
 
 @dataclass(frozen=True)
 class Constraint(Generic[T, U]):
-    """ Affirms that two entities should be constrained. """
+    """Affirms that two entities should be constrained."""
+
     lhs: Union[CVar, T]
     rhs: Union[CVar, U]
 
@@ -66,7 +68,7 @@ class Constraint(Generic[T, U]):
 
 
 def unify_variable(var: CVar, x: Union[CVar, T], env: Env) -> Env:
-    """ Unifies the variable against x, possibly also adding it to the environment. """
+    """Unifies the variable against x, possibly also adding it to the environment."""
     if env is None:
         return env
     if var in env:
@@ -106,5 +108,5 @@ def unifier(constraints: list[Constraint]) -> UnificationEnv:
 
 
 def flip(lhs: list[Any], rhs: list[Any]) -> list[Constraint]:
-    """ A helper to transform two structurally-similar lists into constraints"""
+    """A helper to transform two structurally-similar lists into constraints"""
     return [Constraint(l, r) for l, r in zip(lhs, rhs)]

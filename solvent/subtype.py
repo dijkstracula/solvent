@@ -10,21 +10,16 @@ from functools import reduce
 
 
 def subtype(assumes, typ1, typ2):
-
     match (typ1, typ2):
-        case (syn.RType(value=t1, predicate=p1),
-              syn.RType(value=t2, predicate=p2)) if t1 == t2:
-
+        case (
+            syn.RType(value=t1, predicate=p1),
+            syn.RType(value=t2, predicate=p2),
+        ) if t1 == t2:
             assumes_smt = reduce(
-                lambda a, b: z3.And(a, b),
-                [expr_to_smt(e) for e in assumes],
-                True
+                lambda a, b: z3.And(a, b), [expr_to_smt(e) for e in assumes], True
             )
 
-            to_check = z3.Implies(
-                z3.And(assumes_smt, expr_to_smt(p1)),
-                expr_to_smt(p2)
-            )
+            to_check = z3.Implies(z3.And(assumes_smt, expr_to_smt(p1)), expr_to_smt(p2))
 
             # print(f"    {to_check}")
 
@@ -36,9 +31,7 @@ def subtype(assumes, typ1, typ2):
             else:
                 print(s.model())
                 return False
-            
+
         case x:
             print(x)
             raise NotImplementedError
-            
-

@@ -7,6 +7,7 @@ from solvent import syn
 import z3
 from functools import reduce
 
+
 def expr_to_smt(e: syn.Expr):
     match e:
         case syn.Variable(name=n):
@@ -51,9 +52,7 @@ def expr_to_smt(e: syn.Expr):
             raise Exception(f"Can't convert TypeVar, {n}, to smt.")
         case [*items]:
             return reduce(
-                lambda x, y: z3.And(x, y),
-                [expr_to_smt(i) for i in items],
-                True
+                lambda x, y: z3.And(x, y), [expr_to_smt(i) for i in items], True
             )
         case x:
             print(x)

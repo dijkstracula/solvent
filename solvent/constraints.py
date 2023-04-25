@@ -5,11 +5,12 @@ We generate classic equality constraints used for Hindley-Milner,
 as well as Sub-type constraints for infering refinement predicates.
 """
 
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import List
 
 from solvent import syn
-from solvent.syn import RType, Type, ArrowType, TypeVar, Conjoin
+from solvent.syn import Predicate, RType, Type, ArrowType, TypeVar, Conjoin
 
 
 Env = dict[str, Type]
@@ -47,20 +48,10 @@ class SubType(Constraint):
     rhs: Type
 
 
-# def typecheck(stmt: syn.Stmt):
-#     typ, constrs, _ = check_stmt({}, stmt)
-#     # TODO: avoid circular import by not pprinting in here (side-effecting stuff
-#     # like that probably should live in the frontend, anyway)
-#     #print(pstring_type(typ))
-#     solution = dict(unify(constrs))
-#     final = finish(typ, solution)
-#     print(final)
-#     #print(pstring_type(final))
-#     return final
-
-
-def check_stmts(context: Env, assums: List[syn.Expr], stmts: List[syn.Stmt]):
-    typ = syn.Unit()
+def check_stmts(
+    context: Env, assums: List[syn.Expr], stmts: List[syn.Stmt]
+) -> tuple[syn.Type, List[Constraint], Env]:
+    typ = syn.RType.lift(syn.Unit())
     constraints = []
     for stmt in stmts:
         typ, cs, context = check_stmt(context, assums, stmt)
@@ -68,7 +59,9 @@ def check_stmts(context: Env, assums: List[syn.Expr], stmts: List[syn.Stmt]):
     return typ, constraints, context
 
 
-def check_stmt(context: Env, assums: List[syn.Expr], stmt: syn.Stmt):
+def check_stmt(
+    context: Env, assums: List[syn.Expr], stmt: syn.Stmt
+) -> tuple[syn.Type, List[Constraint], Env]:
     match stmt:
         case syn.FunctionDef(name=name, args=args, return_annotation=ret, body=body):
             # construct a new context to typecheck our body with
@@ -91,13 +84,10 @@ def check_stmt(context: Env, assums: List[syn.Expr], stmt: syn.Stmt):
                 ret_typ = ret
             else:
                 ret_typ = RType.template(TypeVar.fresh(name="ret"))
-                
+
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
-            body_context[name] = syn.ArrowType(
-                args=argtypes,
-                ret=ret_typ
-            )
+            body_context[name] = syn.ArrowType(args=argtypes, ret=ret_typ)
 
             # now typecheck the body
             inferred_typ, constrs, context = check_stmts(body_context, assums, body)
@@ -107,16 +97,15 @@ def check_stmt(context: Env, assums: List[syn.Expr], stmt: syn.Stmt):
                 SubType([], lhs=inferred_typ, rhs=ret_typ),
             ]
 
-            this_type = syn.ArrowType(
-                args=argtypes,
-                ret=ret_typ
-            )
+            this_type = syn.ArrowType(args=argtypes, ret=ret_typ)
             return this_type, constrs + ret_typ_constr, context
 
         case syn.If(test=test, body=body, orelse=orelse):
             test_typ, test_constrs = check_expr(context, assums, test)
             body_typ, body_constrs, _ = check_stmts(context, [test] + assums, body)
-            else_typ, else_constrs, _ = check_stmts(context, [syn.Neg(test)] + assums, orelse)
+            else_typ, else_constrs, _ = check_stmts(
+                context, [syn.Neg(test)] + assums, orelse
+            )
             ret_typ = RType.template(TypeVar.fresh("if"))
             cstrs = [
                 # test is a boolean
@@ -125,22 +114,24 @@ def check_stmt(context: Env, assums: List[syn.Expr], stmt: syn.Stmt):
                 BaseEq(shape_typ(body_typ), shape_typ(else_typ)),
                 BaseEq(shape_typ(body_typ), shape_typ(ret_typ)),
                 # body is a subtype of ret type
-                SubType([test] + assums, body_typ, ret_typ),  
+                SubType([test] + assums, body_typ, ret_typ),
                 # else is a subtype of ret type
-                SubType([syn.Neg(test)] + assums, else_typ, ret_typ),  
+                SubType([syn.Neg(test)] + assums, else_typ, ret_typ),
             ]
             return ret_typ, cstrs + test_constrs + body_constrs + else_constrs, context
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
             # for now just throw away the predicate of ty
-            nty = RType(base=ty.base, predicate=Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=value)]))
+            nty = add_predicate(
+                ty, Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=value)])
+            )
             return nty, constrs, context
         case x:
             print(x)
             raise NotImplementedError
 
 
-def check_expr(context: Env, assums, expr: syn.Expr) -> (Type, List[Constraint]):
+def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constraint]]:
     match expr:
         case syn.Variable(name=name):
             if name in context:
@@ -152,26 +143,41 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> (Type, List[Constraint])
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
-            return (RType.int(), lhs_constrs + rhs_constrs + [
-                BaseEq(lhs_ty, RType.int()),
-                BaseEq(rhs_ty, RType.int()),
-            ])
+            return (
+                RType.int(),
+                lhs_constrs
+                + rhs_constrs
+                + [
+                    BaseEq(lhs_ty, RType.int()),
+                    BaseEq(rhs_ty, RType.int()),
+                ],
+            )
         case syn.BoolLiteral(_):
             return (RType.bool(), [])
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
-            return (RType.bool(), lhs_constrs + rhs_constrs + [
-                BaseEq(lhs_ty, RType.int()),
-                BaseEq(rhs_ty, RType.int()),
-            ])
+            return (
+                RType.bool(),
+                lhs_constrs
+                + rhs_constrs
+                + [
+                    BaseEq(lhs_ty, RType.int()),
+                    BaseEq(rhs_ty, RType.int()),
+                ],
+            )
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["and", "or", "not"]:
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
-            return (RType.bool(), lhs_constrs + rhs_constrs + [
-                BaseEq(lhs_ty, RType.bool()),
-                BaseEq(rhs_ty, RType.bool()),
-            ])
+            return (
+                RType.bool(),
+                lhs_constrs
+                + rhs_constrs
+                + [
+                    BaseEq(lhs_ty, RType.bool()),
+                    BaseEq(rhs_ty, RType.bool()),
+                ],
+            )
         case syn.Call(function_name=name, arglist=args):
             fn_ty, constrs = check_expr(context, assums, name)
             types = []
@@ -180,9 +186,10 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> (Type, List[Constraint])
                 types += [ty]
                 constrs += cs
             ret_type = RType.lift(TypeVar.fresh())
-            return (ret_type, constrs + [
-                BaseEq(lhs=fn_ty, rhs=ArrowType(args=types, ret=ret_type))
-            ])
+            return (
+                ret_type,
+                constrs + [BaseEq(lhs=fn_ty, rhs=ArrowType(args=types, ret=ret_type))],
+            )
         case x:
             print(x)
             raise NotImplementedError
@@ -194,11 +201,27 @@ def shape_typ(typ: Type) -> Type:
     Removes a predicate from a RType.
     """
 
-    return RType.lift(typ.base)
+    match typ:
+        case ArrowType(args=args, ret=ret):
+            return ArrowType(args=[shape_typ(a) for a in args], ret=shape_typ(ret))
+        case RType(base=base):
+            return RType.lift(base)
+        case x:
+            raise Exception(f"`{x}` is not a Type.")
 
 
 def shape_env(env: Env) -> Env:
-    return { (k, shape_typ(v)) for k, v in env.items() }
+    return {k: shape_typ(v) for k, v in env.items()}
+
+
+def add_predicate(typ: Type, predicate: Predicate) -> Type:
+    match typ:
+        case ArrowType():
+            raise NotImplementedError
+        case RType(base=base):
+            return RType(base, predicate)
+        case x:
+            raise Exception(f"`{x}` is not a Type.")
 
 
 # don't actually need this
@@ -227,8 +250,7 @@ def shrink(solution):
                     return typ
             case ArrowType(args=args, ret=ret):
                 return ArrowType(
-                    args=[lookup(a, solution) for a in args],
-                    ret=lookup(ret, solution)
+                    args=[lookup(a, solution) for a in args], ret=lookup(ret, solution)
                 )
             case x:
                 return x

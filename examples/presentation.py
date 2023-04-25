@@ -1,7 +1,5 @@
 from __future__ import annotations
 import solvent
-from solvent import V
-from typing import Callable
 
 
 @solvent.infer(["* <= V", "V <= *"])
@@ -12,7 +10,7 @@ def my_max(x, y):
         return y
 
 
-# @frontend.infer_base
+@solvent.infer([])
 def my_sum(k):
     if k < 0:
         return 0

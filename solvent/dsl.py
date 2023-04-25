@@ -14,7 +14,12 @@ from types import GenericAlias
 from typing import Any, Generic, Iterable, Literal, TypeVar, Type, Union
 
 from solvent.syntax.quants import RefinementType
-from solvent.typechecker.unification import Constraint, CVar, UnificationEnv as Env, unifier
+from solvent.typechecker.unification import (
+    Constraint,
+    CVar,
+    UnificationEnv as Env,
+    unifier,
+)
 
 PyAst = TypeVar("PyAst", bound=ast.AST, covariant=True)
 
@@ -68,8 +73,10 @@ def type_from_annotation(tree: ast.Name) -> Union[Type, CVar]:
         return CVar.next()
 
     match tree.id:
-        case "int": return int
-        case "bool": return bool
+        case "int":
+            return int
+        case "bool":
+            return bool
         case _:
             raise Exception(f"{tree.id} is not a supported annotation!")
 
@@ -79,7 +86,7 @@ class AstWrapper(Generic[PyAst]):
         raise Exception(f"{type(self)}.constraints() not implemented")
 
     def all_returns(self) -> Iterable["Return"]:
-        """ Produces all Return leaves that this AST node contains."""
+        """Produces all Return leaves that this AST node contains."""
         # TODO: this feels ad-hoc.  Feels like this should be all control flow exits or something?
         return []
 
@@ -414,7 +421,7 @@ class Compare(Generic[PyAst], Expr[ast.Compare, bool]):
             yield Constraint(self.lhs.type(env), int)
             yield Constraint(self.rhs.type(env), int)
         else:
-            yield Constraint(self.lhs.type(env), self.rhs.type(env));
+            yield Constraint(self.lhs.type(env), self.rhs.type(env))
 
     def type(self, env: Env) -> Union[Type, CVar]:
         return bool
@@ -449,7 +456,7 @@ class List(Generic[PyAst, EvalT], Expr[ast.List, EvalT]):
         if len(self.elements) > 0:
             return list[self.elements[0].type(env)]  # type: ignore
         else:
-            return list[self.empty_list_cvar] # type: ignore
+            return list[self.empty_list_cvar]  # type: ignore
 
 
 @dataclass(frozen=True)
@@ -459,7 +466,7 @@ class Subscript(Generic[PyAst, EvalT], Expr[ast.Subscript, EvalT]):
 
     @classmethod
     def from_pyast(cls, node: ast.AST) -> "Subscript":
-        assert(isinstance(node, ast.Subscript))
+        assert isinstance(node, ast.Subscript)
         if isinstance(node.slice, ast.Slice):
             raise errors.ASTError(node, "Can only extract a scalar from a list")
         arr = expr_from_pyast(node.value)

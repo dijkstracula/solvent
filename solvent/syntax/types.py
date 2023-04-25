@@ -36,6 +36,7 @@ PyT2 = TypeVar("PyT2", int, bool, list)
 
 class BaseType(Generic[PyT]):
     """A liquid type, parameterised over some particular Python type."""
+
     python_type: type
 
     def __init__(self, t: type):
@@ -44,12 +45,14 @@ class BaseType(Generic[PyT]):
 
 @dataclass
 class Int(BaseType[int]):
-    def __init__(self): super().__init__(int)
+    def __init__(self):
+        super().__init__(int)
 
 
 @dataclass
 class Bool(BaseType[bool]):
-    def __init__(self): super().__init__(bool)
+    def __init__(self):
+        super().__init__(bool)
 
 
 @dataclass
@@ -68,7 +71,7 @@ class Array(Generic[PyT], BaseType[list[PyT]]):
 
 
 def from_py_type(t: Type[PyT]) -> BaseType:
-    """ Transforms a Python native type that is supported into its Liquid equivalent."""
+    """Transforms a Python native type that is supported into its Liquid equivalent."""
     if t == bool:
         return Bool()
     if t == int:
@@ -79,4 +82,3 @@ def from_py_type(t: Type[PyT]) -> BaseType:
         if iterable == list and len(params) == 1:
             return Array(from_py_type(params[0]))
     raise errors.UnsupportedPyType(t)
-

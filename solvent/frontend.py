@@ -8,7 +8,7 @@ from solvent import parse, check, subtype, syn, liquid
 def check(func):
     pyast = ast.parse(inspect.getsource(func))
     res = parse(pyast)
-    #pretty_print(res)
+    # pretty_print(res)
     typecheck(res)
     # # grab the function def out of the module that we get from the
     # # python ast
@@ -20,8 +20,9 @@ def check(func):
 
     return func
 
+
 def baseify_type(typ: Type) -> Type:
-    """ Removes all refinements from a type.  (Needed for infer_base because
+    """Removes all refinements from a type.  (Needed for infer_base because
     we want to show base inference in isolation from predicate refinement)"""
     match typ:
         case RType(value=value):
@@ -33,7 +34,7 @@ def baseify_type(typ: Type) -> Type:
 
 
 def baseify_constraint(c: Constraint) -> Constraint:
-    """ Removes all refinements from a type constraint.  (Needed for infer_base
+    """Removes all refinements from a type constraint.  (Needed for infer_base
     because we want to show base inference in isolation from predicate refinement)"""
     match c:
         # TODO: This is janky and displeases me.
@@ -44,7 +45,7 @@ def baseify_constraint(c: Constraint) -> Constraint:
 
 
 def infer_base(func):
-    """ Prints the inferred base type and stops checking there."""
+    """Prints the inferred base type and stops checking there."""
     pyast = ast.parse(inspect.getsource(func))
     res = parse(pyast)
 
@@ -68,7 +69,7 @@ def infer_base(func):
 
 
 def infer_constraints(func):
-    """ Prints the inferred base type and scope/flow contraints. """
+    """Prints the inferred base type and scope/flow contraints."""
     pyast = ast.parse(inspect.getsource(func))
     res = parse(pyast)
 
@@ -85,17 +86,13 @@ def infer_constraints(func):
     return func
 
 
-
 def infer(func):
-    """ Cuts to the chance and just prints the full inferred program type. """
+    """Cuts to the chance and just prints the full inferred program type."""
     pyast = ast.parse(inspect.getsource(func))
     res = parse(pyast)
 
     typ, constrs, _ = solvent.check.check_stmt({}, [], res)
-    eq_constrs = list(filter(
-        lambda x: isinstance(x, BaseEq),
-        constrs
-    ))
+    eq_constrs = list(filter(lambda x: isinstance(x, BaseEq), constrs))
     print(f"Function: {pyast.body[0].name}")
 
     solution = dict(solvent.check.unify(constrs))
@@ -113,16 +110,13 @@ def infer(func):
 
 def infer_full(quals):
     def inner(func):
-        """ Prints the inferred base type and scope/flow contraints,
-        then the full inferred program type. """
+        """Prints the inferred base type and scope/flow contraints,
+        then the full inferred program type."""
         pyast = ast.parse(inspect.getsource(func))
         res = parse(pyast)
 
         typ, constrs, _ = solvent.check.check_stmt({}, [], res)
-        eq_constrs = list(filter(
-            lambda x: isinstance(x, BaseEq),
-            constrs
-        ))
+        eq_constrs = list(filter(lambda x: isinstance(x, BaseEq), constrs))
         print(f"Function: {pyast.body[0].name}")
 
         print("  Constraints:")

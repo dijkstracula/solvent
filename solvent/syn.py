@@ -11,10 +11,14 @@ from typing import Optional, List, Any
 class BaseType:
     def __str__(self):
         match self:
-            case Int(): return "int"
-            case Bool(): return "bool"
-            case Unit(): return "unit"
-            case TypeVar(name=n): return f"'{n}"
+            case Int():
+                return "int"
+            case Bool():
+                return "bool"
+            case Unit():
+                return "unit"
+            case TypeVar(name=n):
+                return f"'{n}"
             case x:
                 print(x)
                 raise NotImplementedError
@@ -35,15 +39,28 @@ class Bool(BaseType):
     pass
 
 
+class NameGenerator:
+    names: dict[str, int] = dict()
+
+    @staticmethod
+    def fresh(name):
+        if name in NameGenerator.names:
+            count = NameGenerator.names[name]
+            NameGenerator.names[name] += 1
+        else:
+            count = 0
+            NameGenerator.names[name] = 1
+
+        return f"{name}{count}"
+
+
 @dataclass
 class TypeVar(BaseType):
     name: str
-    _cvar_counter = 0
 
     @staticmethod
-    def fresh(name=""):
-        TypeVar._cvar_counter += 1
-        return TypeVar(f"{name}{TypeVar._cvar_counter}")
+    def fresh(name="t"):
+        return TypeVar(NameGenerator.fresh(name))
 
 
 @dataclass
@@ -65,27 +82,21 @@ class Conjoin(Predicate):
 class PredicateVar(Predicate):
     name: str
 
-    _pvar_counter = 0
-
     @staticmethod
-    def fresh(name=""):
-        PredicateVar._pvar_counter += 1
-        return PredicateVar(f"{name}{PredicateVar._pvar_counter}")
+    def fresh(name="K"):
+        return PredicateVar(NameGenerator.fresh(name))
 
 
 @dataclass
 class Type:
     def __str__(self):
         match self:
-            case RType(base=base, predicate=BoolLiteral(value=True)):
+            case RType(base=base, predicate=Conjoin([BoolLiteral(value=True)])):
                 return f"{base}"
             case RType(base=base, predicate=pred):
-                return (f"{{ {base} | {pred} }}")
+                return f"{{ {base} | {pred} }}"
             case ArrowType(args=args, ret=ret):
-                return "({}) -> {}".format(
-                    ", ".join([str(a) for a in args]),
-                    ret
-                )
+                return "({}) -> {}".format(", ".join([str(a) for a in args]), ret)
             case x:
                 print(x)
                 raise NotImplementedError
@@ -98,14 +109,11 @@ class RType(Type):
 
     @staticmethod
     def lift(base_type: BaseType):
-        return RType(
-            base=base_type,
-            predicate=Conjoin([BoolLiteral(value=True)])
-        )
+        return RType(base=base_type, predicate=Conjoin([BoolLiteral(value=True)]))
 
     @staticmethod
     def template(base_type: BaseType):
-        return RType(base=base_type, predicate=PredicateVar.fresh("k"))
+        return RType(base=base_type, predicate=PredicateVar.fresh("K"))
 
     @staticmethod
     def bool():
@@ -126,9 +134,12 @@ class ArrowType(Type):
 class Expr:
     def __str__(self):
         match self:
-            case Variable(name=x): return f"{x}"
-            case IntLiteral(value=v): return f"{v}"
-            case BoolLiteral(value=v): return f"{v}"
+            case Variable(name=x):
+                return f"{x}"
+            case IntLiteral(value=v):
+                return f"{v}"
+            case BoolLiteral(value=v):
+                return f"{v}"
             case ArithBinOp(lhs=l, op=op, rhs=r):
                 return f"{l} {op} {r}"
             case BoolOp(lhs=l, op=op, rhs=r):
@@ -140,11 +151,6 @@ class Expr:
             case Call(function_name=fn, arglist=args):
                 args = [str(a) for a in args]
                 return f"{fn}({', '.join(args)})"
-            case TypeVar(name=n):
-                return f"'{n}"
-            case [*_]:
-                raise Exception("bad")
-                # return " and ".join([str(e) for e in exprs])
             case x:
                 return f"`{x}`"
 
@@ -152,6 +158,7 @@ class Expr:
 @dataclass
 class V(Expr):
     """Represents the special v variable in a refinement."""
+
     pass
 
 

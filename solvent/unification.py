@@ -2,12 +2,17 @@
 Implementation of the Hindley-Milner Unification Algorithm
 """
 
-from solvent.syn import Type, TypeVar, RType
+from solvent.syn import Type, TypeVar, RType, ArrowType, PredicateVar
+from solvent.constraints import Constraint, SubType, BaseEq
+
+from typing import Dict, List
+
+Solution = Dict[str, Type]
+
 
 def base_type_eq(t1: Type, t2: Type) -> bool:
     """
-    We can probably override __eq__ at some point. I'm lazy right now.
-    This function implements equality between types
+    Implements equality between base types.
     """
 
     match (t1, t2):
@@ -18,54 +23,89 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
         case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
             args_eq = all(map(lambda a: base_type_eq(a[0], a[1]), zip(args1, args2)))
             return args_eq and base_type_eq(ret1, ret2)
-        case _: 
+        case _:
             return False
 
 
-def unify(constrs, show_work=False):
-    if len(constrs) == 0:
-        return []
-    else:
-        top = constrs[0]
-        rest = constrs[1:]
+def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
+    match constrs:
+        case []:
+            return []
+        case [top, *rest]:
+            if show_work:
+                print("====== unify ======")
+                print(f"=> {top}")
+                for c in rest:
+                    print(c)
 
-        if show_work:
-            print("====== unify ======")
-            print(f"=> {top}")
-            for c in rest:
-                print(c)
+            lX = tvar_name(top.lhs)
+            rX = tvar_name(top.rhs)
 
-        # ignore subtype constraints
-        if isinstance(top, SubType):
-            return unify(rest, show_work)
+            if base_type_eq(top.lhs, top.rhs):
+                return solve(rest, show_work)
+            # if lhs is variable
+            elif lX is not None and lX not in free_vars(top.rhs):
+                return solve(subst(lX, top.rhs, rest), show_work) + [(lX, top.rhs)]
+            # if rhs is variable
+            elif rX is not None and rX not in free_vars(top.lhs):
+                return solve(subst(rX, top.lhs, rest), show_work) + [(rX, top.lhs)]
+            # if both are functions variables
+            elif (
+                isinstance(top.lhs, ArrowType)
+                and isinstance(top.rhs, ArrowType)
+                and len(top.lhs.args) == len(top.rhs.args)
+            ):
+                arg_constrs = list(
+                    map(
+                        lambda a: BaseEq(lhs=a[0], rhs=a[1]),
+                        zip(top.lhs.args, top.rhs.args),
+                    )
+                )
+                ret_constr = BaseEq(lhs=top.lhs.ret, rhs=top.rhs.ret)
+                return solve(arg_constrs + [ret_constr] + rest, show_work)
+            else:
+                raise Exception(f"{top.lhs} is incompatible with {top.rhs}")
+        case _:
+            raise Exception(f"Constrs wasn't a list: {constrs}")
 
-        lX = tvar_name(top.lhs)
-        rX = tvar_name(top.rhs)
 
-        if base_type_eq(top.lhs, top.rhs):
-            return unify(rest, show_work)
-        # if lhs is variable
-        elif lX is not None and lX not in free_vars(top.rhs):
-            return unify(subst(lX, top.rhs, rest), show_work) + [(lX, top.rhs)]
-        # if rhs is variable
-        elif rX is not None and rX not in free_vars(top.lhs):
-            return unify(subst(rX, top.lhs, rest), show_work) + [(rX, top.lhs)]
-        # if both are functions variables
-        elif (isinstance(top.lhs, ArrowType)
-            and isinstance(top.rhs, ArrowType)
-            and len(top.lhs.args) == len(top.rhs.args)):
-            arg_constrs = list(map(
-                lambda a: BaseEq(lhs=a[0], rhs=a[1]),
-                zip(top.lhs.args, top.rhs.args)
-            ))
-            ret_constr = BaseEq(lhs=top.lhs.ret, rhs=top.rhs.ret)
-            return unify(arg_constrs + [ret_constr] + rest, show_work)
-        else:
-            raise Exception(f"{top.lhs} is incompatible with {top.rhs}")
+def unify(constrs: List[BaseEq], show_work=False) -> Solution:
+    """
+    Find a satisfying assignment of types for a list of equality constraints
+    over base types.
+    """
+
+    # call solve to find a solution to the system of constraints
+    solution = dict(solve(constrs, show_work))
+
+    # then use a worklist algorithm to simplify the solution so
+    # that you only ever have to look up one step to find the type
+    # for a variable.
+    # the algorithm works by mainting a list of names that may potentially
+    # need updating.
+
+    # we start off wth all the variables
+    worklist: List[str] = list(solution.keys())
+
+    # while there are still variables in the worklist
+    while len(worklist) != 0:
+        # get an element from the worklist
+        name: str = worklist.pop()
+        match solution[name]:
+            case ArrowType():
+                raise NotImplementedError
+            # if this name maps to a variable in the solution,
+            # update solution, and add name back to the worklist.
+            # it may need to be updated again.
+            case RType(base=TypeVar(name=n)) if n in solution:
+                solution[name] = solution[n]
+                worklist += [name]
+
+    return solution
 
 
 def tvar_name(typ: Type):
-    """ 
+    """
     Returns the type variable name of `typ' if it exists, and none otherwise.
     """
 
@@ -94,19 +134,10 @@ def free_vars(typ: Type):
 def subst(name: str, typ: Type, constrs: List[BaseEq]) -> List[BaseEq]:
     res = []
     for x in constrs:
-        match x:
-            case BaseEq(lhs=lhs, rhs=rhs):
-                res.append(BaseEq(
-                    lhs=subst_one(name, typ, lhs),
-                    rhs=subst_one(name, typ, rhs)
-                ))
-            case SubType(assumes=asms, lhs=lhs, rhs=rhs):
-                res.append(SubType(
-                    assumes=asms,
-                    lhs=subst_one(name, typ, lhs),
-                    rhs=subst_one(name, typ, rhs)
-                ))
-                
+        res.append(
+            BaseEq(lhs=subst_one(name, typ, x.lhs), rhs=subst_one(name, typ, x.rhs))
+        )
+
     return res
 
 
@@ -119,7 +150,7 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
         case ArrowType(args=args, ret=ret):
             return ArrowType(
                 args=[subst_one(name, tar, x) for x in args],
-                ret=subst_one(name, tar, ret)
+                ret=subst_one(name, tar, ret),
             )
         case x:
             print("subst_one:", x)
@@ -150,8 +181,7 @@ def apply(typ: Type, solution) -> Type:
                 return RType(base_ty, p)
         case ArrowType(args=args, ret=ret):
             return ArrowType(
-                args=[apply(t, solution) for t in args],
-                ret=apply(ret, solution)
+                args=[apply(t, solution) for t in args], ret=apply(ret, solution)
             )
-        case x:
+        case _:
             return typ

@@ -75,7 +75,6 @@ def weaken(c, solution):
 
     qs = []
     for q in solution[name]:
-
         assumes = c.assumes
         lhs = c.lhs
         if isinstance(c.lhs.predicate, syn.TypeVar):
