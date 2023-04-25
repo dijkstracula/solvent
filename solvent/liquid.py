@@ -2,44 +2,60 @@
 Implement Liquid Type inference
 """
 
-from solvent import check, subtype, parse, liquid, syn
+from typing import List, Optional, Dict
+
+from solvent import (
+    constraints as constr,
+    qualifiers,
+    subtype,
+    liquid,
+    syn,
+    qualifiers as quals,
+    unification as uni,
+)
 
 
-DEFAULT_QUALS = [
-    # "(0 < V)",
-    "(0 <= V)",
-    "(x <= V)",
-    "(y <= V)",
-    "(V < x)",
-    "(V < y)",
-]
+# DEFAULT_QUALS = [
+#     # "(0 < V)",
+#     "(0 <= V)",
+#     "(x <= V)",
+#     "(y <= V)",
+#     "(V < x)",
+#     "(V < y)",
+# ]
+
+Solution = Dict[str, syn.Conjoin]
 
 
-def solve(constrs, solution, quals=None):
-    if quals is None:
-        quals = DEFAULT_QUALS
+def solve(
+    context: constr.Env,
+    constrs: List[constr.SubType],
+    quals: List[quals.Qualifier],
+    show_work=False,
+) -> Solution:
+    pred_vars = set()
 
-    refinement_vars = set()
-
-    print(f"SubTyping constraints with {quals}")
     for c in constrs:
-        if isinstance(c, check.SubType):
-            print(c)
-            if isinstance(c.lhs.predicate, syn.TypeVar):
-                refinement_vars.add(c.lhs.predicate.name)
-            if isinstance(c.rhs.predicate, syn.TypeVar):
-                refinement_vars.add(c.rhs.predicate.name)
+        pred_vars.add(get_predicate_vars(c.lhs))
+        pred_vars.add(get_predicate_vars(c.rhs))
+
+    pred_vars.remove(None)
 
     # add qualifiers to the solution
-    # TODO: generate this automatically
-    for rv in refinement_vars:
-        solution[rv] = list(map(parse.string_to_expr, quals))
+    solution: Solution = {pv: qualifiers.predicate(context, quals) for pv in pred_vars}
 
-    print("======")
-    return liquid.constraints_valid(constrs, solution)
+    if show_work:
+        print("Initial Predicates:")
+        for k, v in solution.items():
+            print(f"{k} := {v}")
+        print("======")
+
+    return liquid.constraints_valid(constrs, solution, show_work)
 
 
-def constraints_valid(constrs, solution):
+def constraints_valid(
+    constrs: List[constr.SubType], solution: Solution, show_work=False
+):
     """
     Check if solution satisfies every constraint in constrs.
     Returns the first constraints that is not satisified.
@@ -47,18 +63,14 @@ def constraints_valid(constrs, solution):
     """
 
     for c in constrs:
-        if isinstance(c, check.SubType):
-            lhs = check.apply(c.lhs, solution)
-            rhs = check.apply(c.rhs, solution)
-            if not subtype.subtype(c.assumes, lhs, rhs):
-                # print(f"NBT: {pp.pstring_type(lhs)} ! <: {pp.pstring_type(rhs)}")
-                return constraints_valid(constrs, weaken(c, solution))
-            # print(f"NBT: {pp.pstring_type(lhs)} <: {pp.pstring_type(rhs)}")
+        cp = apply_constr(c, solution)
+        if not subtype.subtype(cp.assumes, cp.lhs, cp.rhs):
+            return constraints_valid(constrs, weaken(c, solution, show_work), show_work)
 
     return solution
 
 
-def weaken(c, solution):
+def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
     """
     Weaken constr and return a new solution.
 
@@ -66,34 +78,70 @@ def weaken(c, solution):
     of the other forms. I probably should.
     """
 
-    print(f"Weakening {c}")
+    if show_work:
+        print(f"Weakening {c}")
 
-    if not isinstance(c.rhs.predicate, syn.TypeVar):
-        raise NotImplementedError("Can only weaken lists of constraints.")
+    match c:
+        case constr.SubType(
+            assumes=assumes,
+            lhs=lhs,
+            rhs=syn.RType(base=b2, predicate=syn.PredicateVar(name=n)),
+        ):
+            assert n in solution
 
-    name = c.rhs.predicate.name
+            qs = []
+            for qual in solution[n].conjuncts:
+                if show_work:
+                    print(f"Checking {qual}: ", end="")
+                if subtype.subtype(
+                    assumes,
+                    apply(lhs, solution),
+                    syn.RType(b2, syn.Conjoin([qual])),
+                    show_work=show_work,
+                ):
+                    if show_work:
+                        print("Ok")
+                    qs += [qual]
 
-    qs = []
-    for q in solution[name]:
-        assumes = c.assumes
-        lhs = c.lhs
-        if isinstance(c.lhs.predicate, syn.TypeVar):
-            assumes += solution[c.lhs.predicate.name]
-            lhs = syn.RType.base(c.lhs.value)  # kind of a hack
+            solution[n] = syn.Conjoin(qs)
+        case x:
+            print(repr(x))
+            raise NotImplementedError
 
-        print(f" trying {q}", end=": ")
-        if subtype.subtype(assumes, lhs, syn.RType(c.rhs.value, q)):
-            print("valid")
-            qs += [q]
-
-    solution[name] = qs
-
-    print("sol:")
-    for k, v in solution.items():
-        match v:
-            case syn.Type():
-                print(f"  {k}: {v}")
-            case x:
-                print(f"  {k}: {x}")
+    if show_work:
+        print("Current Solution:")
+        for k, v in solution.items():
+            match v:
+                case syn.Type():
+                    print(f"  {k}: {v}")
+                case x:
+                    print(f"  {k}: {x}")
 
     return solution
+
+
+def get_predicate_vars(t: syn.Type) -> Optional[str]:
+    match t:
+        case syn.RType(predicate=syn.PredicateVar(name=name)):
+            return name
+        case _:
+            return None
+
+
+def apply_constr(c: constr.SubType, solution: Solution) -> constr.SubType:
+    return constr.SubType(c.assumes, apply(c.lhs, solution), apply(c.rhs, solution))
+
+
+def apply(typ: constr.Type, solution: Solution) -> constr.Type:
+    match typ:
+        case syn.RType(base=base, predicate=syn.PredicateVar(name=n)) if n in solution:
+            return syn.RType(base=base, predicate=solution[n])
+        case syn.RType(base=base, predicate=syn.PredicateVar(name=n)):
+            return syn.RType.lift(base)
+        case syn.ArrowType(args=args, ret=ret):
+            return syn.ArrowType(
+                args=[apply(a, solution) for a in args],
+                ret=apply(ret, solution),
+            )
+        case x:
+            return x

@@ -1,9 +1,9 @@
-from solvent import syn, constraints, unification
+from solvent import qualifiers, syn, constraints, unification, liquid
 
 from typing import List, cast
 
 
-def check(stmts: List[syn.Stmt], quals: List[str], debug=False):
+def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False):
     """
     Run Liquid-type inference and checking.
     """
@@ -21,19 +21,24 @@ def check(stmts: List[syn.Stmt], quals: List[str], debug=False):
     if debug:
         print("== Unification ==")
 
-    base_eqs = cast(
-        List[constraints.BaseEq],
-        list(filter(lambda x: isinstance(x, constraints.BaseEq), constrs)),
-    )
-    solution = unification.unify(base_eqs, show_work=debug)
+    constrs, solution = unification.unify(constrs, show_work=debug)
 
     if debug:
         print("== Solution ==")
         for k, v in solution.items():
             print(f"{k} := {v}")
 
-    for q in quals:
-        print(q)
+    inferred_base_typ = unification.apply_constr(typ, solution)
+    context = unification.apply_context(context, solution)
 
-    inferred_base_typ = unification.apply(typ, solution)
-    return inferred_base_typ
+    subtype_eqs = cast(
+        List[constraints.SubType],
+        list(filter(lambda x: isinstance(x, constraints.SubType), constrs)),
+    )
+    predvar_solution = liquid.solve(context, subtype_eqs, quals, show_work=debug)
+
+    if debug:
+        for k, v in predvar_solution.items():
+            print(f"{k} := {v}")
+
+    return liquid.apply(inferred_base_typ, predvar_solution)

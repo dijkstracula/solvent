@@ -2,10 +2,10 @@
 Implementation of the Hindley-Milner Unification Algorithm
 """
 
-from solvent.syn import Type, TypeVar, RType, ArrowType, PredicateVar
-from solvent.constraints import Constraint, SubType, BaseEq
+from solvent.syn import Type, TypeVar, RType, ArrowType
+from solvent.constraints import Constraint, Env, SubType, BaseEq
 
-from typing import Dict, List
+from typing import Dict, List, Tuple, cast
 
 Solution = Dict[str, Type]
 
@@ -69,14 +69,20 @@ def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
             raise Exception(f"Constrs wasn't a list: {constrs}")
 
 
-def unify(constrs: List[BaseEq], show_work=False) -> Solution:
+def unify(
+    constrs: List[Constraint], show_work=False
+) -> Tuple[List[Constraint], Solution]:
     """
     Find a satisfying assignment of types for a list of equality constraints
     over base types.
     """
 
     # call solve to find a solution to the system of constraints
-    solution = dict(solve(constrs, show_work))
+    base_eqs = cast(
+        List[BaseEq],
+        list(filter(lambda x: isinstance(x, BaseEq), constrs)),
+    )
+    solution = dict(solve(base_eqs, show_work))
 
     # then use a worklist algorithm to simplify the solution so
     # that you only ever have to look up one step to find the type
@@ -101,7 +107,7 @@ def unify(constrs: List[BaseEq], show_work=False) -> Solution:
                 solution[name] = solution[n]
                 worklist += [name]
 
-    return solution
+    return (apply_constraints(constrs, solution), solution)
 
 
 def tvar_name(typ: Type):
@@ -157,31 +163,51 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             raise NotImplementedError
 
 
-def apply(typ: Type, solution) -> Type:
+def apply_constr(typ: Type, solution: Solution) -> Type:
     """
     Given a type, resolve all type variables using `solution'.
     """
 
     match typ:
-        case RType(base=v, predicate=p):
-            changed = False
-            if isinstance(v, TypeVar):
-                base_ty = solution[v.name].base
-                changed = True
+        case RType(base=TypeVar(name=n), predicate=p) if n in solution:
+            new = solution[n]
+            if isinstance(new, RType):
+                return apply_constr(RType(new.base, p), solution)
             else:
-                base_ty = v
-
-            if isinstance(p, PredicateVar) and p.name in solution:
-                changed = True
-                p = solution[p.name]
-
-            if changed:
-                return apply(RType(base_ty, p), solution)
-            else:
-                return RType(base_ty, p)
+                raise NotImplementedError
         case ArrowType(args=args, ret=ret):
             return ArrowType(
-                args=[apply(t, solution) for t in args], ret=apply(ret, solution)
+                args=[apply_constr(t, solution) for t in args],
+                ret=apply_constr(ret, solution),
             )
         case _:
             return typ
+
+
+def apply_context(context: Env, solution) -> Env:
+    """
+    Given a type, resolve all type variables using `solution'.
+    """
+
+    return {k: apply_constr(v, solution) for k, v in context.items()}
+
+
+def apply_constraints(
+    constrs: List[Constraint], solution: Solution
+) -> List[Constraint]:
+    res = []
+    for c in constrs:
+        match c:
+            case BaseEq(lhs=lhs, rhs=rhs):
+                res += [
+                    BaseEq(apply_constr(lhs, solution), apply_constr(rhs, solution))
+                ]
+            case SubType(assumes=asms, lhs=lhs, rhs=rhs):
+                res += [
+                    SubType(
+                        assumes=asms,
+                        lhs=apply_constr(lhs, solution),
+                        rhs=apply_constr(rhs, solution),
+                    )
+                ]
+    return res
