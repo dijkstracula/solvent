@@ -40,6 +40,12 @@ class Bool(BaseType):
 
 
 class NameGenerator:
+    """
+    A unified name generator. Keeps separate counts
+    for every name used so that we generally have lower numbers
+    and different users can never generate the same name.
+    """
+
     names: dict[str, int] = dict()
 
     @staticmethod
@@ -52,6 +58,10 @@ class NameGenerator:
             NameGenerator.names[name] = 1
 
         return f"{name}{count}"
+
+    @staticmethod
+    def reset():
+        NameGenerator.names = dict()
 
 
 @dataclass
@@ -148,16 +158,25 @@ class Expr:
                 return f"-({e})"
             case V():
                 return "V"
+            case Star():
+                return "*"
             case Call(function_name=fn, arglist=args):
                 args = [str(a) for a in args]
                 return f"{fn}({', '.join(args)})"
             case x:
-                return f"`{x}`"
+                return f"`{repr(x)}`"
 
 
 @dataclass
 class V(Expr):
     """Represents the special v variable in a refinement."""
+
+    pass
+
+
+@dataclass
+class Star(Expr):
+    """Represents the special star variable in a qualifer."""
 
     pass
 

@@ -1,3 +1,2 @@
 from solvent.frontend.annotations import infer
-
-V = None
+from solvent.magic import V, _

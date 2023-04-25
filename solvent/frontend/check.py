@@ -32,5 +32,8 @@ def check(stmts: List[syn.Stmt], quals: List[str], debug=False):
         for k, v in solution.items():
             print(f"{k} := {v}")
 
+    for q in quals:
+        print(q)
+
     inferred_base_typ = unification.apply(typ, solution)
     return inferred_base_typ

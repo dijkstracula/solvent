@@ -1,7 +1,7 @@
 import ast
 import inspect
 
-from solvent import parse, frontend
+from solvent import parse, frontend, syn
 
 
 def infer(quals=None, debug=False):
@@ -12,6 +12,7 @@ def infer(quals=None, debug=False):
         pyast = ast.parse(inspect.getsource(func))
         res = parse.parse(pyast)
 
+        syn.NameGenerator.reset()
         typ = frontend.check(res, quals, debug)
         print(f"{func.__name__}: {typ}")
 

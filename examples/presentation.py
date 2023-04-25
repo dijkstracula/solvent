@@ -1,8 +1,9 @@
 from __future__ import annotations
 import solvent
+from solvent import V, _
 
 
-@solvent.infer(["* <= V", "V <= *"])
+@solvent.infer([_ < V, V < _, V < "x"])
 def my_max(x, y):
     if x > y:
         return x
