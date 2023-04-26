@@ -24,10 +24,10 @@ class Constraint:
                 return f"{lhs} = {rhs}"
             case SubType(assumes=assumes, lhs=lhs, rhs=rhs):
                 asm_str = ", ".join([str(e) for e in assumes])
-                return f"{asm_str} |- {lhs} <: {rhs}"
+                return f"[{asm_str}] |- {lhs} <: {rhs}"
             case Scope(context=ctx, typ=typ):
                 asm_str = ", ".join([f"{k}: {v}" for k, v in ctx.items()])
-                return f"{asm_str} |- {typ}"
+                return f"[{asm_str}] |- {typ}"
 
 
 @dataclass
@@ -80,13 +80,13 @@ def check_stmt(
             # construct a new context to typecheck our body with
             body_context = context.copy()
             # add the type of arguments to the new context
-            argtypes = []
+            argtypes: List[tuple[str, Type]] = []
             for a in args:
                 if a.annotation is not None:
                     t = a.annotation
                 else:
                     t = RType.template(TypeVar.fresh(name=a.name))
-                argtypes += [t]
+                argtypes += [(a.name, t)]
                 body_context[a.name] = t
 
             # we want to add the name of the function currently being defined
@@ -104,7 +104,7 @@ def check_stmt(
 
             # scope constraints
             scope_constr = [
-                *[Scope(context.copy(), t) for t in argtypes],
+                *[Scope(context.copy(), t) for _, t in argtypes],
                 Scope(body_context.copy(), ret_typ),
             ]
 
@@ -128,7 +128,7 @@ def check_stmt(
             ret_typ = RType.template(TypeVar.fresh("if"))
             cstrs = [
                 # test is a boolean
-                BaseEq(test_typ, RType.bool()),
+                BaseEq(shape_typ(test_typ), RType.bool()),
                 # base types of branches are equal
                 BaseEq(shape_typ(body_typ), shape_typ(else_typ)),
                 BaseEq(shape_typ(body_typ), shape_typ(ret_typ)),
@@ -168,8 +168,8 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 lhs_constrs
                 + rhs_constrs
                 + [
-                    BaseEq(lhs_ty, RType.int()),
-                    BaseEq(rhs_ty, RType.int()),
+                    BaseEq(shape_typ(lhs_ty), RType.int()),
+                    BaseEq(shape_typ(rhs_ty), RType.int()),
                 ],
             )
         case syn.BoolLiteral(_):
@@ -182,8 +182,8 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 lhs_constrs
                 + rhs_constrs
                 + [
-                    BaseEq(lhs_ty, RType.int()),
-                    BaseEq(rhs_ty, RType.int()),
+                    BaseEq(shape_typ(lhs_ty), RType.int()),
+                    BaseEq(shape_typ(rhs_ty), RType.int()),
                 ],
             )
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["and", "or", "not"]:
@@ -194,22 +194,27 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 lhs_constrs
                 + rhs_constrs
                 + [
-                    BaseEq(lhs_ty, RType.bool()),
-                    BaseEq(rhs_ty, RType.bool()),
+                    BaseEq(shape_typ(lhs_ty), RType.bool()),
+                    BaseEq(shape_typ(rhs_ty), RType.bool()),
                 ],
             )
-        case syn.Call(function_name=name, arglist=args):
-            fn_ty, constrs = check_expr(context, assums, name)
-            types = []
-            for e in args:
-                ty, cs = check_expr(context, assums, e)
-                types += [ty]
-                constrs += cs
-            ret_type = RType.lift(TypeVar.fresh())
-            return (
-                ret_type,
-                constrs + [BaseEq(lhs=fn_ty, rhs=ArrowType(args=types, ret=ret_type))],
-            )
+        case syn.Call(function_name=fn, arglist=args):
+            # TODO, subst args into fn_typ
+            fn_ty, constrs = check_expr(context, assums, fn)
+            match fn_ty:
+                case ArrowType(args=fn_arg_typs, ret=fn_ret_type) if len(
+                    fn_arg_typs
+                ) == len(args):
+                    types = []
+                    for (x1, t1), e in zip(fn_arg_typs, args):
+                        ty, cs = check_expr(context, assums, e)
+                        types += [(x1, ty)]
+                        constrs += cs + [SubType(assums, ty, t1)]
+                    return (fn_ret_type, constrs)
+                case x:
+                    raise Exception(
+                        f"{fn} doesn't have a function type. It has {x} instead."
+                    )
         case x:
             print(x)
             raise NotImplementedError
@@ -223,7 +228,9 @@ def shape_typ(typ: Type) -> Type:
 
     match typ:
         case ArrowType(args=args, ret=ret):
-            return ArrowType(args=[shape_typ(a) for a in args], ret=shape_typ(ret))
+            return ArrowType(
+                args=[(name, shape_typ(a)) for name, a in args], ret=shape_typ(ret)
+            )
         case RType(base=base):
             return RType.lift(base)
         case x:
@@ -270,7 +277,8 @@ def shrink(solution):
                     return typ
             case ArrowType(args=args, ret=ret):
                 return ArrowType(
-                    args=[lookup(a, solution) for a in args], ret=lookup(ret, solution)
+                    args=[(name, lookup(a, solution)) for name, a in args],
+                    ret=lookup(ret, solution),
                 )
             case x:
                 return x

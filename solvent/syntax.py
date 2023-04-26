@@ -111,7 +111,9 @@ class Type:
             case RType(base=base, predicate=pred):
                 return f"{{ {base} | {pred} }}"
             case ArrowType(args=args, ret=ret):
-                return "({}) -> {}".format(", ".join([str(a) for a in args]), ret)
+                return "({}) -> {}".format(
+                    ", ".join([f"{name}:{t}" for name, t in args]), ret
+                )
             case x:
                 print(x)
                 raise NotImplementedError
@@ -141,7 +143,7 @@ class RType(Type):
 
 @dataclass
 class ArrowType(Type):
-    args: List[Type]
+    args: List[tuple[str, Type]]
     ret: Type
 
 

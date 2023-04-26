@@ -31,10 +31,6 @@ def solve(
             ):
                 solution[n] = qualifiers.predicate(ctx, quals)
 
-    print("context:")
-    for k, v in context.items():
-        print(f"{k}: {v}")
-
     if show_work:
         print("Initial Predicates:")
         for k, v in solution.items():
@@ -49,16 +45,20 @@ def solve(
         List[constr.Scope],
         list(filter(lambda x: isinstance(x, constr.Scope), constrs)),
     )
-    print("== scope ==")
-    for e in scope_eqs:
-        print(e)
-    print("== scope ==")
+    if show_work:
+        print("== scope ==")
+        for e in scope_eqs:
+            print(e)
+        print("== scope ==")
 
-    return liquid.constraints_valid(subtype_eqs, solution, show_work)
+    return liquid.constraints_valid(context, subtype_eqs, solution, show_work)
 
 
 def constraints_valid(
-    constrs: List[constr.SubType], solution: Solution, show_work=False
+    context: constr.Env,
+    constrs: List[constr.SubType],
+    solution: Solution,
+    show_work=False,
 ):
     """
     Check if solution satisfies every constraint in constrs.
@@ -67,14 +67,19 @@ def constraints_valid(
     """
 
     for c in constrs:
-        cp = apply_constr(c, solution)
-        if not subtype.subtype(cp.assumes, cp.lhs, cp.rhs):
-            return constraints_valid(constrs, weaken(c, solution, show_work), show_work)
+        if not subtype.check_constr(
+            apply_ctx(context, solution), apply_constr(c, solution)
+        ):
+            return constraints_valid(
+                context, constrs, weaken(context, c, solution, show_work), show_work
+            )
 
     return solution
 
 
-def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
+def weaken(
+    context: constr.Env, c: constr.SubType, solution: Solution, show_work=False
+) -> Solution:
     """
     Weaken constr and return a new solution.
 
@@ -83,7 +88,7 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
     """
 
     if show_work:
-        print(f"Weakening {c}")
+        print(f"Weakening {c}, under { {k: str(v) for k, v in context.items()} }")
 
     match c:
         case constr.SubType(
@@ -97,7 +102,8 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
             for qual in solution[n].conjuncts:
                 if show_work:
                     print(f"Checking {qual}: ", end="")
-                if subtype.subtype(
+                if subtype.check(
+                    apply_ctx(context, solution),
                     assumes,
                     apply(lhs, solution),
                     syn.RType(b2, syn.Conjoin([qual])),
@@ -136,6 +142,10 @@ def apply_constr(c: constr.SubType, solution: Solution) -> constr.SubType:
     return constr.SubType(c.assumes, apply(c.lhs, solution), apply(c.rhs, solution))
 
 
+def apply_ctx(ctx: constr.Env, solution: Solution) -> constr.Env:
+    return {k: apply(v, solution) for k, v in ctx.items()}
+
+
 def apply(typ: constr.Type, solution: Solution) -> constr.Type:
     match typ:
         case syn.RType(base=base, predicate=syn.PredicateVar(name=n)) if n in solution:
@@ -144,7 +154,7 @@ def apply(typ: constr.Type, solution: Solution) -> constr.Type:
             return syn.RType.lift(base)
         case syn.ArrowType(args=args, ret=ret):
             return syn.ArrowType(
-                args=[apply(a, solution) for a in args],
+                args=[(x, apply(t, solution)) for x, t in args],
                 ret=apply(ret, solution),
             )
         case x:

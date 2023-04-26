@@ -6,7 +6,7 @@ from solvent import V, _, Q
 quals = [_ < V, V < _, _ <= V, V <= _, Q[0] <= V]
 
 
-# @solvent.infer(quals)
+# @solvent.infer(quals, debug=True)
 def my_max(x, y):
     if x > y:
         return x

@@ -31,6 +31,8 @@ def parse_other(sym: Any, fill: syn.Expr):
             return fill
         case MagicV():
             return syn.V()
+        case MagicQInner(item=item):
+            return item
         case unknown:
             raise NotImplementedError(unknown)
 
@@ -108,6 +110,13 @@ class MagicQ:
                 raise NotImplementedError(x)
 
         return MagicQInner(expr)
+
+    def __getattr__(self, attr):
+        match attr:
+            case str():
+                return MagicQInner(syn.Variable(attr))
+            case x:
+                raise AttributeError(x)
 
 
 @dataclass

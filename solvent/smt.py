@@ -53,7 +53,25 @@ def from_expr(e: syn.Expr):
             # will need to infer this type eventually.
             # when that happens, this becomes an error
             raise Exception(f"Can't convert TypeVar, {n}, to smt.")
-        # case [*items]:
         case x:
             print(x)
             raise NotImplementedError
+
+
+def base_type(b: syn.Type):
+    match b:
+        case syn.RType(base=syn.Int()):
+            return z3.IntSort()
+        case syn.RType(base=syn.Bool()):
+            return z3.BoolSort()
+        case x:
+            raise NotImplementedError(x)
+
+
+def from_type(name: str, t: syn.Type):
+    match t:
+        case syn.RType(predicate=syn.Conjoin(conj)):
+            return from_exprs(conj)
+        case syn.ArrowType(args=args, ret=ret):
+            return True
+            # return z3.Function(name, *[base_type(t) for _, t in args], base_type(ret))

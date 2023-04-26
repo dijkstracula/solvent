@@ -31,6 +31,10 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     inferred_base_typ = unification.apply(typ, solution)
     context = unification.apply_context(context, solution)
 
+    if debug:
+        print("== Inferred Base Type ==")
+        print(f"{inferred_base_typ}")
+
     print("== Constraints ==")
     print("\n".join([str(c) for c in constrs]))
     predvar_solution = liquid.solve(context, constrs, quals, show_work=debug)

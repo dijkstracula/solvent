@@ -21,7 +21,9 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
         case (RType(base=v1, predicate=_), RType(base=v2, predicate=_)):
             return v1 == v2
         case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
-            args_eq = all(map(lambda a: base_type_eq(a[0], a[1]), zip(args1, args2)))
+            args_eq = all(
+                map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
+            )
             return args_eq and base_type_eq(ret1, ret2)
         case _:
             return False
@@ -57,7 +59,7 @@ def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
             ):
                 arg_constrs = list(
                     map(
-                        lambda a: BaseEq(lhs=a[0], rhs=a[1]),
+                        lambda a: BaseEq(lhs=a[0][1], rhs=a[1][1]),
                         zip(top.lhs.args, top.rhs.args),
                     )
                 )
@@ -131,7 +133,7 @@ def free_vars(typ: Type):
         case RType():
             return []
         case ArrowType(args=args, ret=ret):
-            return sum([free_vars(a) for a in args], []) + free_vars(ret)
+            return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
         case x:
             print(x)
             raise NotImplementedError
@@ -155,7 +157,7 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             return src
         case ArrowType(args=args, ret=ret):
             return ArrowType(
-                args=[subst_one(name, tar, x) for x in args],
+                args=[(x, subst_one(name, tar, t)) for x, t in args],
                 ret=subst_one(name, tar, ret),
             )
         case x:
@@ -177,7 +179,7 @@ def apply(typ: Type, solution: Solution) -> Type:
                 return new
         case ArrowType(args=args, ret=ret):
             return ArrowType(
-                args=[apply(t, solution) for t in args],
+                args=[(name, apply(t, solution)) for name, t in args],
                 ret=apply(ret, solution),
             )
         case _:

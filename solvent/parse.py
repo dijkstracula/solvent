@@ -65,15 +65,15 @@ def parse_annotation(ann) -> syn.Type:
             if isinstance(base_type, syn.RType):
                 base_type.predicate = syn.Conjoin([parse_expr(refinement)])
             return base_type
-        case ast.Subscript(
-            value=ast.Name(id="Callable"), slice=ast.Tuple(elts=[*arg_types, ret_type])
-        ):
-            if ret_type is not None:
-                ret = parse_annotation(ret_type)
-            else:
-                ret = syn.RType.lift(syn.Unit())
+        # case ast.Subscript(
+        #     value=ast.Name(id="Callable"), slice=ast.Tuple(elts=[*arg_types, ret_type])
+        # ):
+        #     if ret_type is not None:
+        #         ret = parse_annotation(ret_type)
+        #     else:
+        #         ret = syn.RType.lift(syn.Unit())
 
-            return syn.ArrowType(args=[parse_annotation(a) for a in arg_types], ret=ret)
+        #     return syn.ArrowType(args=[parse_annotation(a) for a in arg_types], ret=ret)
         case x:
             if x is not None:
                 print(ast.dump(ann, indent=2))
