@@ -276,7 +276,7 @@ _lazy_ unification means inference and typechecking can be done
 incrementally[@TaPL] or interleaved with each other, which is important for
 more sophisticated _bidirectional_ typing algorithms.
 
-## Lifting base types into refined types
+## From base types to logical qualifiers
 
 Refinement predicates are drawn from arithmetic and relational expressions over
 integer, boolean, and array sorts, and conjunctions thereof.   Their terminals
@@ -301,9 +301,39 @@ afterthought, whereas the subsequent work([@LiquidTypesDSVerificationPLDI09],
 [@GradualLiquidTypeInference]) makes sure to mention it explicitly and right in
 the abstract.
 
+## Subtyping as implication
+
+Unifying a refinement predicate with another, to a first approximation, reduces
+to a validity check between the candidate types - checking whether the
+inhabitants of two types are the same is equivalent to asking whether the
+models of the two predicates are the same under some typing environment
+$\Gamma$.
+
+This intuition lets us build a straightforward subtyping relationship for
+refinement predicates: recalling Liskov[@LiskovKeynote], `T1` is a subtype of
+`T2` if occurrences of the more abstract `T2` can be transparently substituted
+for `T1`.  Stated more logically: `T1` is _stronger_ as it places more
+constraints on its inhabitants than `T2`.  Determining whether T1 subsumes T2
+is therefore checking the validity of the implication T1 $\implies$ T2 under
+$\Gamma$.  This gives us `True` and `False` as the extrema of our subtyping
+relation, as we would expect.
+
+
+$$
+\begin{equation}
+\begin{split}
+\text{If the following is valid:} \; & \Gamma \; & \wedge \; & T_1 & \implies & T_2 \\
+\text{Then the following typing judgement holds:} \; & \Gamma \; & \vdash \; & \{ v:\, B \; | \; T_1 \}  & <: & \{ v:\, B \; | \; T_2 \}\\
+\end{split}
+\end{equation}
+$$
+_Figure 5: The `Dec-<:-Base` typing rule: typing judgements follow from an
+equality check on the base types and a validity check on the refinement
+predicates._
+
 If programmers were manually annotating all their program terms with refinement
-types, we could treat the internals of the SMT solver as magic, rub it on our
-problem, and go home early.  However, recall that our goal is type
+types, we could treat the internals of the SMT solver as magic, perform a simple
+validity check, and go home early.  However, recall that our goal is type
 _reconstruction_, not just _typechecking_; we need to divine a predicate
 appropriate for the refinement type that is neither too weak (i.e. too abstract
 to say anything meaningful) nor too strong (i.e. doesn't overfit to precisely
@@ -312,18 +342,73 @@ type property of H-M type inference made "a good base typing" simply fall out
 through unification; by contrast, conceivably, any number of "good refinement
 typings" could be synthesized.  
 
-### Predicate abstraction as the computational workhorse
+```python
+from itertools import product, count
+
+def max1(x, y) -> {V | True}:              x if x > y else y
+def max2(x, y) -> {V | V == x or V == y}:  x if x > y else y
+def max3(x, y) -> {V | V >= x and V >= y}: x if x > y else y
+def max4(x, y) -> {V | [(x==a and x==a+b) for a,b in product(count(), 2)]} }: ...
+```
+_Figure 6: Four plausable typings of the `max()` function, each of varying
+levels of goodness: note that `max4` requires materializing an infinite number
+of qualifiers!_
+
+## Refinement type constraint generation
+
+Constraint generation for the refinement predicate portion of the liquid type
+follows a similar trajectory to that which we saw for base types.  The solver
+begins by lifting the inferred base types into a refinement _template_ with a
+constraint variable in place of a concrete predicate.  
+
+Since we've seen that program terms can be substituted in for the `*` wildcard
+in the qualifier list (see Figure 7), all refinement templates include a set of _scope
+constraints_: intuitively, a scope constraint is an assertion in the typing
+environment that a program term is in use at the particular point that the type
+itself comes into scope.  A scope constraint says nothing about whether the
+program term _needs_ to be used in a refining predicate, only that it _may_ be.
+
+A _flow constraint_, by comparison, is an assertion of some relationship between
+program terms.  Critically, flow constraints are _path sensitive_: they are an
+assumption in the typing environment that depends not on program values but the
+control flow through the program.  For instance, an `if`-statement would fork
+the typing environment into two flows: one in which the `then` branch is taken
+and another when the `else` branch is taken.  At each leaf of the AST we concretize
+a trivial subtype 
+
+$$
+\begin{equation}
+\begin{split}
+x:\text{int}; \, y:\text{int}; 
+\begin{cases}
+(x > y)     & \; \vdash \; \{ int \;|\; V = x \} <: \{ int \;|\; K_3 \} \\
+\neg(x > y) & \; \vdash \; \{ int \;|\; V = y \} <: \{ int \;|\; K_3 \} 
+\end{cases}
+\end{split}
+\end{equation}
+$$
+_Figure 7: A function annotated with refinement templates -- $K_1$, $K_2$, and
+$K_3$ are constraint variables, and the typing context includes a
+flow-sensitive subtyping relationship on the type of the return value, which is
+dependent on which program branches are taken._
+
+Given the constraints shown in Figure 7, an obvious but suboptimal type for
+`max()`'s return value suggests itself.  We know that either branch of the
+`if` must be taken; so, the disjunction of the subtype constraints would
+technically work (see `max3()` in Figure 6).  This type, of course, only has
+two inhabitants and wildly overfits to the input arguments; we'd like it to
+generalize as much as possible.
+
+## Predicate Abstraction and the Journey Home
 
 Recalling how the technique was applied to great effect whilst contemplating
 model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), Rondon et al.
 constructed a liquid type reconstruction algorithm that consumes a set of
-_predefined qualifiers_ which they treat as a sort of basis set that refinements
-will be constructed from.  To simplify the exposition, in the paper the authors
-
-can be inserted, and produces a conjunction of those qualifiers.  Naturally,
-this induces a bias into the reconstruction output: whoever wrote down the set
-of qualifiers for predicate abstraction to choose from is in some sense
-determining the "basis set" that will comprise a reconstructed liquid type.
+_predefined qualifiers_ which they treat as a sort of basis set that
+refinements will be constructed from. Naturally, this induces a bias into the
+reconstruction output: whoever wrote down the set of qualifiers for predicate
+abstraction to choose from is in some sense determining the "basis set" that
+will comprise a reconstructed liquid type.
 
 ```ocaml
 (* ./default_patterns *)
@@ -342,7 +427,7 @@ qualif LVARV(v) : v { * * } length ~A
 qualif SETAPPEND(_v) : length _v = (length v > i ? length v : i + 1)
 qualif TOARR(v) : length t = Array.length v
 ```
-_Figure 5: A selection of built-in qualifiers, and user-supplied ones used in
+_Figure 7: A selection of built-in qualifiers, and user-supplied ones used in
 verifying a Rope[@RopeDS]-like `Vec` datatype, written in an internal pattern
 DSL. `**` and `^` are the operator and integer literal wildcards, respectively.
 Note the use of the recursively-defined function `length` in certain
@@ -350,27 +435,14 @@ qualifiers._
 
 TODO: once we have qualifiers in Solvent, should we show those instead?
 
+TODO: I don't know if calling the heading "synthesis" is an abuse of notation.
 
-### Refinement type constraint generation
+TODO: (should say something about how neither refutation/unification/etc is
+appropriate here - something about an infinite space of possible substitutions
+or something?)
 
-TODO: Lift base types that we've inferred into refinement types with constraint
-variables that we'll solve for.  
-
-TODO: Two ways to constrain our unknown predicates: if we want to synthesize a
-qualifier that uses some program term (for instance, the predicate `x > y` for
-the `max()` function example), that term of course needs to be in scope, and be
-of the appropriate base type. This is a _scope_ constraint and helps us ensure
-that our types only depend on values that make sense.
-
-TODO: We can also constrain them by facts that follow from the control flow of
-the program: for instance, in all terms getting typechecked within the `else`
-branch of an `if x > 0 then {...} else {...}` statement, we know that `x <= 0`
-is true.  This is a _flow constraint_ and gives us path sensitivity.
-
-TODO: Once we've built up these constraints, we need to turn them into
-a qualifier for our type.  That's where predicate abstraction comes in babeyyy
-(should say something about how neither refutation/unification/etc is appropriate
-here - something about an infinite space of possible substitutions or something)
+To generate a more general return type that that of Figure 7's `max3()`, we'll
+construct a conjunction of predicates  
 
 ### Historical overview and context
 
