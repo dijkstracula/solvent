@@ -316,7 +316,9 @@ for `T1`.  Stated more logically: `T1` is _stronger_ as it places more
 constraints on its inhabitants than `T2`.  Determining whether T1 subsumes T2
 is therefore checking the validity of the implication T1 $\implies$ T2 under
 $\Gamma$.  This gives us `True` and `False` as the extrema of our subtyping
-relation, as we would expect.
+relation, as we would expect; we will see shortly that by constraining the
+space of possible subtypes that we explore, we form a lattice with `True`
+and `False` as our top and bottom, respectively.
 
 
 $$
@@ -329,7 +331,8 @@ $$
 $$
 _Figure 5: The `Dec-<:-Base` typing rule: typing judgements follow from an
 equality check on the base types and a validity check on the refinement
-predicates._
+predicate subtyping relation.  Notice that the subtyping rule does not hold
+if the base types are unequal but subtypes._
 
 If programmers were manually annotating all their program terms with refinement
 types, we could treat the internals of the SMT solver as magic, perform a simple
@@ -348,11 +351,12 @@ from itertools import product, count
 def max1(x, y) -> {V | True}:              x if x > y else y
 def max2(x, y) -> {V | V == x or V == y}:  x if x > y else y
 def max3(x, y) -> {V | V >= x and V >= y}: x if x > y else y
-def max4(x, y) -> {V | [(x==a and x==a+b) for a,b in product(count(), 2)]} }: ...
+def max4(x, y) -> {V | [(x==a and x==a+b and
+                         x==a-b and y==a) for a,b in product(count(), 2)]} }: ...
 ```
 _Figure 6: Four plausable typings of the `max()` function, each of varying
-levels of goodness: note that `max4` requires materializing an infinite number
-of qualifiers!_
+levels of goodness: note that `max4` depends upon an infinite number of
+qualifiers!_
 
 ## Refinement type constraint generation
 
@@ -395,20 +399,20 @@ dependent on which program branches are taken._
 Given the constraints shown in Figure 7, an obvious but suboptimal type for
 `max()`'s return value suggests itself.  We know that either branch of the
 `if` must be taken; so, the disjunction of the subtype constraints would
-technically work (see `max3()` in Figure 6).  This type, of course, only has
+technically work (see `max2()` in Figure 6).  This type, of course, only has
 two inhabitants and wildly overfits to the input arguments; we'd like it to
 generalize as much as possible.
 
 ## Predicate Abstraction and the Journey Home
 
 Recalling how the technique was applied to great effect whilst contemplating
-model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), Rondon et al.
-constructed a liquid type reconstruction algorithm that consumes a set of
-_predefined qualifiers_ which they treat as a sort of basis set that
-refinements will be constructed from. Naturally, this induces a bias into the
-reconstruction output: whoever wrote down the set of qualifiers for predicate
-abstraction to choose from is in some sense determining the "basis set" that
-will comprise a reconstructed liquid type.
+model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), a liquid type
+reconstruction algorithm that consumes a set of _predefined qualifiers_ which
+they treat as a sort of basis set that refinements will be constructed from.
+So, a refinement predicate will be a conjunction of such qualifiers. Naturally,
+this induces a bias into the reconstruction output: whoever wrote down the set
+of qualifiers for predicate abstraction to choose from is in some sense
+determining the "basis set" that will comprise a reconstructed liquid type.
 
 ```ocaml
 (* ./default_patterns *)
@@ -427,35 +431,119 @@ qualif LVARV(v) : v { * * } length ~A
 qualif SETAPPEND(_v) : length _v = (length v > i ? length v : i + 1)
 qualif TOARR(v) : length t = Array.length v
 ```
-_Figure 7: A selection of built-in qualifiers, and user-supplied ones used in
+_Figure 8a: A selection of built-in qualifiers, and user-supplied ones used in
 verifying a Rope[@RopeDS]-like `Vec` datatype, written in an internal pattern
 DSL. `**` and `^` are the operator and integer literal wildcards, respectively.
 Note the use of the recursively-defined function `length` in certain
 qualifiers._
 
-TODO: once we have qualifiers in Solvent, should we show those instead?
+```python
+quals = [0 < V, 
+         _ <= V, 
+         V < _,
+         len(_) <= V]
+```
+_Figure 8b: The built-in qualifiers from the paper, in Solvent's internal
+qualifier DSL.  The underbar token stands in for any appropriately-typed
+program term._
 
-TODO: I don't know if calling the heading "synthesis" is an abuse of notation.
+To generate a more general return type that that of Figure 7's `max2()`, we'll
+construct an abstraction of the type using our built-in qualifiers and the
+accumulated constraints as building blocks.  What we gain from these building
+blocks -- a lattice formed by the conjunction of some fixed set of boolean
+predicates -- is exactly the requirements to perform cartesian predicate
+abstraction.
+
+In particular, we take our _scope constraints_, having accumulated all possible
+program terms, and substitute each constraint into the qualifier placeholder.
+Given the typing environments in Figure 7, we'd be left with the qualifier set
+`0 < V, V < x, V < y, x <= V, y <= V`.  (The final qualifier does not appear
+because we have no scope constraint that types to a list.)
+
+$$
+\begin{equation}
+\begin{split}
+0 \leq v & & 
+\star \leq v & &
+\star \leq v & &
+\star \lt v & &
+\star \lt v \\
+\{ int \;|\; v = x \} <: ( int \;|\: 0 \leq v & \; \wedge \;
+                        & x \leq v & \; \wedge \;
+                        & y \leq v & \; \wedge \;
+                        & x \lt v & \; \wedge \;
+                        & y \lt v) \\
+\{ int \;|\; v = y \} <:( int \;|\: 0 \leq v & \; \wedge
+                        & x \leq v & \; \wedge \;
+                        & y \leq v & \; \wedge \;
+                        & x \lt v & \; \wedge \;
+                        & y \lt v) \\
+\end{split}
+\end{equation}
+$$
+_Figure 9: The strongest possible guess for `max()`'s return type: the
+conjunction of every qualifier, expanded with every scope constraint.  It is
+likely that, when transformed into an implication and checked by Z3, it will
+prove to be too strong, and a refinement process to weaken the formula will
+occur._
+
+As the stronger the formula, the more precise the type, so we might hope that
+the strongest possible formula -- conjoining the cross product of qualifiers
+with scope constriants -- would produce the most qualified liquid type.
+However, it's clear that the formula is too strong: `v = x` contradicts `v <
+x`.  Intuitively: removing `v < x`, and any other contradictory clause, ought
+to yield a formula that _does_ satisfy the subtyping relation. This happens to
+be precisely the predicate abstraction refinement loop: while the proposed
+refinement predicate does not follow from every flow-sensitive typing
+environment, filter out the individual clauses that themselves do not follow,
+weakening the type, and re-check.
+
+$$
+\begin{equation}
+\begin{split}
+\{ int \;|\; v = x \} <:& \{ int \;|\: (\underline{0 \leq v}) & \; \wedge \;
+                        & (x \leq v) & \; \wedge \;
+                        & (y \leq v) & \; \wedge \;
+                        & (\underline{x \lt v}) & \; \wedge \;
+                        & (y \lt v) \}\\
+
+\{ int \;|\; v = y \} <:& \{ int \;|\: (\underline{0 \leq v}) & \; \wedge \;
+                        & (x \leq v) & \; \wedge \;
+                        & (y \leq v) & \; \wedge \;
+                        & (x \lt v) & \; \wedge \;
+                        & (\underline{y \lt v}) \} \\
+
+& \{ int \;|\: & 
+                        & (x \leq v) & \; \wedge \;
+                        & (y \leq v) \}
+\end{split}
+\end{equation}
+$$
+_Figure 10: Predicate abstraction for the `max()` example: contradicting
+clauses are underlined.  The final refinement type can be read as "an int $v$
+that is no less than both x and y"._
 
 TODO: (should say something about how neither refutation/unification/etc is
 appropriate here - something about an infinite space of possible substitutions
 or something?)
 
-To generate a more general return type that that of Figure 7's `max3()`, we'll
-construct a conjunction of predicates  
+TODO: we refine the abstraction by _removing_ clauses
 
-### Historical overview and context
+## Subsequent Work
 
-TODO: both type inference and model checking had been around for decades before
-this got published in 2008.  Why did this only appear then?  It's around the
-era that SMT solvers became practical enough to use as a component in a larger
-technique (TODO: look at the Decision Procedures book and see if there's a graph
-showing an elbow curve up and to the right around that time?)  What else?
+The original liquid types paper focused on recursive programs in OCaml with an
+eye towards provably eliding bounds checks, in the style of Dependent
+ML[@DependentML] and previous ML refinement type work[@RefinementTypesForML].
+Generalizing followup work came soon after, focusing on imperative programs in
+C[@LowLevelLiquidTypesPOPL10] and lazy functional
+languages[@RefinementTypesForHaskell].  More recently, follow-up work has been
+done in integrating liquid types into a gradual typing
+environment[@GradualLiquidTypeInference] and industrial languages like
+TypeScript[@RefinementTypesForTypeScript].
 
-## Limitations and Subsequent Work
-
-TODO: Low-level liquid types; and, don't forget about the gradual liquid types
-followup paper[@GradualLiquidTypeInference].  Maybe also F*[@FStar]?
+More broadly, integration of SMT solvers into programming languages has been
+explored by both higher-order function languages[@FStar] and imperative, OO-style
+ones[@Dafny].
 
 [^1]: In particular, those derived from the Hindley-Milner subset of System F,
   which we can intuit as being more or less equivalent in expressiveness to
