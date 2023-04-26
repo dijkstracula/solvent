@@ -37,6 +37,8 @@ def parse(tree: ast.AST) -> List[syn.Stmt]:
                     orelse=sum([parse(b) for b in orelse], []),
                 )
             ]
+        case ast.Assign(targets=[ast.Name(id=id)], value=e):
+            return [syn.Assign(id, parse_expr(e))]
         case ast.Return(value=value):
             return [syn.Return(value=parse_expr(value))]
         case _:

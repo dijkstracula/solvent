@@ -156,7 +156,7 @@ class MagicQInner:
 
 def predicate(context: constr.Env, quals: List[Qualifier]) -> syn.Conjoin:
     conjuncts = []
-    for k, v in context.items():
+    for k, v in context.items:
         match v:
             case syn.RType(base=base):
                 for q in quals:

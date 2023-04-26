@@ -155,10 +155,11 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             return tar
         case RType():
             return src
-        case ArrowType(args=args, ret=ret):
+        case ArrowType(args=args, ret=ret, pending_subst=ps):
             return ArrowType(
                 args=[(x, subst_one(name, tar, t)) for x, t in args],
                 ret=subst_one(name, tar, ret),
+                pending_subst=ps,
             )
         case x:
             print("subst_one:", x)
@@ -171,16 +172,19 @@ def apply(typ: Type, solution: Solution) -> Type:
     """
 
     match typ:
-        case RType(base=TypeVar(name=n), predicate=p) if n in solution:
+        case RType(
+            base=TypeVar(name=n), predicate=p, pending_subst=ps
+        ) if n in solution:
             new = solution[n]
             if isinstance(new, RType):
-                return apply(RType(new.base, p), solution)
+                return apply(RType(ps, new.base, p), solution)
             else:
                 return new
-        case ArrowType(args=args, ret=ret):
+        case ArrowType(args=args, ret=ret, pending_subst=ps):
             return ArrowType(
                 args=[(name, apply(t, solution)) for name, t in args],
                 ret=apply(ret, solution),
+                pending_subst=ps,
             )
         case _:
             return typ
@@ -191,7 +195,7 @@ def apply_context(context: Env, solution) -> Env:
     Given a type, resolve all type variables using `solution'.
     """
 
-    return {k: apply(v, solution) for k, v in context.items()}
+    return context.map(lambda v: apply(v, solution))
 
 
 def apply_constraints(
@@ -202,9 +206,10 @@ def apply_constraints(
         match c:
             case BaseEq(lhs=lhs, rhs=rhs):
                 res += [BaseEq(apply(lhs, solution), apply(rhs, solution))]
-            case SubType(assumes=asms, lhs=lhs, rhs=rhs):
+            case SubType(context=ctx, assumes=asms, lhs=lhs, rhs=rhs):
                 res += [
                     SubType(
+                        context=ctx,
                         assumes=asms,
                         lhs=apply(lhs, solution),
                         rhs=apply(rhs, solution),
@@ -213,7 +218,7 @@ def apply_constraints(
             case Scope(context=ctx, typ=typ):
                 res += [
                     Scope(
-                        context={k: apply(v, solution) for k, v in ctx.items()},
+                        context=apply_context(ctx, solution),
                         typ=apply(typ, solution),
                     )
                 ]

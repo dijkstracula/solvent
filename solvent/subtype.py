@@ -16,7 +16,7 @@ def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
         ) if t1 == t2:
             ctx_smt = reduce(
                 lambda a, b: z3.And(a, b),
-                [smt.from_type(name, t) for name, t in context.items()],
+                [smt.from_type(x, t) for x, t in context.items],
                 True,
             )
 
@@ -50,8 +50,5 @@ def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
             return False
 
 
-def check_constr(context: constr.Env, c: constr.SubType) -> bool:
-    print(f"{c}")
-    for k, v in context.items():
-        print(f"  {k}: {v}")
-    return check(context, c.assumes, c.lhs, c.rhs)
+def check_constr(c: constr.SubType) -> bool:
+    return check(c.context, c.assumes, c.lhs, c.rhs)

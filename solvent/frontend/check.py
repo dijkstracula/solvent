@@ -8,14 +8,14 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     Run Liquid-type inference and checking.
     """
 
-    typ, constrs, context = constraints.check_stmts({}, [], stmts)
+    typ, constrs, context = constraints.check_stmts(constraints.Env.empty(), [], stmts)
 
     if debug:
         print(f"Initial type: {typ}")
         print("== Constraints ==")
         print("\n".join([str(c) for c in constrs]))
         print("== Context ==")
-        for k, v in context.items():
+        for k, v in context.items:
             print(f"{k} := {v}")
 
     if debug:
@@ -35,9 +35,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
         print("== Inferred Base Type ==")
         print(f"{inferred_base_typ}")
 
-    print("== Constraints ==")
-    print("\n".join([str(c) for c in constrs]))
-    predvar_solution = liquid.solve(context, constrs, quals, show_work=debug)
+    predvar_solution = liquid.solve(constrs, quals, show_work=debug)
 
     if debug:
         for k, v in predvar_solution.items():

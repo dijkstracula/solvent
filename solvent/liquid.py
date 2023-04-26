@@ -17,7 +17,6 @@ Solution = Dict[str, syn.Conjoin]
 
 
 def solve(
-    context: constr.Env,
     constrs: List[constr.Constraint],
     quals: List[quals.Qualifier],
     show_work=False,
@@ -41,21 +40,11 @@ def solve(
         List[constr.SubType],
         list(filter(lambda x: isinstance(x, constr.SubType), constrs)),
     )
-    scope_eqs = cast(
-        List[constr.Scope],
-        list(filter(lambda x: isinstance(x, constr.Scope), constrs)),
-    )
-    if show_work:
-        print("== scope ==")
-        for e in scope_eqs:
-            print(e)
-        print("== scope ==")
 
-    return liquid.constraints_valid(context, subtype_eqs, solution, show_work)
+    return liquid.constraints_valid(subtype_eqs, solution, show_work)
 
 
 def constraints_valid(
-    context: constr.Env,
     constrs: List[constr.SubType],
     solution: Solution,
     show_work=False,
@@ -67,28 +56,19 @@ def constraints_valid(
     """
 
     for c in constrs:
-        if not subtype.check_constr(
-            apply_ctx(context, solution), apply_constr(c, solution)
-        ):
-            return constraints_valid(
-                context, constrs, weaken(context, c, solution, show_work), show_work
-            )
+        if not subtype.check_constr(apply_constr(c, solution)):
+            return constraints_valid(constrs, weaken(c, solution, show_work), show_work)
 
     return solution
 
 
-def weaken(
-    context: constr.Env, c: constr.SubType, solution: Solution, show_work=False
-) -> Solution:
+def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
     """
     Weaken constr and return a new solution.
 
     Only implementing case 2 right now. I never generate constraints
     of the other forms. I probably should.
     """
-
-    if show_work:
-        print(f"Weakening {c}, under { {k: str(v) for k, v in context.items()} }")
 
     match c:
         case constr.SubType(
@@ -103,10 +83,11 @@ def weaken(
                 if show_work:
                     print(f"Checking {qual}: ", end="")
                 if subtype.check(
-                    apply_ctx(context, solution),
+                    # apply_ctx(context, solution),
+                    constr.Env.empty(),  # TODO: fix
                     assumes,
                     apply(lhs, solution),
-                    syn.RType(b2, syn.Conjoin([qual])),
+                    syn.RType([], b2, syn.Conjoin([qual])),
                     show_work=show_work,
                 ):
                     if show_work:
@@ -139,23 +120,31 @@ def get_predicate_vars(t: syn.Type) -> Optional[str]:
 
 
 def apply_constr(c: constr.SubType, solution: Solution) -> constr.SubType:
-    return constr.SubType(c.assumes, apply(c.lhs, solution), apply(c.rhs, solution))
+    return constr.SubType(
+        apply_ctx(c.context, solution),
+        c.assumes,
+        apply(c.lhs, solution),
+        apply(c.rhs, solution),
+    )
 
 
 def apply_ctx(ctx: constr.Env, solution: Solution) -> constr.Env:
-    return {k: apply(v, solution) for k, v in ctx.items()}
+    return ctx.map(lambda v: apply(v, solution))
 
 
 def apply(typ: constr.Type, solution: Solution) -> constr.Type:
     match typ:
-        case syn.RType(base=base, predicate=syn.PredicateVar(name=n)) if n in solution:
-            return syn.RType(base=base, predicate=solution[n])
-        case syn.RType(base=base, predicate=syn.PredicateVar(name=n)):
+        case syn.RType(
+            base=base, predicate=syn.PredicateVar(name=n), pending_subst=ps
+        ) if n in solution:
+            return syn.RType(ps, base, solution[n])
+        case syn.RType(base=base, predicate=syn.PredicateVar(name=n), pending_subst=ps):
             return syn.RType.lift(base)
-        case syn.ArrowType(args=args, ret=ret):
+        case syn.ArrowType(args=args, ret=ret, pending_subst=ps):
             return syn.ArrowType(
                 args=[(x, apply(t, solution)) for x, t in args],
                 ret=apply(ret, solution),
+                pending_subst=ps,
             )
         case x:
             return x

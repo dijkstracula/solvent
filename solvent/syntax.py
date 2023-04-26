@@ -5,6 +5,7 @@ is transformed into this more manageable sublanguage.
 
 from dataclasses import dataclass
 from typing import Optional, List, Any
+from copy import deepcopy
 
 
 @dataclass
@@ -102,14 +103,24 @@ class PredicateVar(Predicate):
 
 @dataclass
 class Type:
+    pending_subst: List[tuple[str, "Expr"]]
+
+    def subst(self, pairs: List[tuple[str, "Expr"]]):
+        ret = deepcopy(self)
+        ret.pending_subst += pairs
+        return ret
+
     def __str__(self):
         match self:
             case RType(base=base, predicate=Conjoin([BoolLiteral(value=True)])):
                 return f"{base}"
             case RType(base=base, predicate=Conjoin([])):
                 return f"{base}"
-            case RType(base=base, predicate=pred):
-                return f"{{ {base} | {pred} }}"
+            case RType(base=base, predicate=pred, pending_subst=[]):
+                return f"{{{base} | {pred}}}"
+            case RType(base=base, predicate=pred, pending_subst=ps):
+                ps_str = ",".join([f"{k}->({e})" for k, e in ps])
+                return f"{{{base} | {pred} [{ps_str}]}}"
             case ArrowType(args=args, ret=ret):
                 return "({}) -> {}".format(
                     ", ".join([f"{name}:{t}" for name, t in args]), ret
@@ -126,19 +137,19 @@ class RType(Type):
 
     @staticmethod
     def lift(base_type: BaseType):
-        return RType(base=base_type, predicate=Conjoin([BoolLiteral(value=True)]))
+        return RType([], base_type, Conjoin([BoolLiteral(value=True)]))
 
     @staticmethod
     def template(base_type: BaseType):
-        return RType(base=base_type, predicate=PredicateVar.fresh("K"))
+        return RType([], base_type, PredicateVar.fresh("K"))
 
     @staticmethod
     def bool():
-        return RType(base=Bool(), predicate=Conjoin([BoolLiteral(value=True)]))
+        return RType([], Bool(), Conjoin([BoolLiteral(value=True)]))
 
     @staticmethod
     def int():
-        return RType(base=Int(), predicate=Conjoin([BoolLiteral(value=True)]))
+        return RType([], Int(), Conjoin([BoolLiteral(value=True)]))
 
 
 @dataclass
@@ -252,6 +263,12 @@ class If(Stmt):
     test: Expr
     body: List[Stmt]
     orelse: List[Stmt]
+
+
+@dataclass
+class Assign(Stmt):
+    name: str
+    value: Expr
 
 
 @dataclass
