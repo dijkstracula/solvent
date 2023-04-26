@@ -39,6 +39,16 @@ avg([]) # Runtime error: ZeroDivisionError
 _Figure 1: an ill-typed program that goes wrong, and a well-typed one that also
 goes wrong.[@LiquidHaskellTutorial]._
 
+> ST: maybe a comment about what exactly we mean by types can not go wrong.
+> otherwise if feels like this is just a contradiction.
+> in particular. what we mean by "go wrong" is that programs can't get "stuck",
+> there is always a way to evaluate them. we can define run-time exceptions
+> as explicit holes in the system that abort execution, so that we don't have
+> to be as precise with our type-system. of course, this then means, that we can't reason
+> about these behaviors in the type system. the goal is to reduce the number
+> of run-time exceptions we have in our system, and be able to reason about
+> more program behaviors in our type system.
+
 ### Towards a type-theoretic approach
 
 This particular soundness hole can be tackled by making the typelevel
@@ -187,6 +197,8 @@ to spiral out of control.
 
 ## Unifying the two approaches with logically-qualified types
 
+> What do you mean by "nominally"?
+
 A _refinement type_[@RefinementTypesForML] is the a pairing of an ordinary,
 nominally-polymorphic type (called the _base type_) and some logical
 predicate that _refines_ it.  For example, `{v: int | 0 <= v ∧ v < n}` refines
@@ -223,6 +235,10 @@ _Figure 4: a logically-qualified program, checked with the
 [Solvent](https://github.com/dijkstracula/solvent) liquid typechecker for
 Python, that does not go wrong._
 
+> maybe a comment about why reconstruction is a more interesting problem?
+> namely, type-checking is useful but requires manual annotations. reconstruction
+> gives us push button automation
+
 The procedure described in the authors' initial work[@LiquidTypesPLDI08] is
 primarily motivated by the type _reconstruction_ problem: given a program
 absent type annotations, infer "the best" annotation for program
@@ -255,15 +271,14 @@ algorithm[@TaPL], an absolute bog-standard procedure that we describe here only
 so that it can be compared to the refinement predicate inference procedure that
 follows.  
 
-H-M begins from an unannotated syntax tree and, as it walks the tree, generates
-a collection of type constraints which relate program types or type variables
-standing in for unknown types to each other.  A _unifier_ comprising a final
-mapping from program terms to types then computed from these constraints.  If
-the constraint set is not satisfiable, then one or more constraints clash (e.g.
-two disperate types are constrained as equal) and the origin of that
-contradicting constraint is the location of the type error.  
+H-M is in essence, a lazy type-checker. Instead of checking the types of expressions,
+as it comes upon them, it records typing constraints for later consideration; using 
+type variables as placeholders as needed. A _unifier_ computes a solution from
+these constraints, mapping type variables to types, so that type-checking succeeds.
+If the constraint set is not satisfiable--one or more constraints clash--then we
+can report a type error.
 
-If the constraint set is underspecified, some term will map only to a type
+The constraint set may also be underspecified; some term will map only to a type
 variable and not a concrete type, so as to say "any type will do here".  This
 generality is critical: unification is guaranteed to provide the _most general_
 (or minimal)_ sequence of substitutions in its mapping; in this way, we say the
@@ -277,6 +292,9 @@ incrementally[@TaPL] or interleaved with each other, which is important for
 more sophisticated _bidirectional_ typing algorithms.
 
 ## From base types to logical qualifiers
+
+> Some transition is needed here. Not sure yet what it should be.
+> we should also maybe explicitly use the phrase "give up" here.
 
 Refinement predicates are drawn from arithmetic and relational expressions over
 integer, boolean, and array sorts, and conjunctions thereof.   Their terminals
@@ -302,6 +320,9 @@ afterthought, whereas the subsequent work([@LiquidTypesDSVerificationPLDI09],
 the abstract.
 
 ## Subtyping as implication
+
+> Again some transition is needed. Maybe it's just that the above par
+> feels a little out of place.
 
 Unifying a refinement predicate with another, to a first approximation, reduces
 to a validity check between the candidate types - checking whether the
@@ -365,7 +386,7 @@ follows a similar trajectory to that which we saw for base types.  The solver
 begins by lifting the inferred base types into a refinement _template_ with a
 constraint variable in place of a concrete predicate.  
 
-Since we've seen that program terms can be substituted in for the `*` wildcard
+_ST: have we seen this?_ Since we've seen that program terms can be substituted in for the `*` wildcard
 in the qualifier list (see Figure 7), all refinement templates include a set of _scope
 constraints_: intuitively, a scope constraint is an assertion in the typing
 environment that a program term is in use at the particular point that the type
@@ -405,6 +426,11 @@ generalize as much as possible.
 
 ## Predicate Abstraction and the Journey Home
 
+> I think it would be useful to frame this in terms of "giving up" again.
+> it's hard to construct arbitrary terms, so we don't try, instead assuming
+> a list of predfined terms to select from. This simplifies the inference problem,
+> to be a checking problem.
+
 Recalling how the technique was applied to great effect whilst contemplating
 model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), a liquid type
 reconstruction algorithm that consumes a set of _predefined qualifiers_ which
@@ -414,6 +440,8 @@ this induces a bias into the reconstruction output: whoever wrote down the set
 of qualifiers for predicate abstraction to choose from is in some sense
 determining the "basis set" that will comprise a reconstructed liquid type.
 
+_It's, nice, but I'm not sure we need this figure. It is a lot of syntax
+that we are not really asking people to read and understand_
 ```ocaml
 (* ./default_patterns *)
 qualif BOOL(v): ? v
@@ -528,6 +556,14 @@ appropriate here - something about an infinite space of possible substitutions
 or something?)
 
 TODO: we refine the abstraction by _removing_ clauses
+
+> I like the explanation of predicate abstraction using max.
+> I think we could just bring in a discussion of sum here to discuss
+> how recursive functions work, and more complex constraint generation.
+> It would also be nice to have something about the implicit bias: this is
+> a sort of heuristic for quantifier instantiation.
+> I think some kind of concluding thoughts would be nice? It just sort of ends
+> at the moment.
 
 ## Subsequent Work
 
