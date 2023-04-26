@@ -4,7 +4,7 @@ is transformed into this more manageable sublanguage.
 """
 
 from dataclasses import dataclass
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from copy import deepcopy
 
 
@@ -103,11 +103,13 @@ class PredicateVar(Predicate):
 
 @dataclass
 class Type:
-    pending_subst: List[tuple[str, "Expr"]]
+    # pending_subst: List[tuple[str, "Expr"]]
+    pending_subst: Dict[str, "Expr"]
 
     def subst(self, pairs: List[tuple[str, "Expr"]]):
         ret = deepcopy(self)
-        ret.pending_subst += pairs
+        for k, v in pairs:
+            ret.pending_subst[k] = v
         return ret
 
     def __str__(self):
@@ -116,10 +118,10 @@ class Type:
                 return f"{base}"
             case RType(base=base, predicate=Conjoin([])):
                 return f"{base}"
-            case RType(base=base, predicate=pred, pending_subst=[]):
+            case RType(base=base, predicate=pred, pending_subst={}):
                 return f"{{{base} | {pred}}}"
             case RType(base=base, predicate=pred, pending_subst=ps):
-                ps_str = ",".join([f"{k}->({e})" for k, e in ps])
+                ps_str = ",".join([f"{k}->({e})" for k, e in ps.items()])
                 return f"{{{base} | {pred} [{ps_str}]}}"
             case ArrowType(args=args, ret=ret):
                 return "({}) -> {}".format(
@@ -137,19 +139,19 @@ class RType(Type):
 
     @staticmethod
     def lift(base_type: BaseType):
-        return RType([], base_type, Conjoin([BoolLiteral(value=True)]))
+        return RType({}, base_type, Conjoin([BoolLiteral(value=True)]))
 
     @staticmethod
     def template(base_type: BaseType):
-        return RType([], base_type, PredicateVar.fresh("K"))
+        return RType({}, base_type, PredicateVar.fresh("K"))
 
     @staticmethod
     def bool():
-        return RType([], Bool(), Conjoin([BoolLiteral(value=True)]))
+        return RType({}, Bool(), Conjoin([BoolLiteral(value=True)]))
 
     @staticmethod
     def int():
-        return RType([], Int(), Conjoin([BoolLiteral(value=True)]))
+        return RType({}, Int(), Conjoin([BoolLiteral(value=True)]))
 
 
 @dataclass

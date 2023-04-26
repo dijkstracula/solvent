@@ -87,7 +87,7 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
                     constr.Env.empty(),  # TODO: fix
                     assumes,
                     apply(lhs, solution),
-                    syn.RType([], b2, syn.Conjoin([qual])),
+                    syn.RType({}, b2, syn.Conjoin([qual])),
                     show_work=show_work,
                 ):
                     if show_work:
@@ -129,6 +129,8 @@ def apply_constr(c: constr.SubType, solution: Solution) -> constr.SubType:
 
 
 def apply_ctx(ctx: constr.Env, solution: Solution) -> constr.Env:
+    print(f"{ctx}")
+    print(f" -> {ctx.map(lambda v: apply(v, solution))}")
     return ctx.map(lambda v: apply(v, solution))
 
 
@@ -137,7 +139,12 @@ def apply(typ: constr.Type, solution: Solution) -> constr.Type:
         case syn.RType(
             base=base, predicate=syn.PredicateVar(name=n), pending_subst=ps
         ) if n in solution:
-            return syn.RType(ps, base, solution[n])
+            cjct = syn.Conjoin([apply_pending(c, ps) for c in solution[n].conjuncts])
+            return syn.RType(
+                ps,
+                base,
+                cjct,
+            )
         case syn.RType(base=base, predicate=syn.PredicateVar(name=n), pending_subst=ps):
             return syn.RType.lift(base)
         case syn.ArrowType(args=args, ret=ret, pending_subst=ps):
@@ -145,6 +152,26 @@ def apply(typ: constr.Type, solution: Solution) -> constr.Type:
                 args=[(x, apply(t, solution)) for x, t in args],
                 ret=apply(ret, solution),
                 pending_subst=ps,
+            )
+        case x:
+            return x
+
+
+def apply_pending(e: syn.Expr, substs: Dict[str, syn.Expr]) -> syn.Expr:
+    match e:
+        case syn.Variable(name=n) if n in substs:
+            return substs[n]
+        case syn.BoolOp(lhs=l, op=op, rhs=r):
+            return syn.BoolOp(apply_pending(l, substs), op, apply_pending(r, substs))
+        case syn.ArithBinOp(lhs=l, op=op, rhs=r):
+            return syn.ArithBinOp(
+                apply_pending(l, substs), op, apply_pending(r, substs)
+            )
+        case syn.Neg(expr=e):
+            return syn.Neg(apply_pending(e, substs))
+        case syn.Call(function_name=fn, arglist=args):
+            return syn.Call(
+                apply_pending(fn, substs), [apply_pending(a, substs) for a in args]
             )
         case x:
             return x

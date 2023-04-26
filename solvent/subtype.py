@@ -29,7 +29,7 @@ def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
                 smt.from_exprs(cs2),
             )
 
-            # print(f"    {to_check}")
+            print(f"    {to_check}")
 
             s = z3.Solver()
             s.add(z3.Not(to_check))
