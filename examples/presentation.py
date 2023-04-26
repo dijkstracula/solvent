@@ -14,6 +14,11 @@ def my_max(x, y):
         return y
 
 
+@solvent.infer(quals)
+def double(f, x):
+    return f(f(x, x), f(x, x))
+
+
 @solvent.infer(quals, debug=False)
 def my_sum(k):
     if k < 0:
@@ -21,8 +26,3 @@ def my_sum(k):
     else:
         s = my_sum(k - 1)
         return s + k
-
-
-@solvent.infer(quals)
-def double(f, x):
-    return f(f(x, x), f(x, x))

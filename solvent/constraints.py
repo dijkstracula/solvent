@@ -232,22 +232,30 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
         case syn.Call(function_name=fn, arglist=args):
             # TODO, subst args into fn_typ
             fn_ty, constrs = check_expr(context, assums, fn)
+            subst = []
+            types = []
+
             match fn_ty:
+                # if we know that we have a function type,
+                # we can generate subtyping relations
                 case ArrowType(args=fn_arg_typs, ret=fn_ret_type) if len(
                     fn_arg_typs
                 ) == len(args):
-                    types = []
-                    subst = []
                     for (x1, t1), e in zip(fn_arg_typs, args):
                         ty, cs = check_expr(context, assums, e)
                         types += [(x1, ty)]
                         constrs += cs + [SubType(context, assums, ty, t1)]
                         subst += [(x1, e)]
-                    return (fn_ret_type.subst(subst), constrs)
+                    ret_type = fn_ret_type
                 case x:
-                    raise Exception(
-                        f"{fn} doesn't have a function type. It has {x} instead."
-                    )
+                    for e in args:
+                        ty, cs = check_expr(context, assums, e)
+                        types += [(syn.NameGenerator.fresh("arg"), ty)]
+                        constrs += cs
+
+                    ret_type = RType.lift(TypeVar.fresh())
+                    constrs += [BaseEq(fn_ty, ArrowType([], types, ret_type))]
+            return (ret_type.subst(subst), constrs)
         case x:
             print(x)
             raise NotImplementedError
