@@ -18,14 +18,23 @@ programmer's popular lexicon [@LiquidHaskellTutorial]; after all, type theory
 is inarguably the branch of formal methods that software developers most
 commonly exploit to reason about the behaviour of their programs.  
 
+By "not going wrong", informally, we mean that there is always a way to
+evaluate a program or program expression down to its final value.  A program
+that can go wrong -- for instance, attempting division by zero, calling the
+wrong method on an object, or iterating off the end of an array -- will have to
+fail at runtime by throwing an exception or perhaps being killed by the
+operating system.  If a well-typed program truly can't go wrong, then the
+absence of such failure modes ought to have been statically verified by the
+type system.
+
 However, as a form of abstract interpretation[@CousotCousot], Milner's _bon
 mot_ is in reality circumscribed by how much information is lost by the
-abstract transformation: in particular, the program in Figure 1 can, indeed, go
-wrong - the type system proves the _shape_ of the input datatype (morally, an
-iterable, indexable structure) but lost facts about _particular_ well-typed
-terms. Concretely: Since at the type level an empty list is indistinguishable
-from a non-empty one, it's impossible to reject a program that requires a
-_non-empty_ list as input.
+abstract transformation: in particular, both the typed and untyped program in
+Figure 1 can, indeed, go wrong - the type system proves the _shape_ of the
+input datatype (morally, an iterable, indexable structure) but lost facts about
+_particular_ well-typed terms. Concretely: Since at the type level an empty
+list is indistinguishable from a non-empty one, it's impossible to reject a
+program that requires a _non-empty_ list as input.
 
 ```{.python .numberLines}
 def avg(xs):
@@ -38,16 +47,6 @@ avg([]) # Runtime error: ZeroDivisionError
 ```
 _Figure 1: an ill-typed program that goes wrong, and a well-typed one that also
 goes wrong.[@LiquidHaskellTutorial]._
-
-> ST: maybe a comment about what exactly we mean by types can not go wrong.
-> otherwise if feels like this is just a contradiction.
-> in particular. what we mean by "go wrong" is that programs can't get "stuck",
-> there is always a way to evaluate them. we can define run-time exceptions
-> as explicit holes in the system that abort execution, so that we don't have
-> to be as precise with our type-system. of course, this then means, that we can't reason
-> about these behaviors in the type system. the goal is to reduce the number
-> of run-time exceptions we have in our system, and be able to reason about
-> more program behaviors in our type system.
 
 ### Towards a type-theoretic approach
 
@@ -144,31 +143,32 @@ ones, making applying the "counterproof" a frictive experience.  The type error
 on [line 7 of Figure 1](#cb1-7) is far shorter and more descriptive than its
 equivalent on [line 24 of Figure 3](#cb3-24).
 
+### Towards types that depend on terms
 
-type error on line 24 of Figure 3, where a non-list value is passed to `avg()`,
-with its equivalent in Figure 1.
+A large burden has been placed on application developers to contort the type
+system as we've just done.  Fundamentally, that terms and types occupy distinct
+_syntactic domains_ makes a type annotation like `Vec[sum(range(10)), int]`
+nonsensical: In Python's type system, `Vec`'s type arguments can only be other
+types.
 
-_TODO: Alternative: higher-order theorem proving lets us express all sorts of
-nice properties (even with, under curry-howard, quantifiers!) but now humans
-have to step in and help with the proof discharge, and program execution is
-sometimes constrained to e.g. provably terminate, fit into Calculus of
-Constructions-compliant datatypes, or whatever.  Definition of a dependent
-type should go here too, and ideally an example that requires something more
-expressive than liquid types.  Sammy: since you're the real Type Enjoyer maybe
-can you flesh this bit out?_
+A _dependent_ type system[@DependentML], however, is one in which types and terms
+_can_ intermingle.  This obviates the need for awkward typelevel programming with
+the Peano naturals, but complexity is only pushed around, not eliminated.  In
+its full bloom, we lose full automation of dependent type checking; anyone who
+has needed to write a Coq proof longer than its associated program knows this
+in their bones.  If we want to maintain full push-button automation for a
+dependent type theory, we'll have to think about ways to give up on
+completeness while still being useful.
 
 ### Towards a model-theoretic approach
 
 Certainly, the logical statement `at no point will len(xs) be zero` feels very
 much a safety property, suggesting a straightforward "throw a tool for model
 checking like SLAM[@SlamProject], BLAST[@BLAST] or Houdini[@Houdini] at it"
-solution.  As it happens, each of the above tools use _predicate
-abstraction_[@PredicateAbstraction] as their computational workhorse; _TODO:
-add text about what's interesting about predicate abstraction, with an eye
-towards why it's useful for liquid type reconstruction_.  Much like our
-non-higher order type systems, model checking techniques are sound, push-button
-in their human-in-the-loop requirements, and can scale up to tackle the
-practicalities of exploring the execution space in real-world software.  
+solution.  Much like our non-higher order type systems, model checking
+techniques are sound, push-button in their human-in-the-loop requirements, and
+can scale up to tackle the practicalities of exploring the execution space in
+real-world software.  
 
 Indeed, enumerating paths through a program is a property of model-checking
 that is not well-covered in the type theory space.  Type systems are typically
@@ -457,7 +457,7 @@ generalize as much as possible.
 ### Abstraction from a fixed set of qualifiers
 
 
-To generate a more general return type that that of Figure 7's `max2()`, we'll
+To generate a more general return type that that of Figure 6's `max2()`, we'll
 construct an abstraction of the type using our built-in qualifiers and the
 accumulated constraints as building blocks.  What we gain from these building
 blocks -- a lattice formed by the conjunction of some fixed set of boolean
@@ -508,7 +508,6 @@ refinement predicate does not follow from every flow-sensitive typing
 environment, filter out the individual clauses that themselves do not follow,
 weakening the type, and re-check.
 
-$$
 \begin{equation}
 \begin{split}
 \{ int \;|\; v = x \} <:& \{ int \;|\: (\underline{0 \leq v}) & \; \wedge \;
@@ -528,17 +527,25 @@ $$
                         & (y \leq v) \}
 \end{split}
 \end{equation}
-$$
-_Figure 10: Predicate abstraction for the `max()` example: contradicting
-clauses are underlined.  The final refinement type can be read as "an int $v$
-that is no less than both x and y"._
+_Figure 10: Predicate abstraction for the `max()` example: clauses that fail
+the implication check are underlined.  The final refinement type can be read as
+"an int $v$ that is no less than both x and y"._
+
+Note that while the SMT solver could compute a validity counterproof, the
+inference engine does not exploit this. While new qualifiers could conceivably
+be mined from the counterexample, this is not explored in this work.  As a
+result, the weakening process is strictly one that _removes_ qualifiers from
+the conjunction.
+
+### Extensions for recursive functions
 
 We'll conclude the elucidation of the technique with a few words about
 recursive functions:
 
-```
+```{.python .numberLines}
 @solvent.infer
 def my_sum(k):
+    "Computes \Sigma_{i=0}^{k} i."
     if k < 0:
         return 0
     else:
@@ -566,13 +573,14 @@ here will be made precise shortly._
 
 Placing a function call and value assignment in a typing context as we've done
 here would be invalid in a non-dependently typed language, and is arguably at
-best is a slight abuse of notation even here.  After all, we are interested in
-the _type_ of `s`, not its runtime value.  However, the type of `s` _does_ relate
-to the program term `k-1` because `s`'s type -- the return type of the `sum()`
-function -- depends on that program term.  At runtime, we'd perform beta-reduction
-and substitute all occurrences of `k` with the reduced value of `k-1`.  We perform
-a similar substitution at the dependent type level.  This leaves us with the final
-set of constraints for $K_2$:
+best an abuse of notation even here.  After all, the typing context should
+contain the _type_ of `s`, not its runtime value.  However, the type of `s`
+_does_ relate to the program term `k-1` because `s`'s type -- the return type
+of the `sum()` function -- depends on that program term.  At runtime, we'd
+perform beta-reduction and substitute all occurrences of `k` with the reduced
+value of `k-1`.  We perform a similar (capture-avoiding) substitution at the
+dependent type level, substituting the program _expression_ $k - 1$ for the
+free variable $k$. This leaves us with the final set of constraints for $K_2$:
 
 $$
 \begin{equation}
@@ -583,13 +591,12 @@ k: K_1; \; \neg(k < 0); \; s:[k-1/k]K_2 \; & \vdash \; \{ int \;|\; V = s + k \}
 \end{equation}
 $$
 
-With our constraints finalized, we proceed with constraint solving, where we
-learn from the base case that at maximum, $\{ int \;|\; 0 <= v \wedge k \leq
-v\}$. (It's possible that the other path constraint will remove one or more of
-these predicates in subsequent refinement rounds if this type is too strong.)
-When we perform substitution on this refinement and then concretize the
-value variable `v`, we get the following conjunction that depends only on
-in-scope variables:
+With our constraints finalized, we proceed with constraint solving just like
+in the `sum()` example, where we learn from the base case's constraints that
+$K_2 \; <: \; \{ int \;|\; 0 <= v \wedge k \leq v\}$. (It's possible that the
+other path constraint will further remove one or more of these predicates in
+subsequent refinement rounds if this type is too strong).  Moving to solving
+the recursive case, we perform substitution on $s:[k-1/k]K_2$:
 
 \begin{equation}
 \begin{split}
@@ -600,8 +607,9 @@ s: \; & \{ int \;|\; 0 <= v \wedge k-1 \leq v\} \\
 \end{split}
 \end{equation}
 
-At last, substituting our solved type for `s` back into our original typing
-context yields a straightforward typing constraint to solve as we did with `max()`.  
+In so doing, we have eliminated the free variable $k$ and transformed `s`'s
+type assertion into its conjuncts, yielding a straightforward typing constraint
+to solve as we did with `max()`.  
 
 \begin{equation}
 \begin{split}
@@ -639,13 +647,13 @@ ones[@Dafny].
 
 ## Summary
 
-> I think some kind of concluding thoughts would be nice? It just sort of ends
-> at the moment.
-
-TODO: soundness? Yep, because we know SMT is sound.  automation?  Yes, modulo
-writing your own qualifiers.  subtyping?  Yep.  termination: yep, because the
-number of qualifiers is finite and so too is our lattice.  A+ would typecheck
-again.
+Dependent type reconstruction is an impossibilty if careful constraints are not
+placed on the type system.  Leveraging SMT for discharging subtyping checks
+lets us maintain all the properties of simple polymorphic type systems while
+increasing expressiveness.  We retain soundness -- certainly the most important
+type-theoretic guarantee -- because we know Z3 and its theories are themselves
+sound.  And subtyping and termination guarantees remain because our infinite
+space of qualifiers is reduced to a finite lattice.
 
 [^1]: In particular, those derived from the Hindley-Milner subset of System F,
   which we can intuit as being more or less equivalent in expressiveness to
