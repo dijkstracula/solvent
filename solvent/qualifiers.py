@@ -8,16 +8,7 @@ from dataclasses import dataclass
 from solvent import constraints as constr, syntax as syn, parse
 
 
-@dataclass
-class Qualifier:
-    template: Callable[[syn.Expr], syn.Expr]
-    required_type: syn.BaseType
-
-    def correct_type(self, typ: syn.BaseType) -> bool:
-        return self.required_type == typ
-
-
-def parse_other(sym: Any, fill: syn.Expr):
+def parse_other(sym: object, fill: syn.Expr):
     match sym:
         case str():
             return syn.Variable(sym)
@@ -33,8 +24,43 @@ def parse_other(sym: Any, fill: syn.Expr):
             return syn.V()
         case MagicQInner(item=item):
             return item
+        case Qualifier(template=fn):
+            return fn(fill)
         case unknown:
             raise NotImplementedError(unknown)
+
+
+@dataclass
+class Qualifier:
+    template: Callable[[syn.Expr], syn.Expr]
+    required_type: syn.BaseType
+
+    def correct_type(self, typ: syn.BaseType) -> bool:
+        return self.required_type == typ
+
+    def __eq__(self, other: object) -> "Qualifier":
+        return Qualifier(
+            lambda x: syn.BoolOp(self.template(x), "==", parse_other(other, x)),
+            syn.Int(),
+        )
+
+    def __add__(self, other: object) -> "Qualifier":
+        return Qualifier(
+            lambda x: syn.ArithBinOp(self.template(x), "+", parse_other(other, x)),
+            syn.Int(),
+        )
+
+    def __floordiv__(self, other: object) -> "Qualifier":
+        return Qualifier(
+            lambda x: syn.ArithBinOp(self.template(x), "//", parse_other(other, x)),
+            syn.Int(),
+        )
+
+    def implies(self, other: object) -> "Qualifier":
+        return Qualifier(
+            lambda x: syn.BoolOp(self.template(x), "==>", parse_other(other, x)),
+            syn.Int(),
+        )
 
 
 class MagicStar:
@@ -62,6 +88,16 @@ class MagicStar:
     def __neq__(self, other):
         return Qualifier(
             lambda x: syn.BoolOp(x, "!=", parse_other(other, x)), syn.Int()
+        )
+
+    def __add__(self, other):
+        return Qualifier(
+            lambda x: syn.ArithBinOp(x, "+", parse_other(other, x)), syn.Int()
+        )
+
+    def __mul__(self, other):
+        return Qualifier(
+            lambda x: syn.ArithBinOp(x, "*", parse_other(other, x)), syn.Int()
         )
 
 
@@ -104,25 +140,6 @@ class MagicQ:
                 expr = syn.BoolLiteral(key)
             case int():
                 expr = syn.IntLiteral(key)
-            case "hack":
-                return Qualifier(
-                    template=lambda x: syn.BoolOp(
-                        syn.Neg(syn.BoolOp(x, ">=", syn.IntLiteral(0))),
-                        "or",
-                        syn.BoolOp(
-                            syn.ArithBinOp(
-                                syn.ArithBinOp(
-                                    x, "*", syn.ArithBinOp(x, "+", syn.IntLiteral(1))
-                                ),
-                                "/",
-                                syn.IntLiteral(2),
-                            ),
-                            "==",
-                            syn.V(),
-                        ),
-                    ),
-                    required_type=syn.Int(),
-                )
             case str():
                 expr = syn.Variable(key)
             case x:

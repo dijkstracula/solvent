@@ -33,7 +33,7 @@ def from_expr(e: syn.Expr, val_name: str = ".v"):
             return from_expr(l, val_name) - from_expr(r, val_name)
         case syn.ArithBinOp(lhs=l, op="*", rhs=r):
             return from_expr(l, val_name) * from_expr(r, val_name)
-        case syn.ArithBinOp(lhs=l, op="/", rhs=r):
+        case syn.ArithBinOp(lhs=l, op="//", rhs=r):
             return from_expr(l, val_name) / from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op=">", rhs=r):
             return from_expr(l, val_name) > from_expr(r, val_name)
@@ -51,6 +51,8 @@ def from_expr(e: syn.Expr, val_name: str = ".v"):
             return z3.And(from_expr(l, val_name), from_expr(r, val_name))
         case syn.BoolOp(lhs=l, op="or", rhs=r):
             return z3.Or(from_expr(l, val_name), from_expr(r, val_name))
+        case syn.BoolOp(lhs=l, op="==>", rhs=r):
+            return z3.Implies(from_expr(l, val_name), from_expr(r, val_name))
         case syn.BoolLiteral(value=v):
             return v
         case syn.IntLiteral(value=v):
