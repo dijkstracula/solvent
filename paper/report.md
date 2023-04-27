@@ -197,20 +197,17 @@ to spiral out of control.
 
 ## Unifying the two approaches with logically-qualified types
 
-> What do you mean by "nominally"?
-
 A _refinement type_[@RefinementTypesForML] is the a pairing of an ordinary,
-nominally-polymorphic type (called the _base type_) and some logical
-predicate that _refines_ it.  For example, `{v: int | 0 <= v ∧ v < n}` refines
-the base type of the integers to be bound between 0 and some other value `n`.
-Since `n` is a program-level term, a refinement type is also a dependent type
-(in particular, type zoologists will recognise a familiar sight: this is the
-dependent type `Fin n`).  A type definition like this, for instance, could
-allow the (partial) function `select: List[𝛼] -> int -> 𝛼` to become the
-dependent total function `select: Vec[n, 𝛼] -> Fin n -> 𝛼`,
-statically-rejecting out-of-bounds indices. In addition to safety improvements,
-prior work[@DependentML] showed the clear performance benefits of being able to
-elide runtime bounds checks.
+polymorphic type (called the _base type_) and some logical predicate that
+_refines_ it.  For example, `{v: int | 0 <= v ∧ v < n}` refines the base type
+of the integers to be bound between 0 and some other value `n`. Since `n` is a
+program-level term, a refinement type is also a dependent type (in particular,
+type zoologists will recognise a familiar sight: this is the dependent type
+`Fin n`).  A type definition like this, for instance, could allow the (partial)
+function `select: List[𝛼] -> int -> 𝛼` to become the dependent total function
+`select: Vec[n, 𝛼] -> Fin n -> 𝛼`, statically-rejecting out-of-bounds indices.
+In addition to safety improvements, prior work[@DependentML] showed the clear
+performance benefits of being able to elide runtime bounds checks.
 
 As before, the expressiveness of a refinement type depends on the
 expressiveness of the refining predicate's constraint domain.  Critically: If
@@ -235,26 +232,29 @@ _Figure 4: a logically-qualified program, checked with the
 [Solvent](https://github.com/dijkstracula/solvent) liquid typechecker for
 Python, that does not go wrong._
 
-> maybe a comment about why reconstruction is a more interesting problem?
-> namely, type-checking is useful but requires manual annotations. reconstruction
-> gives us push button automation
-
 The procedure described in the authors' initial work[@LiquidTypesPLDI08] is
 primarily motivated by the type _reconstruction_ problem: given a program
 absent type annotations, infer "the best" annotation for program
-expressions[^2].  For instance, we'd like to say more about an unannotated
-function `max x y = if x > y then x else y` than what we can infer from the
-base types, which is that `x:int → y:int → int`.  
+expressions[^2] as opposed to the type _checking_ problem, where a program
+already annotated with types is verified to be consistent with the theory.  
 
-One could imagine a few reasonable choices for an inferred refinement of the
-return type: perhaps `max` could be typed as `x:int → y:int → { i: int | i == x
-∨ i == y }`?  Is the return type's refinement more or less difficult to infer,
-or more or less _useful for the programmer_, than, say, `{ i: int | i >= x ∧ i >= y }`, 
-or, if we had an oracle that told us that `max` can only be called with
-arguments 31 and 99, the singleton type `{i : int | i == 99}`? The authors must
-aim for the best of both worlds: a dependent type system rich enough to prove
-useful safety properties, while _not_ being so expressive that reconstruction
-becomes impossible.
+Like all good inverse problems, type reconstruction is the meatier of the two
+problems.  For some type theories, only typechecking is decidable, so it's
+clearly in some sense the "harder" problem; and, being able to infer typelevel
+correctness without human intervention gives us full push-button automation.
+
+Also like all good inverse problems, type reconstruction has degrees of freedom
+that checking does not - if several possible valid typings exist, which should
+the algorithm deduce?  Nobody would claim that inferring `def double(x) 2 * x`
+as `object -> object` would be terribly useful, correct though it might be.  On
+the other side of the spectrum, if we had a full program analysis oracle that
+told us that `double` is only ever called with argument 21, the singleton
+refinement type ${v : int | v == 42}$ would similarly be correct, but overfits
+to the input data in a way that doesn't provide a useful precondition on the
+return value being used later in the program.  The authors must aim for the
+best of both worlds: a dependent type system rich enough to prove useful safety
+properties, while _not_ being so expressive that reconstruction becomes
+impossible.
 
 ## From program expressions to base types
 
@@ -293,53 +293,53 @@ more sophisticated _bidirectional_ typing algorithms.
 
 ## From base types to logical qualifiers
 
-> Some transition is needed here. Not sure yet what it should be.
-> we should also maybe explicitly use the phrase "give up" here.
-
-Refinement predicates are drawn from arithmetic and relational expressions over
-integer, boolean, and array sorts, and conjunctions thereof.   Their terminals
-are either (well-typed) constants, program variables, or the special value
-variable bound within the type itself.  (While not exhaustively enumerated in
-the paper, the precise possible predicate types are documented [in the authors'
-implementation of liquid types for
+We've previously seen the refining predicate's constraint domain ought
+to be carefully chosen: in order to maintain decidable reconstruction
+and automation, we have to give up on arbitrary program expressions and
+propositions that we might enjoy in a higher-order logic like Coq, Agda, or
+HOL.  To that end:  concretely, refinement predicates are drawn from arithmetic
+and relational program expressions involving integer, boolean, and array sorts,
+and conjunctions thereof.  (While not exhaustively enumerated in the paper, the
+precise possible predicate types are documented [in the authors' implementation
+of liquid types for
 OCaml](https://github.com/ucsd-progsys/dsolve/blame/master/README#L97-L154).)
-In other words, the quantifier-free theory of linear arithmetic and
-uninterpreted functions (QF-UFLIA)!  
+With a bit of squinting, we can see that these comprise the quantifier-free
+theory of linear arithmetic and uninterpreted functions (QF-UFLIA)!  
 
 It's clear that liquid types are more restrained in their expressivity than
 full dependent types, for which type checking and reconstruction quickly wander
 into the realm of undecidability[@SystemFUndecidable].  But, the tradeoff
-pays dividends:  Since QF-UFLIA is decidable, so too is the _typechecking_ of a
-liquid type, since off-the-shelf SMT solvers like
-[Yices](https://yices.csl.sri.com/) or Z3 can be used to check whether a
+pays dividends:  Since QF-UFLIA is decidable, so too is the _typechecking_ and
+_reconstruction_ of a liquid type, since off-the-shelf SMT solvers like
+[Yices](https://yices.csl.sri.com/) or Z3 can be used to check whether
 refinement predicate in this logic is valid.  It's interesting that the initial
 paper[@LiquidTypesPLDI08] mentions using an SMT solver almost as an
 afterthought, whereas the subsequent work([@LiquidTypesDSVerificationPLDI09],
 [@RefinementTypesForHaskell], [@LowLevelLiquidTypesPOPL10],
 [@GradualLiquidTypeInference]) makes sure to mention it explicitly and right in
-the abstract.
+the abstract, suggesting that bringing this particular kind of magic to bear
+reasonated with the research community.
 
 ## Subtyping as implication
 
-> Again some transition is needed. Maybe it's just that the above par
-> feels a little out of place.
+Subtype polymorphism is an important component of many type systems, but
+introduces complications that language designers need to carefully consider
+since subtyping, anecdotally, tends to interact with language features in
+non-trivial and unanticipated ways[@TaPL].
 
-Unifying a refinement predicate with another, to a first approximation, reduces
-to a validity check between the candidate types - checking whether the
-inhabitants of two types are the same is equivalent to asking whether the
-models of the two predicates are the same under some typing environment
-$\Gamma$.
-
-This intuition lets us build a straightforward subtyping relationship for
-refinement predicates: recalling Liskov[@LiskovKeynote], `T1` is a subtype of
-`T2` if occurrences of the more abstract `T2` can be transparently substituted
-for `T1`.  Stated more logically: `T1` is _stronger_ as it places more
-constraints on its inhabitants than `T2`.  Determining whether T1 subsumes T2
-is therefore checking the validity of the implication T1 $\implies$ T2 under
-$\Gamma$.  This gives us `True` and `False` as the extrema of our subtyping
-relation, as we would expect; we will see shortly that by constraining the
-space of possible subtypes that we explore, we form a lattice with `True`
-and `False` as our top and bottom, respectively.
+Subtyping is defined in terms of a _subsumption_ relation between two types:
+recalling Liskov[@LiskovKeynote], `T1` is a subtype of `T2` if occurrences of
+the more abstract `T2` can be transparently substituted for `T1`.  This
+intuition lets us build a straightforward subtyping relationship for refinement
+predicates: Stated in the language of logic: `T1` is _stronger_ as it places
+more constraints on its inhabitants than `T2`.  Framed in a logical context,
+asking whether the inhabitants of one type are subsumed by another is
+equivalent to asking whether the is therefore checking the validity of the
+implication T1 $\implies$ T2 under some context $\Gamma$.  This gives us `True`
+and `False` as the extrema of our subtyping relation, as we would expect; we
+will see shortly that by constraining the space of possible subtypes that we
+explore, we form a lattice with `True` and `False` as our top and bottom,
+respectively.
 
 
 $$
@@ -372,12 +372,40 @@ from itertools import product, count
 def max1(x, y) -> {V | True}:              x if x > y else y
 def max2(x, y) -> {V | V == x or V == y}:  x if x > y else y
 def max3(x, y) -> {V | V >= x and V >= y}: x if x > y else y
-def max4(x, y) -> {V | [(x==a and x==a+b and
-                         x==a-b and y==a) for a,b in product(count(), 2)]} }: ...
+def max4(x, y) -> {V | [(x==a and y==a+b and V == a+b) or
+                        (y==a and x==a+b and V == a+b) or
+                        (x==a-b and y==a and V == a)   or
+                        (y==a-b and x==a and V == a) 
+                         for a,b in product(count(), 2)]} }: ...
 ```
 _Figure 6: Four plausable typings of the `max()` function, each of varying
 levels of goodness: note that `max4` depends upon an infinite number of
 qualifiers!_
+
+Recalling how the technique was applied to great effect whilst contemplating
+model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), a liquid type
+reconstruction algorithm that consumes a set of _predefined qualifiers_ which
+they treat as a sort of basis set that refinements will be constructed from.
+So, a refinement predicate will be a conjunction of such qualifiers. Naturally,
+this induces a bias into the reconstruction output: whoever wrote down the set
+of qualifiers for predicate abstraction to choose from is in some sense
+determining the "basis set" that will comprise a reconstructed liquid type.
+
+```python
+quals = [0 < V, 
+         _ <= V, 
+         V < _,
+         len(_) <= V]
+```
+_Figure 7: The built-in qualifiers from the paper, in Solvent's internal
+qualifier DSL.  The underbar token stands in for any appropriately-typed
+program term._
+
+By restricting the shape of each clause in the conjunction to ones derived from
+the templates in the qualifier list, we're again giving up full expressivity.
+This time, instead of constricting the overall logic to ensure decidability,
+we're ensuring that the inference algorithm has a finite -- but hopefully
+robust! -- search space to explore during predicate inference.
 
 ## Refinement type constraint generation
 
@@ -386,20 +414,22 @@ follows a similar trajectory to that which we saw for base types.  The solver
 begins by lifting the inferred base types into a refinement _template_ with a
 constraint variable in place of a concrete predicate.  
 
-_ST: have we seen this?_ Since we've seen that program terms can be substituted in for the `*` wildcard
-in the qualifier list (see Figure 7), all refinement templates include a set of _scope
-constraints_: intuitively, a scope constraint is an assertion in the typing
-environment that a program term is in use at the particular point that the type
-itself comes into scope.  A scope constraint says nothing about whether the
-program term _needs_ to be used in a refining predicate, only that it _may_ be.
+Since we've seen that program terms can be substituted in for the `_` wildcard
+in the qualifier list (see Figure 7), all refinement templates include a set of
+_scope constraints_: intuitively, a scope constraint is an assertion in the
+typing environment that a program term is in use at the particular point that
+the type itself comes into scope.  A scope constraint says nothing about
+whether the program term _needs_ to be used in a refining predicate, only that
+it _may_ be.
 
-A _flow constraint_, by comparison, is an assertion of some relationship between
-program terms.  Critically, flow constraints are _path sensitive_: they are an
-assumption in the typing environment that depends not on program values but the
-control flow through the program.  For instance, an `if`-statement would fork
-the typing environment into two flows: one in which the `then` branch is taken
-and another when the `else` branch is taken.  At each leaf of the AST we concretize
-a trivial subtype 
+A _flow constraint_, by comparison, is an assertion of some relationship
+between program terms.  Critically, flow constraints are _path sensitive_: they
+are an assumption in the typing environment that depends not on program values
+but the control flow through the program.  For instance, an `if`-statement
+would fork the typing environment into two flows: one in which the `then`
+branch is taken and another when the `else` branch is taken.  At each leaf of
+the AST we concretize a subtype containing a trivial qualfier: for instance,
+`return x` qualfies the return type to be exactly `x`.
 
 $$
 \begin{equation}
@@ -412,7 +442,7 @@ x:\text{int}; \, y:\text{int};
 \end{split}
 \end{equation}
 $$
-_Figure 7: A function annotated with refinement templates -- $K_1$, $K_2$, and
+_Figure 8: A function annotated with refinement templates -- $K_1$, $K_2$, and
 $K_3$ are constraint variables, and the typing context includes a
 flow-sensitive subtyping relationship on the type of the return value, which is
 dependent on which program branches are taken._
@@ -424,56 +454,8 @@ technically work (see `max2()` in Figure 6).  This type, of course, only has
 two inhabitants and wildly overfits to the input arguments; we'd like it to
 generalize as much as possible.
 
-## Predicate Abstraction and the Journey Home
+### Abstraction from a fixed set of qualifiers
 
-> I think it would be useful to frame this in terms of "giving up" again.
-> it's hard to construct arbitrary terms, so we don't try, instead assuming
-> a list of predfined terms to select from. This simplifies the inference problem,
-> to be a checking problem.
-
-Recalling how the technique was applied to great effect whilst contemplating
-model-checking solutions([@SlamProject], [@BLAST], [@Houdini]), a liquid type
-reconstruction algorithm that consumes a set of _predefined qualifiers_ which
-they treat as a sort of basis set that refinements will be constructed from.
-So, a refinement predicate will be a conjunction of such qualifiers. Naturally,
-this induces a bias into the reconstruction output: whoever wrote down the set
-of qualifiers for predicate abstraction to choose from is in some sense
-determining the "basis set" that will comprise a reconstructed liquid type.
-
-_It's, nice, but I'm not sure we need this figure. It is a lot of syntax
-that we are not really asking people to read and understand_
-```ocaml
-(* ./default_patterns *)
-qualif BOOL(v): ? v
-qualif BOOL(v): not (? v)
-qualif FALSE(_V): 1 = 0
-qualif I(_V) : _V { * * } ^
-qualif Id_rel_id_int(_V)(A:int) : _V { * * } ~A
-qualif Int_rel_array_id(_V) : Array.length _V { * * } ^
-qualif Id_eq_id(_V) : _V = ~A
-
-(* ./postests/vec/len.hquals *)
-qualif LVAR(_v)(A: int) : length _v { * * } ~A
-qualif LCONST(v) : length v { * * } [0, 1]
-qualif LVARV(v) : v { * * } length ~A
-qualif SETAPPEND(_v) : length _v = (length v > i ? length v : i + 1)
-qualif TOARR(v) : length t = Array.length v
-```
-_Figure 8a: A selection of built-in qualifiers, and user-supplied ones used in
-verifying a Rope[@RopeDS]-like `Vec` datatype, written in an internal pattern
-DSL. `**` and `^` are the operator and integer literal wildcards, respectively.
-Note the use of the recursively-defined function `length` in certain
-qualifiers._
-
-```python
-quals = [0 < V, 
-         _ <= V, 
-         V < _,
-         len(_) <= V]
-```
-_Figure 8b: The built-in qualifiers from the paper, in Solvent's internal
-qualifier DSL.  The underbar token stands in for any appropriately-typed
-program term._
 
 To generate a more general return type that that of Figure 7's `max2()`, we'll
 construct an abstraction of the type using our built-in qualifiers and the
@@ -551,19 +533,93 @@ _Figure 10: Predicate abstraction for the `max()` example: contradicting
 clauses are underlined.  The final refinement type can be read as "an int $v$
 that is no less than both x and y"._
 
-TODO: (should say something about how neither refutation/unification/etc is
-appropriate here - something about an infinite space of possible substitutions
-or something?)
+We'll conclude the elucidation of the technique with a few words about
+recursive functions:
 
-TODO: we refine the abstraction by _removing_ clauses
+```
+@solvent.infer
+def my_sum(k):
+    if k < 0:
+        return 0
+    else:
+        s = my_sum(k - 1)
+        return s + k
+```
 
-> I like the explanation of predicate abstraction using max.
-> I think we could just bring in a discussion of sum here to discuss
-> how recursive functions work, and more complex constraint generation.
+As before, the argument `k` will be typed to `int` with an unknown refinement
+predicate variable $K_1$, as will the body of the function but with $K_2$.
+
+$$
+\begin{equation}
+\begin{split}
+k: K_1; \; \neg(k < 0); \;                     & \vdash \; \{ int \;|\; V = k - 1 \} & <: \{ int \;|\; K_1 \} \\
+\\
+k: K_1; \; k < 0 \;                            & \vdash \; \{ int \;|\; V = 0 \}     & <: \{ int \;|\; K_2 \} \\
+k: K_1; \; \neg(k < 0); \; \underline{s = \text{sum}(k-1)} & \vdash \; \{ int \;|\; V = s + k \} & <: \{ int \;|\; K_2 \} \\
+\end{split}
+\end{equation}
+$$
+_An approximation for the subtyping relations for $K_1$ and $K_2$.  Notice that
+we have placed the term-level assignment to `s` rather than a type assertion
+for `s` in the typing context for expository reasons.  The intuition expressed
+here will be made precise shortly._
+
+Placing a function call and value assignment in a typing context as we've done
+here would be invalid in a non-dependently typed language, and is arguably at
+best is a slight abuse of notation even here.  After all, we are interested in
+the _type_ of `s`, not its runtime value.  However, the type of `s` _does_ relate
+to the program term `k-1` because `s`'s type -- the return type of the `sum()`
+function -- depends on that program term.  At runtime, we'd perform beta-reduction
+and substitute all occurrences of `k` with the reduced value of `k-1`.  We perform
+a similar substitution at the dependent type level.  This leaves us with the final
+set of constraints for $K_2$:
+
+$$
+\begin{equation}
+\begin{split}
+k: K_1; \; k < 0 \;                        & \vdash \; \{ int \;|\; V = 0 \}     & <: \{ int \;|\; K_2 \} \\
+k: K_1; \; \neg(k < 0); \; s:[k-1/k]K_2 \; & \vdash \; \{ int \;|\; V = s + k \} & <: \{ int \;|\; K_2 \} \\
+\end{split}
+\end{equation}
+$$
+
+With our constraints finalized, we proceed with constraint solving, where we
+learn from the base case that at maximum, $\{ int \;|\; 0 <= v \wedge k \leq
+v\}$. (It's possible that the other path constraint will remove one or more of
+these predicates in subsequent refinement rounds if this type is too strong.)
+When we perform substitution on this refinement and then concretize the
+value variable `v`, we get the following conjunction that depends only on
+in-scope variables:
+
+\begin{equation}
+\begin{split}
+s: \; & [k-1/k]\,K_2 \\
+s: \; & [k-1/k]\,\{ int \;|\; 0 <= v \wedge k \leq v\} \\
+s: \; & \{ int \;|\; 0 <= v \wedge k-1 \leq v\} \\
+      \implies & (0 <= s) \wedge (k-1 \leq s)
+\end{split}
+\end{equation}
+
+At last, substituting our solved type for `s` back into our original typing
+context yields a straightforward typing constraint to solve as we did with `max()`.  
+
+\begin{equation}
+\begin{split}
+k < 0 & \vdash \{ int \;|\; v = 0 \} & <: \; & 
+    (int \;|\: 0 \leq v & \; \wedge \; & k \leq v) \\
+
+\neg(k < 0); \; (0 <= s); \; (k-1 \leq s) \; & \vdash \; \{ int \;|\; V = s + k \} & <: \; & 
+    (int \;|\: 0 \leq v & \; \wedge \; & k \leq v) \\
+\end{split}
+\end{equation}
+
+This substitution has let us infer some interesting facts: `s` must
+be nonnegative, as must `k`: Z3 can therefore infer enough facts about their
+sum to conclude that the type of `sum()` must be $int \rightarrow \{ int \;|\;
+0 <= v \wedge k \leq v\}$.
+
 > It would also be nice to have something about the implicit bias: this is
 > a sort of heuristic for quantifier instantiation.
-> I think some kind of concluding thoughts would be nice? It just sort of ends
-> at the moment.
 
 ## Subsequent Work
 
@@ -580,6 +636,16 @@ TypeScript[@RefinementTypesForTypeScript].
 More broadly, integration of SMT solvers into programming languages has been
 explored by both higher-order function languages[@FStar] and imperative, OO-style
 ones[@Dafny].
+
+## Summary
+
+> I think some kind of concluding thoughts would be nice? It just sort of ends
+> at the moment.
+
+TODO: soundness? Yep, because we know SMT is sound.  automation?  Yes, modulo
+writing your own qualifiers.  subtyping?  Yep.  termination: yep, because the
+number of qualifiers is finite and so too is our lattice.  A+ would typecheck
+again.
 
 [^1]: In particular, those derived from the Hindley-Milner subset of System F,
   which we can intuit as being more or less equivalent in expressiveness to
