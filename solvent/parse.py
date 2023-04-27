@@ -1,6 +1,7 @@
 import ast
-from solvent import syntax as syn
 from typing import List
+
+from solvent import syntax as syn
 
 
 def string_to_expr(string: str) -> syn.Expr:
@@ -130,9 +131,9 @@ def parse_refinement(input: str) -> syn.RType:
     refine_expr = string_to_expr(refinement)
     match typ.strip():
         case "int":
-            return syn.RType(syn.Int(), syn.Conjoin([refine_expr]))
+            return syn.RType({}, syn.Int(), syn.Conjoin([refine_expr]))
         case "bool":
-            return syn.RType(syn.Bool(), syn.Conjoin([refine_expr]))
+            return syn.RType({}, syn.Bool(), syn.Conjoin([refine_expr]))
         case _:
             raise NotImplementedError
 

@@ -2,11 +2,12 @@
 Translate types into SMT expressions.
 """
 
-from solvent import syntax as syn
-
-import z3
 from functools import reduce
 from typing import List
+
+import z3
+
+from solvent import syntax as syn
 
 
 def from_exprs(items: List[syn.Expr], val_name: str = ".v"):

@@ -2,10 +2,12 @@
 Module to implement expansion for qualifiers.
 """
 
-from typing import List, Callable, Any
 from dataclasses import dataclass
+from typing import Any, Callable, List
 
-from solvent import constraints as constr, syntax as syn, parse
+from solvent import constraints as constr
+from solvent import parse
+from solvent import syntax as syn
 
 
 def parse_other(sym: object, fill: syn.Expr):

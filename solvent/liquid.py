@@ -2,17 +2,15 @@
 Implement Liquid Type inference
 """
 
-from typing import List, Optional, Dict, cast
 import pprint
+from typing import Dict, List, Optional, cast
 
-from solvent import (
-    constraints as constr,
-    qualifiers,
-    subtype,
-    liquid,
-    syntax as syn,
-    qualifiers as quals,
-)
+from solvent import constraints as constr
+from solvent import liquid
+from solvent import qualifiers
+from solvent import qualifiers as quals
+from solvent import subtype
+from solvent import syntax as syn
 
 Solution = Dict[str, syn.Conjoin]
 

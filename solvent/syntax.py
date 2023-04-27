@@ -3,9 +3,9 @@ The internal DSL that we use for typechecking.  At parse time, the Python AST
 is transformed into this more manageable sublanguage.
 """
 
-from dataclasses import dataclass
-from typing import Optional, List, Any, Dict
 from copy import deepcopy
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

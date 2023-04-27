@@ -1,6 +1,8 @@
-from solvent import qualifiers, syntax as syn, constraints, unification, liquid
-
 from typing import List
+
+from solvent import constraints, liquid, qualifiers, normalize
+from solvent import syntax as syn
+from solvent import unification
 
 
 def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False):
@@ -8,7 +10,9 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     Run Liquid-type inference and checking.
     """
 
-    typ, constrs, context = constraints.check_stmts(constraints.Env.empty(), [], stmts)
+    typ, constrs, context = constraints.check_stmts(
+        constraints.Env.empty(), [], normalize.normalize(stmts)
+    )
 
     if debug:
         print(f"Initial type: {typ}")

@@ -30,8 +30,7 @@ def my_sum(k):
     if k <= 0:
         return 0
     else:
-        s = my_sum(k - 1)
-        return s + k
+        return my_sum(k - 1) + k
 
 
 @solvent.infer(quals)
@@ -39,6 +38,4 @@ def fib(n):
     if n <= 1:
         return 1
     else:
-        f1 = fib(n - 1)
-        f2 = fib(n - 2)
-        return f1 + f2
+        return fib(n - 1) + fib(n - 2)

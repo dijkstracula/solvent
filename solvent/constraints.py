@@ -6,11 +6,12 @@ as well as Sub-type constraints for infering refinement predicates.
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import List
 
 from solvent import syntax as syn
-from solvent.syntax import Predicate, RType, Type, ArrowType, TypeVar, Conjoin
+from solvent.syntax import ArrowType, Conjoin, Predicate, RType, Type, TypeVar
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,8 @@
 import ast
 import inspect
 
-from solvent import parse, frontend, syntax as syn
+from solvent import frontend, parse
+from solvent import syntax as syn
 
 
 def infer(quals=None, debug=False):

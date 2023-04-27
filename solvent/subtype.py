@@ -2,10 +2,13 @@
 Implement decidable subypting from the liquid type paper.
 """
 
-from solvent import syntax as syn, smt, constraints as constr
+from functools import reduce
 
 import z3
-from functools import reduce
+
+from solvent import constraints as constr
+from solvent import smt
+from solvent import syntax as syn
 
 
 def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
