@@ -372,8 +372,8 @@ from itertools import product, count
 def max1(x, y) -> {V | True}:              x if x > y else y
 def max2(x, y) -> {V | V == x or V == y}:  x if x > y else y
 def max3(x, y) -> {V | V >= x and V >= y}: x if x > y else y
-def max4(x, y) -> {V | [(x==a and y==a+b and V == a+b) or (y==a and x==a+b and V == a+b) or
-                        (x==a-b and y==a and V == a)   or (y==a-b and x==a and V == a) 
+def max4(x, y) -> {V | [(x==a and y==a+b and V == y) or (y==a and x==a+b and V == x) or
+                        (x==a-b and y==a and V == y) or (y==a-b and x==a and V == x) 
                          for a,b in product(count(), 2)]} }: ...
 ```
 _Figure 6: Four plausable typings of the `max()` function, each of varying
@@ -397,7 +397,7 @@ quals = [0 < V,
 ```
 _Figure 7: The built-in qualifiers from the paper, in Solvent's internal
 qualifier DSL.  The underbar token stands in for any appropriately-typed
-program term._
+program term and `V` is the distinguished value variable $v$._
 
 By restricting the shape of each clause in the conjunction to ones derived from
 the templates in the qualifier list, we're again giving up full expressivity.
@@ -718,6 +718,8 @@ increasing expressiveness.  We retain soundness -- certainly the most important
 type-theoretic guarantee -- because we know Z3 and its theories are themselves
 sound.  And subtyping and termination guarantees remain because our infinite
 space of qualifiers is reduced to a finite lattice.
+
+--
 
 [^1]: In particular, those derived from the Hindley-Milner subset of System F,
   which we can intuit as being more or less equivalent in expressiveness to
