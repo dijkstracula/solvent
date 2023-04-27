@@ -32,3 +32,13 @@ def my_sum(k):
     else:
         s = my_sum(k - 1)
         return s + k
+
+
+@solvent.infer(quals)
+def fib(n):
+    if n <= 1:
+        return 1
+    else:
+        f1 = fib(n - 1)
+        f2 = fib(n - 2)
+        return f1 + f2
