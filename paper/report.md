@@ -7,10 +7,10 @@ conventional industrial languages like Java or C# provide a powerful mechanism
 to statically reject invalid programs.  Under the Curry-Howard correspondence[@TaPL]
 we can consider, at least to a first approximation, that a program passing the
 typechecker corresponds to a proof in a constructive
-logic[@ProgramEqualsProof].  As a logical system, type systems enjoy strong
-metatheoretic properties.  Soundness (that is, invalid programs will always be
-rejected), reconstruction (that is, types can be inferred via terms' usage
-without human annotation), and termination are guaranteed, even when
+logic[@ProgramEqualsProof].  Also, as a logical system, type systems enjoy
+strong metatheoretic properties.  Soundness (that is, invalid programs will
+always be rejected), reconstruction (that is, types can be inferred via terms'
+usage without human annotation), and termination are guaranteed, even when
 typechecking programs whose behaviour depends on runtime user input or data
 structures of unknown or unbounded size.  In so doing, Milner's old canard that
 _"well-typed programs don't go wrong"_[@milner-type-poly] has entered the
@@ -24,17 +24,16 @@ that can go wrong -- for instance, attempting division by zero, calling the
 wrong method on an object, or iterating off the end of an array -- will have to
 fail at runtime by throwing an exception or perhaps being killed by the
 operating system.  If a well-typed program truly can't go wrong, then the
-absence of such failure modes ought to have been statically verified by the
-type system.
+absence of such failure modes ought to have been proven by the type system.
 
 However, as a form of abstract interpretation[@CousotCousot], Milner's _bon
 mot_ is in reality circumscribed by how much information is lost by the
 abstract transformation: in particular, both the typed and untyped program in
 Figure 1 can, indeed, go wrong - the type system proves the _shape_ of the
-input datatype (morally, an iterable, indexable structure) but lost facts about
-_particular_ well-typed terms. Concretely: Since at the type level an empty
-list is indistinguishable from a non-empty one, it's impossible to reject a
-program that requires a _non-empty_ list as input.
+input datatype (morally, an iterable, indexable collection of `int`s) but lost
+facts about _particular_ well-typed terms. Concretely: Since at the type level
+an empty list is indistinguishable from a non-empty one, it's impossible to
+reject a program that requires a _non-empty_ list as input.
 
 ```{.python .numberLines}
 def avg(xs):
@@ -92,8 +91,8 @@ As a concrete example, `[1,2]` might be typed as `List[S[S[Z], Int]`, and
 `cons` enforce the invariant that the typelevel value of `L` always conforms to
 the length of the list.  In so doing, we say that `Vec` is _indexed_ by `Nat`.
 Notice that this is not the same as being indexed by _values_ of type `Nat` or
-`int`; terms and types in non-dependently typed programming languages occupy
-different syntactic domains and are not interchangable in this way.
+`int`; terms and types in the Python type system occupy different syntactic
+domains and are not interchangable in this way.
 
 ```{.python .numberLines startFrom="12"}
 @dataclass
@@ -128,11 +127,11 @@ procedure in which they are generated is decidedly non-magical.
 Just as clear, however, are the downsides: that typecheckers operate on program
 fragments definitionally restrict us to shallow propositions: it's not
 difficult to imagine needing constraints over the naturals that are wildly
-impractical, if not impossible, to state entirely in the metalanguage of
+impractical, if not impossible, to state entirely in the language of
 parametrically-polymorphic types.  For instance, while we can prove the length
 of a Vec is nonzero, we cannot state that elements _contained within the Vec_
 are themselves nonzero, nor could we specify a constraint over the index type
-itself (such as enforcing a list of even length), so we have to adjust
+itself (such as enforcing a list of even length), so we have to lower
 expectations accordingly.
 
 Further, ergonomic issues abound: a type error should be treated as a form 
@@ -183,17 +182,17 @@ our straightforward type `List[T]` is in fact something problematic for model
 checkers: under Curry-Howard, a type variable corresponds to quantifying over
 propositions in constructive logic[@TaPL].  In that way, the reading of this
 a polymorphic type is: `for all propositions T, the proposition List(T) holds`.
-Meanwhile, the encoding schemes for symbolically abstracting states into
-statesets such as BDDs and subsets of first-order logic, typically eschew
-quantifiers altogether.  
 
 Generally, therefore, reasoning about inductive data structures, something
 trivial for a typechecker, can cause a model checker to wander into the realm
-of undecidability.  Either users are therefore forced to either give up full
-automation in their models[@Dafny], or model checker implementers are required
-to add new axioms on a per-data structure basis[@LinkedListVerification] or
-hope that their system's heuristics[@TriggerSelection] will not cause verification
-to spiral out of control.
+of undecidability.  The encoding schemes for symbolically abstracting states into
+statesets such as BDDs and subsets of first-order logic, typically eschew
+quantifiers altogether.  Either users are therefore forced to either give up
+full automation in their models[@Dafny], or model checker implementers are
+required to add new axioms on a per-data structure
+basis[@LinkedListVerification] or hope that their system's
+heuristics[@TriggerSelection] will not cause verification to spiral out of
+control.
 
 ## Unifying the two approaches with logically-qualified types
 
@@ -223,7 +222,7 @@ advantages of both, and avoid destructive interference between them.
 
 ```python
 @solvent.check
-def avg(xs: List(Int) | len(xs) > 0) -> int
+def avg(xs: list[int] | len(xs) > 0) -> int
     return sum(xs) // len(xs)
 avg(42) # Type-checking error
 avg([]) # Type-checking error
@@ -245,15 +244,15 @@ correctness without human intervention gives us full push-button automation.
 
 Also like all good inverse problems, type reconstruction has degrees of freedom
 that checking does not - if several possible valid typings exist, which should
-the algorithm deduce?  Nobody would claim that inferring `def double(x) 2 * x`
-as `object -> object` would be terribly useful, correct though it might be.  On
-the other side of the spectrum, if we had a full program analysis oracle that
-told us that `double` is only ever called with argument 21, the singleton
-refinement type ${v : int | v == 42}$ would similarly be correct, but overfits
-to the input data in a way that doesn't provide a useful precondition on the
-return value being used later in the program.  The authors must aim for the
-best of both worlds: a dependent type system rich enough to prove useful safety
-properties, while _not_ being so expressive that reconstruction becomes
+the algorithm deduce?  Nobody would claim that inferring `def double(x): return
+2 * x` as `object -> object` would be terribly useful, correct though it might
+be.  On the other side of the spectrum, if we had a full program analysis
+oracle that told us that `double` is only ever called with argument 21, the
+singleton refinement type ${v : int | v == 42}$ would similarly be correct, but
+overfits to the input data in a way that doesn't provide a useful precondition
+on the return value being used later in the program.  The authors must aim for
+the best of both worlds: a dependent type system rich enough to prove useful
+safety properties, while _not_ being so expressive that reconstruction becomes
 impossible.
 
 ## From program expressions to base types
@@ -281,7 +280,7 @@ can report a type error.
 The constraint set may also be underspecified; some term will map only to a type
 variable and not a concrete type, so as to say "any type will do here".  This
 generality is critical: unification is guaranteed to provide the _most general_
-(or minimal)_ sequence of substitutions in its mapping; in this way, we say the
+(or minimal) sequence of substitutions in its mapping; in this way, we say the
 _principal type_ for each term is reconstructed.  While this ensures that we do
 not unnecessarily constrain a term's type, there are also operational
 implications: because a term's principal type will always be generated, there's
@@ -313,12 +312,12 @@ pays dividends:  Since QF-UFLIA is decidable, so too is the _typechecking_ and
 _reconstruction_ of a liquid type, since off-the-shelf SMT solvers like
 [Yices](https://yices.csl.sri.com/) or Z3 can be used to check whether
 refinement predicate in this logic is valid.  It's interesting that the initial
-paper[@LiquidTypesPLDI08] mentions using an SMT solver almost as an
-afterthought, whereas the subsequent work([@LiquidTypesDSVerificationPLDI09],
-[@RefinementTypesForHaskell], [@LowLevelLiquidTypesPOPL10],
-[@GradualLiquidTypeInference]) makes sure to mention it explicitly and right in
-the abstract, suggesting that bringing this particular kind of magic to bear
-reasonated with the research community.
+liquid types paper[@LiquidTypesPLDI08] mentions using an SMT solver almost as
+an afterthought, whereas the subsequent
+work([@LiquidTypesDSVerificationPLDI09], [@RefinementTypesForHaskell],
+[@LowLevelLiquidTypesPOPL10], [@GradualLiquidTypeInference]) makes sure to
+mention it explicitly and right in the abstract, suggesting that bringing this
+particular kind of magic to bear reasonated with the research community.
 
 ## Subtyping as implication
 
@@ -338,8 +337,7 @@ equivalent to asking whether the is therefore checking the validity of the
 implication T1 $\implies$ T2 under some context $\Gamma$.  This gives us `True`
 and `False` as the extrema of our subtyping relation, as we would expect; we
 will see shortly that by constraining the space of possible subtypes that we
-explore, we form a lattice with `True` and `False` as our top and bottom,
-respectively.
+explore, we form a lattice with `True` and `False` as our top and bottom.
 
 
 $$
@@ -608,9 +606,9 @@ s: \; & \{ int \;|\; 0 <= v \wedge k-1 \leq v\} \\
 \end{split}
 \end{equation}
 
-In so doing, we have eliminated the free variable $k$ and lowered `s`'s type
-assertion into its conjuncts, yielding a straightforward typing constraint to
-solve as we did with `max()`.  
+In so doing, we have eliminated the free variables $k$ and $v$, lowered `s`'s
+type assertion into its conjuncts, and yielded a straightforward typing
+constraint to solve as we did with `max()`.  
 
 \begin{equation}
 \begin{split}
@@ -643,16 +641,17 @@ _know_ we'd like a type with a particular shape to be inferred, and can express
 it the liquid type system's qualifier DSL, then the system can incorporate it
 into reconstruction.  
 
-Simply adding the qualifier `(_ * (_ + 1)) / 2` alone doesn't suffice, however:
-because the closed form only holds for _nonnegative_ integers, and `my_sum()`
-can consume any integer at all, the validity check on this new qualifier will fail
-and predicate abstraction will filter it from the valid qualifier list.  We can
-handle the nonnegativity requirement in two ways: First, the qualifier can be
-made an implication `(_ >= 0) => (_ * (_ + 1)) / 2`, which is vacuously true
-in the base case and satisfied in the recursive step case.  Second, we could abstain
-from adding the implication to the qualifier, and instead _manually refine_ the 
-type of the input argument `k` to only consume non-negative values, which has
-the same effect.  Both solutions are shown below:
+Simply adding `(_ * (_ + 1)) / 2` into the qualifier list alone doesn't
+suffice, however: because the closed form only holds for _nonnegative_
+integers, and `my_sum()` can consume any integer at all, the validity check on
+this new qualifier will fail and predicate abstraction will filter it from the
+valid qualifier list.  We can handle the nonnegativity requirement in two ways:
+First, the qualifier can be made an implication `(_ >= 0) => (_ * (_ + 1)) /
+2`, which is vacuously true in the base case and satisfied in the recursive
+step case.  Second, we could abstain from adding the implication to the
+qualifier, and instead _manually refine_ the type of the input argument `k` to
+only consume non-negative values, which has the same effect.  Both solutions
+are shown below:
 
 ```python
 # Our two custom qualifiers: the precondition required for the closed form
