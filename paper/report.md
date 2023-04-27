@@ -137,7 +137,7 @@ expectations accordingly.
 Further, ergonomic issues abound: a type error should be treated as a form 
 of counterproof, but often reported errors are at the wrong level of abstraction;
 for instance, decoding the two error-producing expressions in Figure 3 requires
-exposes implementation details of `Nat` and `Vec` while obscuring relevent
+exposes implementation details of `Nat` and `Vec` while obscuring relevant
 ones, making applying the "counterproof" a frictive experience.  The type error
 on [line 7 of Figure 1](#cb1-7) is far shorter and more descriptive than its
 equivalent on [line 24 of Figure 3](#cb3-24).
@@ -196,7 +196,7 @@ control.
 
 ## Unifying the two approaches with logically-qualified types
 
-A _refinement type_[@RefinementTypesForML] is the a pairing of an ordinary,
+A _refinement type_[@RefinementTypesForML] is the pairing of an ordinary,
 polymorphic type (called the _base type_) and some logical predicate that
 _refines_ it.  For example, `{v: int | 0 <= v ∧ v < n}` refines the base type
 of the integers to be bound between 0 and some other value `n`. Since `n` is a
@@ -210,7 +210,7 @@ performance benefits of being able to elide runtime bounds checks.
 
 As before, the expressiveness of a refinement type depends on the
 expressiveness of the refining predicate's constraint domain.  Critically: If
-the constraint domain is made up of _conjunctions of boolean predicates_ over
+the constraint domain is made up of _conjunctions of Boolean predicates_ over
 program terms, we can call such a refinement type a _logically-qualified
 (LiQuid) type_[@LiquidTypesPLDI08].  Ideally, we would be able to pick and
 choose parts from both the model- and type-theoretic approaches to get the
@@ -317,7 +317,7 @@ an afterthought, whereas the subsequent
 work([@LiquidTypesDSVerificationPLDI09], [@RefinementTypesForHaskell],
 [@LowLevelLiquidTypesPOPL10], [@GradualLiquidTypeInference]) makes sure to
 mention it explicitly and right in the abstract, suggesting that bringing this
-particular kind of magic to bear reasonated with the research community.
+particular kind of magic to bear resonated with the research community.
 
 ## Subtyping as implication
 
@@ -374,7 +374,7 @@ def max4(x, y) -> {V | [(x==a and y==a+b and V == y) or (y==a and x==a+b and V =
                         (x==a-b and y==a and V == y) or (y==a-b and x==a and V == x) 
                          for a,b in product(count(), 2)]} }: ...
 ```
-_Figure 6: Four plausable typings of the `max()` function, each of varying
+_Figure 6: Four plausible typings of the `max()` function, each of varying
 levels of goodness: note that `max4` depends upon an infinite number of
 qualifiers!_
 
@@ -424,8 +424,8 @@ are an assumption in the typing environment that depends not on program values
 but the control flow through the program.  For instance, an `if`-statement
 would fork the typing environment into two flows: one in which the `then`
 branch is taken and another when the `else` branch is taken.  At each leaf of
-the AST we concretize a subtype containing a trivial qualfier: for instance,
-`return x` qualfies the return type to be exactly `x`.
+the AST we concretize a subtype containing a trivial qualifier: for instance,
+`return x` qualifies the return type to be exactly `x`.
 
 $$
 \begin{equation}
@@ -457,7 +457,7 @@ To generate a more general return type that that of Figure 6's `max2()`, we'll
 construct an abstraction of the type using our built-in qualifiers and the
 accumulated constraints as building blocks.  What we gain from these building
 blocks -- a lattice formed by the conjunction of some fixed set of boolean
-predicates -- is exactly the requirements to perform cartesian predicate
+predicates -- is exactly the requirements to perform eartesian predicate
 abstraction.
 
 In particular, we take our _scope constraints_, having accumulated all possible
@@ -495,7 +495,7 @@ occur._
 
 As the stronger the formula, the more precise the type, so we might hope that
 the strongest possible formula -- conjoining the cross product of qualifiers
-with scope constriants -- would produce the most qualified liquid type.
+with scope constraints -- would produce the most qualified liquid type.
 However, it's clear that the formula is too strong: `v = x` contradicts `v <
 x`.  Intuitively: removing `v < x`, and any other contradictory clause, ought
 to yield a formula that _does_ satisfy the subtyping relation. This happens to
@@ -631,15 +631,16 @@ sum to conclude that the type of `sum()` must be $int \rightarrow \{ int \;|\;
 ### Liquid Types as a heuristic for Quantifier Instantiation
 
 In a more standard program logic, we might describe the behavior of
-sum with the predicate: $\forall k \cdot 0 \leq sum(k) \wedge k \leq
+sum with the predicate: $\forall \, k \; \cdot \; 0 \leq sum(k) \wedge k \leq
 sum(k)$. This expresses the same thing as our refinement type, but
-using a quanfier. In this particular example, a solver probably
-wouldn't have any difficulty checking this verification condition.
+using a quantifier. In this particular example, [Z3's pattern-based quantifier
+instantiation](https://microsoft.github.io/z3guide/docs/logic/Quantifiers/)
+probably wouldn't have any difficulty checking this verification condition.
 However, in general, figuring out a good way to instantiate quantified
 variables is extremely difficult [@LeinoTrigger], and is a subject of
-extensive research.
+extensive and active research.
 
-Liquid Types eschew the need for quantifiers by factoring reasoning
+Liquid types eschew the need for quantifiers by factoring reasoning
 about them into the type system [@LiquidTypesVsFloydHoare]. Quantified
 variables can be replaced with function types with refinements on base
 types. Because refinements can only reference variables in scope, this
@@ -647,7 +648,7 @@ essentially limits quantifier instantiation to program terms that a
 function is called with. In practice, the authors claim that this
 turns out to be a very useful heuristic [@RealWorldLH]. It's worth
 keeping in mind though, that this introduces bias--it only works for
-functions that are case-splits over a single data types constructors.
+functions that are case-splits over a single data type's constructors.
 
 ### Inferring `sum()`'s closed form with custom qualifiers and manual annotations
 
@@ -731,7 +732,7 @@ ones[@Dafny].
 
 ## Summary
 
-Dependent type reconstruction is an impossibilty if careful constraints are not
+Dependent type reconstruction is an impossibility if careful constraints are not
 placed on the type system.  Leveraging SMT for discharging subtyping checks
 lets us maintain all the properties of simple polymorphic type systems while
 increasing expressiveness.  We retain soundness -- certainly the most important
