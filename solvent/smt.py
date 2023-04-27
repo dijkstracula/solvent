@@ -9,46 +9,54 @@ from functools import reduce
 from typing import List
 
 
-def from_exprs(items: List[syn.Expr]):
-    return reduce(lambda x, y: z3.And(x, y), [from_expr(i) for i in items], True)
+def from_exprs(items: List[syn.Expr], val_name: str = ".v"):
+    return reduce(
+        lambda x, y: z3.And(x, y), [from_expr(i, val_name) for i in items], True
+    )
 
 
-def from_expr(e: syn.Expr):
+def from_expr(e: syn.Expr, val_name: str = ".v"):
     match e:
         case syn.Variable(name=n):
             # TODO, look up type
             return z3.Int(n)
         case syn.V():
             # TODO, look up type
-            return z3.Int(".v")
+            return z3.Int(val_name)
         case syn.Call(function_name=syn.Variable(name=name), arglist=args):
             fn = z3.Function(name, *[z3.IntSort() for _ in args], z3.IntSort())
-            call = fn(*[from_expr(a) for a in args])
+            call = fn(*[from_expr(a, val_name) for a in args])
             return call
         case syn.ArithBinOp(lhs=l, op="+", rhs=r):
-            return from_expr(l) + from_expr(r)
+            return from_expr(l, val_name) + from_expr(r, val_name)
         case syn.ArithBinOp(lhs=l, op="-", rhs=r):
-            return from_expr(l) - from_expr(r)
+            return from_expr(l, val_name) - from_expr(r, val_name)
+        case syn.ArithBinOp(lhs=l, op="*", rhs=r):
+            return from_expr(l, val_name) * from_expr(r, val_name)
+        case syn.ArithBinOp(lhs=l, op="/", rhs=r):
+            return from_expr(l, val_name) / from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op=">", rhs=r):
-            return from_expr(l) > from_expr(r)
+            return from_expr(l, val_name) > from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op="==", rhs=r):
-            return from_expr(l) == from_expr(r)
+            return from_expr(l, val_name) == from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op="<=", rhs=r):
-            return from_expr(l) <= from_expr(r)
+            return from_expr(l, val_name) <= from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op="<", rhs=r):
-            return from_expr(l) < from_expr(r)
+            return from_expr(l, val_name) < from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op=">", rhs=r):
-            return from_expr(l) > from_expr(r)
+            return from_expr(l, val_name) > from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op=">=", rhs=r):
-            return from_expr(l) >= from_expr(r)
+            return from_expr(l, val_name) >= from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op="and", rhs=r):
-            return z3.And(from_expr(l), from_expr(r))
+            return z3.And(from_expr(l, val_name), from_expr(r, val_name))
+        case syn.BoolOp(lhs=l, op="or", rhs=r):
+            return z3.Or(from_expr(l, val_name), from_expr(r, val_name))
         case syn.BoolLiteral(value=v):
             return v
         case syn.IntLiteral(value=v):
             return v
         case syn.Neg(expr=e):
-            return z3.Not(from_expr(e))
+            return z3.Not(from_expr(e, val_name))
         case syn.TypeVar(name=n):
             # will need to infer this type eventually.
             # when that happens, this becomes an error
@@ -71,8 +79,8 @@ def base_type(b: syn.Type):
 def from_type(name: str, t: syn.Type):
     match t:
         case syn.RType(predicate=syn.Conjoin(conj)):
-            return from_exprs(conj)
-        case syn.ArrowType(args=args, ret=ret):
+            return from_exprs(conj, name)
+        case syn.ArrowType():
             # k = z3.Int("k")
             # v = z3.Int(".v")
             # return z3.And(k - 1 < v, k - 1 <= v, 0 <= v)

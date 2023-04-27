@@ -5,7 +5,7 @@ Module to implement expansion for qualifiers.
 from typing import List, Callable, Any
 from dataclasses import dataclass
 
-from solvent import constraints as constr, syntax as syn
+from solvent import constraints as constr, syntax as syn, parse
 
 
 @dataclass
@@ -104,6 +104,25 @@ class MagicQ:
                 expr = syn.BoolLiteral(key)
             case int():
                 expr = syn.IntLiteral(key)
+            case "hack":
+                return Qualifier(
+                    template=lambda x: syn.BoolOp(
+                        syn.Neg(syn.BoolOp(x, ">=", syn.IntLiteral(0))),
+                        "or",
+                        syn.BoolOp(
+                            syn.ArithBinOp(
+                                syn.ArithBinOp(
+                                    x, "*", syn.ArithBinOp(x, "+", syn.IntLiteral(1))
+                                ),
+                                "/",
+                                syn.IntLiteral(2),
+                            ),
+                            "==",
+                            syn.V(),
+                        ),
+                    ),
+                    required_type=syn.Int(),
+                )
             case str():
                 expr = syn.Variable(key)
             case x:

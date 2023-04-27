@@ -2,8 +2,9 @@ from __future__ import annotations
 import solvent
 from solvent import V, _, Q
 
+# (n * (n + 1)) / 2
 
-quals = [_ < V, V < _, _ <= V, V <= _, Q[0] <= V]
+quals = [_ < V, V < _, _ <= V, V <= _, Q[0] <= V, Q["hack"]]
 
 
 @solvent.infer(quals)
@@ -19,9 +20,9 @@ def double(f, x):
     return f(f(x, x), f(x, x))
 
 
-@solvent.infer(quals, debug=True)
-def my_sum(k):
-    if k < 0:
+@solvent.infer(quals)
+def my_sum(k: {int | (V >= 0)}):
+    if k <= 0:
         return 0
     else:
         s = my_sum(k - 1)

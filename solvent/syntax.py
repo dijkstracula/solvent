@@ -118,8 +118,8 @@ class Type:
                 return f"{base}"
             case RType(base=base, predicate=Conjoin([])):
                 return f"{base}"
-            case RType(base=base, predicate=pred, pending_subst={}):
-                return f"{{{base} | {pred}}}"
+            # case RType(base=base, predicate=pred, pending_subst={}):
+            #     return f"{{{base} | {pred}}}"
             case RType(base=base, predicate=pred, pending_subst=ps):
                 ps_str = ",".join([f"{k}->({e})" for k, e in ps.items()])
                 return f"{{{base} | {pred} [{ps_str}]}}"

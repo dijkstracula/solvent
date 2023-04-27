@@ -209,7 +209,7 @@ def apply_constraints(
             case SubType(context=ctx, assumes=asms, lhs=lhs, rhs=rhs):
                 res += [
                     SubType(
-                        context=ctx,
+                        context=apply_context(ctx, solution),
                         assumes=asms,
                         lhs=apply(lhs, solution),
                         rhs=apply(rhs, solution),

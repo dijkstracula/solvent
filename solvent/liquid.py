@@ -3,6 +3,7 @@ Implement Liquid Type inference
 """
 
 from typing import List, Optional, Dict, cast
+import pprint
 
 from solvent import (
     constraints as constr,
@@ -56,7 +57,11 @@ def constraints_valid(
     """
 
     for c in constrs:
-        if not subtype.check_constr(apply_constr(c, solution)):
+        sc = apply_constr(c, solution)
+        valid = subtype.check_constr(sc)
+        if show_work:
+            print(f"Checking for validity ({valid}): G |- {sc.lhs} <: {sc.rhs}")
+        if not valid:
             return constraints_valid(constrs, weaken(c, solution, show_work), show_work)
 
     return solution
@@ -72,22 +77,28 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
 
     match c:
         case constr.SubType(
+            context=ctx,
             assumes=assumes,
             lhs=lhs,
-            rhs=syn.RType(base=b2, predicate=syn.PredicateVar(name=n)),
+            rhs=syn.RType(
+                base=b2, predicate=syn.PredicateVar(name=n), pending_subst=ps
+            ),
         ):
             assert n in solution
 
             qs = []
             for qual in solution[n].conjuncts:
                 if show_work:
-                    print(f"Checking {qual}: ", end="")
+                    print(f"Checking {qual}: ", end="\n")
+                    print(f"  ctx: {apply_ctx(ctx, solution)}")
+                    print(f"  constr: {apply_constr(c, solution)}")
+                    print(f"  substs: {ps}")
                 if subtype.check(
-                    # apply_ctx(context, solution),
-                    constr.Env.empty(),  # TODO: fix
+                    apply_ctx(ctx, solution),
+                    # constr.Env.empty(),  # TODO: fix
                     assumes,
                     apply(lhs, solution),
-                    syn.RType({}, b2, syn.Conjoin([qual])),
+                    syn.RType({}, b2, syn.Conjoin([apply_substs(qual, ps)])),
                     show_work=show_work,
                 ):
                     if show_work:
@@ -96,10 +107,11 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
 
             solution[n] = syn.Conjoin(qs)
         case x:
-            print(repr(x))
-            raise NotImplementedError
+            pprint.pprint(x)
+            raise NotImplementedError(str(x))
 
     if show_work:
+        print("=================")
         print("Current Solution:")
         for k, v in solution.items():
             match v:
@@ -129,8 +141,6 @@ def apply_constr(c: constr.SubType, solution: Solution) -> constr.SubType:
 
 
 def apply_ctx(ctx: constr.Env, solution: Solution) -> constr.Env:
-    print(f"{ctx}")
-    print(f" -> {ctx.map(lambda v: apply(v, solution))}")
     return ctx.map(lambda v: apply(v, solution))
 
 
@@ -139,9 +149,9 @@ def apply(typ: constr.Type, solution: Solution) -> constr.Type:
         case syn.RType(
             base=base, predicate=syn.PredicateVar(name=n), pending_subst=ps
         ) if n in solution:
-            cjct = syn.Conjoin([apply_pending(c, ps) for c in solution[n].conjuncts])
+            cjct = syn.Conjoin([apply_substs(c, ps) for c in solution[n].conjuncts])
             return syn.RType(
-                ps,
+                {},
                 base,
                 cjct,
             )
@@ -157,21 +167,19 @@ def apply(typ: constr.Type, solution: Solution) -> constr.Type:
             return x
 
 
-def apply_pending(e: syn.Expr, substs: Dict[str, syn.Expr]) -> syn.Expr:
+def apply_substs(e: syn.Expr, substs: Dict[str, syn.Expr]) -> syn.Expr:
     match e:
         case syn.Variable(name=n) if n in substs:
             return substs[n]
         case syn.BoolOp(lhs=l, op=op, rhs=r):
-            return syn.BoolOp(apply_pending(l, substs), op, apply_pending(r, substs))
+            return syn.BoolOp(apply_substs(l, substs), op, apply_substs(r, substs))
         case syn.ArithBinOp(lhs=l, op=op, rhs=r):
-            return syn.ArithBinOp(
-                apply_pending(l, substs), op, apply_pending(r, substs)
-            )
+            return syn.ArithBinOp(apply_substs(l, substs), op, apply_substs(r, substs))
         case syn.Neg(expr=e):
-            return syn.Neg(apply_pending(e, substs))
+            return syn.Neg(apply_substs(e, substs))
         case syn.Call(function_name=fn, arglist=args):
             return syn.Call(
-                apply_pending(fn, substs), [apply_pending(a, substs) for a in args]
+                apply_substs(fn, substs), [apply_substs(a, substs) for a in args]
             )
         case x:
             return x

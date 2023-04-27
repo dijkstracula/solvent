@@ -25,11 +25,11 @@ def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
             )
 
             to_check = z3.Implies(
-                z3.And(ctx_smt, z3.And(assumes_smt, smt.from_exprs(cs1))),
+                z3.simplify(z3.And(ctx_smt, z3.And(assumes_smt, smt.from_exprs(cs1)))),
                 smt.from_exprs(cs2),
             )
 
-            print(f"    {to_check}")
+            # print(f"    {to_check}")
 
             s = z3.Solver()
             s.add(z3.Not(to_check))
