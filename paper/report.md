@@ -244,15 +244,15 @@ correctness without human intervention gives us full push-button automation.
 
 Also like all good inverse problems, type reconstruction has degrees of freedom
 that checking does not - if several possible valid typings exist, which should
-the algorithm deduce?  Nobody would claim that inferring `def double(x): return
-2 * x` as `object -> object` would be terribly useful, correct though it might
-be.  On the other side of the spectrum, if we had a full program analysis
-oracle that told us that `double` is only ever called with argument 21, the
-singleton refinement type ${v : int | v == 42}$ would similarly be correct, but
-overfits to the input data in a way that doesn't provide a useful precondition
-on the return value being used later in the program.  The authors must aim for
-the best of both worlds: a dependent type system rich enough to prove useful
-safety properties, while _not_ being so expressive that reconstruction becomes
+the algorithm deduce?  Nobody would claim that inferring `lambda x: 2 * x`
+as `object -> object` would be terribly useful, correct though it might be.  On
+the other side of the spectrum, if we had a full program analysis oracle that
+told us that `double` is only ever called with argument 21, the singleton
+refinement type ${v : int \; | \; v \; = 42}$ would similarly be correct, but overfits
+to the input data in a way that doesn't provide a useful precondition on the
+return value being used later in the program.  The authors must aim for the
+best of both worlds: a dependent type system rich enough to prove useful safety
+properties, while _not_ being so expressive that reconstruction becomes
 impossible.
 
 ## From program expressions to base types
@@ -543,7 +543,7 @@ equivalently to `sum(range(k))`:
 ```{.python .numberLines}
 @solvent.infer
 def my_sum(k):
-    "Computes \Sigma_{i=0}^{k} i."
+    "Computes sum(range(k))."
     if k < 0:
         return 0
     else:
@@ -591,7 +591,7 @@ $$
 
 With our constraints finalized, we proceed with constraint solving just like
 in the `sum()` example, where we learn from the base case's constraints that
-$K_2 \; <: \; \{ int \;|\; 0 <= v \wedge k \leq v\}$. (It's possible that the
+$K_2 \; <: \; \{ int \;|\; 0 \leq v \wedge k \leq v\}$. (It's possible that the
 other path constraint will further remove one or more of these predicates in
 subsequent refinement rounds if this type is too strong).  Moving to solving
 the recursive case, we substitute the program expression `k-1` for the free
@@ -600,9 +600,9 @@ variable `k` in $K_2$:
 \begin{equation}
 \begin{split}
 s: \; & [k-1/k]\,K_2 \\
-s: \; & [k-1/k]\,\{ int \;|\; 0 <= v \wedge k \leq v\} \\
-s: \; & \{ int \;|\; 0 <= v \wedge k-1 \leq v\} \\
-      \implies & (0 <= s) \wedge (k-1 \leq s)
+s: \; & [k-1/k]\,\{ int \;|\; 0 \leq v \wedge k \leq v\} \\
+s: \; & \{ int \;|\; 0 \leq v \wedge k-1 \leq v\} \\
+      \implies & (0 \leq s) \wedge (k-1 \leq s)
 \end{split}
 \end{equation}
 
@@ -615,7 +615,7 @@ constraint to solve as we did with `max()`.
 k < 0 & \vdash \{ int \;|\; v = 0 \} & <: \; & 
     (int \;|\: 0 \leq v & \; \wedge \; & k \leq v) \\
 
-\neg(k < 0); \; (0 <= s); \; (k-1 \leq s) \; & \vdash \; \{ int \;|\; V = s + k \} & <: \; & 
+\neg(k < 0); \; (0 \leq s); \; (k-1 \leq s) \; & \vdash \; \{ int \;|\; V = s + k \} & <: \; & 
     (int \;|\: 0 \leq v & \; \wedge \; & k \leq v) \\
 \end{split}
 \end{equation}
@@ -623,10 +623,14 @@ k < 0 & \vdash \{ int \;|\; v = 0 \} & <: \; &
 This substitution has let us infer some interesting facts: `s` must
 be nonnegative, as must `k`: Z3 can therefore infer enough facts about their
 sum to conclude that the type of `sum()` must be $int \rightarrow \{ int \;|\;
-0 <= v \wedge k \leq v\}$.
+0 \leq v \wedge k \leq v\}$.
 
 > It would also be nice to have something about the implicit bias: this is
 > a sort of heuristic for quantifier instantiation.
+
+### Liquid Types as a heuristic for quantifier instantiation
+
+
 
 ### Inferring `sum()`'s closed form with custom qualifiers and manual annotations
 
@@ -641,7 +645,7 @@ _know_ we'd like a type with a particular shape to be inferred, and can express
 it the liquid type system's qualifier DSL, then the system can incorporate it
 into reconstruction.  
 
-Simply adding `(_ * (_ + 1)) / 2` into the qualifier list alone doesn't
+Simply adding `(_ * (_ + 1)) / 2 == V` into the qualifier list alone doesn't
 suffice, however: because the closed form only holds for _nonnegative_
 integers, and `my_sum()` can consume any integer at all, the validity check on
 this new qualifier will fail and predicate abstraction will filter it from the
@@ -665,7 +669,7 @@ closed_form = (_ * (_ + 1)) / 2 == V
 # (k:int) -> {int | k <= V and 0 <= V and (-(k >= 0) or k * k + 1 / 2 == V })
 @solvent.infer(user_quals=[nonneg.implies(closed_form)])
 def my_sum(k):
-    "Computes \Sigma_{i=0}^{k} i."
+    "Computes sum(range(k))."
     if k < 0:
         return 0
     else:
@@ -680,7 +684,7 @@ def my_sum(k):
 # (k:{int | V >= 0 }) -> {int | k <= V and 0 <= V and (k * k + 1 / 2 == V })
 @solvent.infer(user_quals=[closed_form])
 def my_sum(k: {int | nonneg}):
-    "Computes \Sigma_{i=0}^{k} i."
+    "Computes sum(range(k))."
     if k < 0:
         return 0
     else:
