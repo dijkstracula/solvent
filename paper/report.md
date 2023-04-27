@@ -658,7 +658,7 @@ the same effect.  Both solutions are shown below:
 # Our two custom qualifiers: the precondition required for the closed form
 # to hold, and the closed form itself.
 nonneg = _ >= 0
-closed_form = (_ * (_ + 1)) / 2
+closed_form = (_ * (_ + 1)) / 2 == V
 
 # This implementation treats the precondition as part of the qualifier, yielding
 # the implication as part of the return type's predicate:
