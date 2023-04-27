@@ -628,9 +628,26 @@ sum to conclude that the type of `sum()` must be $int \rightarrow \{ int \;|\;
 > It would also be nice to have something about the implicit bias: this is
 > a sort of heuristic for quantifier instantiation.
 
-### Liquid Types as a heuristic for quantifier instantiation
+### Liquid Types as a heuristic for Quantifier Instantiation
 
+In a more standard program logic, we might describe the behavior of
+sum with the predicate: $\forall k \cdot 0 \leq sum(k) \wedge k \leq
+sum(k)$. This expresses the same thing as our refinement type, but
+using a quanfier. In this particular example, a solver probably
+wouldn't have any difficulty checking this verification condition.
+However, in general, figuring out a good way to instantiate quantified
+variables is extremely difficult [@LeinoTrigger], and is a subject of
+extensive research.
 
+Liquid Types eschew the need for quantifiers by factoring reasoning
+about them into the type system [@LiquidTypesVsFloydHoare]. Quantified
+variables can be replaced with function types with refinements on base
+types. Because refinements can only reference variables in scope, this
+essentially limits quantifier instantiation to program terms that a
+function is called with. In practice, the authors claim that this
+turns out to be a very useful heuristic [@RealWorldLH]. It's worth
+keeping in mind though, that this introduces bias--it only works for
+functions that are case-splits over a single data types constructors.
 
 ### Inferring `sum()`'s closed form with custom qualifiers and manual annotations
 
