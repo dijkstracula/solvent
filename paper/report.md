@@ -641,10 +641,18 @@ However, there's nothing that limits application programmers from inserting
 their own bias into the reconstruction algorithm if they so choose: if we
 _know_ we'd like a type with a particular shape to be inferred, and can express
 it the liquid type system's qualifier DSL, then the system can incorporate it
-into reconstruction.  Since the closed form only holds for _nonnegative_ integers,
-simply adding the qualifier `(_ * (_ + 1)) / 2)` alone doesn't suffice: the
-precondition needs to be stated as either part of the qualifier, or as a
-manually-annotated type on the input argument `k`.  Both solutions are shown below:
+into reconstruction.  
+
+Simply adding the qualifier `(_ * (_ + 1)) / 2` alone doesn't suffice, however:
+because the closed form only holds for _nonnegative_ integers, and `my_sum()`
+can consume any integer at all, the validity check on this new qualifier will fail
+and predicate abstraction will filter it from the valid qualifier list.  We can
+handle the nonnegativity requirement in two ways: First, the qualifier can be
+made an implication `(_ >= 0) => (_ * (_ + 1)) / 2`, which is vacuously true
+in the base case and satisfied in the recursive step case.  Second, we could abstain
+from adding the implication to the qualifier, and instead _manually refine_ the 
+type of the input argument `k` to only consume non-negative values, which has
+the same effect.  Both solutions are shown below:
 
 ```python
 # Our two custom qualifiers: the precondition required for the closed form
