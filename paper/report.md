@@ -372,10 +372,8 @@ from itertools import product, count
 def max1(x, y) -> {V | True}:              x if x > y else y
 def max2(x, y) -> {V | V == x or V == y}:  x if x > y else y
 def max3(x, y) -> {V | V >= x and V >= y}: x if x > y else y
-def max4(x, y) -> {V | [(x==a and y==a+b and V == a+b) or
-                        (y==a and x==a+b and V == a+b) or
-                        (x==a-b and y==a and V == a)   or
-                        (y==a-b and x==a and V == a) 
+def max4(x, y) -> {V | [(x==a and y==a+b and V == a+b) or (y==a and x==a+b and V == a+b) or
+                        (x==a-b and y==a and V == a)   or (y==a-b and x==a and V == a) 
                          for a,b in product(count(), 2)]} }: ...
 ```
 _Figure 6: Four plausable typings of the `max()` function, each of varying
@@ -539,8 +537,10 @@ the conjunction.
 
 ### Extensions for recursive functions
 
-We'll conclude the elucidation of the technique with a few words about
-recursive functions:
+Type reconstruction is complicated for recursive functions since the refinement
+predicates now need to capture an inductive invariant for each iteration of the
+computation.  Let's consider the following summation function that behaves
+equivalently to `sum(range(k))`:
 
 ```{.python .numberLines}
 @solvent.infer
@@ -596,7 +596,8 @@ in the `sum()` example, where we learn from the base case's constraints that
 $K_2 \; <: \; \{ int \;|\; 0 <= v \wedge k \leq v\}$. (It's possible that the
 other path constraint will further remove one or more of these predicates in
 subsequent refinement rounds if this type is too strong).  Moving to solving
-the recursive case, we perform substitution on $s:[k-1/k]K_2$:
+the recursive case, we substitute the program expression `k-1` for the free
+variable `k` in $K_2$:
 
 \begin{equation}
 \begin{split}
@@ -607,9 +608,9 @@ s: \; & \{ int \;|\; 0 <= v \wedge k-1 \leq v\} \\
 \end{split}
 \end{equation}
 
-In so doing, we have eliminated the free variable $k$ and transformed `s`'s
-type assertion into its conjuncts, yielding a straightforward typing constraint
-to solve as we did with `max()`.  
+In so doing, we have eliminated the free variable $k$ and lowered `s`'s type
+assertion into its conjuncts, yielding a straightforward typing constraint to
+solve as we did with `max()`.  
 
 \begin{equation}
 \begin{split}
@@ -628,6 +629,61 @@ sum to conclude that the type of `sum()` must be $int \rightarrow \{ int \;|\;
 
 > It would also be nice to have something about the implicit bias: this is
 > a sort of heuristic for quantifier instantiation.
+
+### Inferring `sum()`'s closed form with custom qualifiers and manual annotations
+
+One final observation: We know the closed form of this summation:
+$\Sigma_{i=0}^{n} \, =\, \frac{n * (n+1)}{2}$.  While a hypothetical oracle
+could hand down a refinement type with this predicate, we know our current set
+of qualifiers lack this particular expression shape, so it will never be found.
+
+However, there's nothing that limits application programmers from inserting
+their own bias into the reconstruction algorithm if they so choose: if we
+_know_ we'd like a type with a particular shape to be inferred, and can express
+it the liquid type system's qualifier DSL, then the system can incorporate it
+into reconstruction.  Since the closed form only holds for _nonnegative_ integers,
+simply adding the qualifier `(_ * (_ + 1)) / 2)` alone doesn't suffice: the
+precondition needs to be stated as either part of the qualifier, or as a
+manually-annotated type on the input argument `k`.  Both solutions are shown below:
+
+```python
+# Our two custom qualifiers: the precondition required for the closed form
+# to hold, and the closed form itself.
+nonneg = _ >= 0
+closed_form = (_ * (_ + 1)) / 2
+
+# This implementation treats the precondition as part of the qualifier, yielding
+# the implication as part of the return type's predicate:
+#
+# (k:int) -> {int | k <= V and 0 <= V and (-(k >= 0) or k * k + 1 / 2 == V })
+@solvent.infer(user_quals=[nonneg.implies(closed_form)])
+def my_sum(k):
+    "Computes \Sigma_{i=0}^{k} i."
+    if k < 0:
+        return 0
+    else:
+        s = my_sum(k - 1)
+        return s + k
+
+# By contrast, this implementation adds the nonnegativity constraint as a 
+# refinement of the argument to the sum: This simplifies the custom qualifier set
+# and the return type's predicate, at the expense of explicitly stating the input
+# type, and restricting the input domain.  The final inferred type is:
+#
+# (k:{int | V >= 0 }) -> {int | k <= V and 0 <= V and (k * k + 1 / 2 == V })
+@solvent.infer(user_quals=[closed_form])
+def my_sum(k: {int | nonneg}):
+    "Computes \Sigma_{i=0}^{k} i."
+    if k < 0:
+        return 0
+    else:
+        s = my_sum(k - 1)
+        return s + k
+```
+_Two different ways for an application developer to customise the type
+inference procedure in order to reconstruct the closed form for `sum()`, each
+with expressivity and automation tradeoffs.  Notice that the reconstructed
+type could be further simplified to remove redundant clauses._
 
 ## Subsequent Work
 
