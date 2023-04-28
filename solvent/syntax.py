@@ -118,11 +118,11 @@ class Type:
                 return f"{base}"
             case RType(base=base, predicate=Conjoin([])):
                 return f"{base}"
-            # case RType(base=base, predicate=pred, pending_subst={}):
-            #     return f"{{{base} | {pred}}}"
+            case RType(base=base, predicate=pred, pending_subst={}):
+                return f"{{{base} | {pred}}}"
             case RType(base=base, predicate=pred, pending_subst=ps):
-                ps_str = ",".join([f"{k}->({e})" for k, e in ps.items()])
-                return f"{{{base} | {pred} [{ps_str}]}}"
+                inner = ",".join([f"{k}->({e})" for k, e in ps.items()])
+                return f"{{{base} | {pred} [{inner}]}}"
             case ArrowType(args=args, ret=ret):
                 return "({}) -> {}".format(
                     ", ".join([f"{name}:{t}" for name, t in args]), ret

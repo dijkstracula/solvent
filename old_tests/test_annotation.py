@@ -1,10 +1,11 @@
 import ast
 import sys
 
-from solvent.dsl import *
-from solvent.syntax import types as LiquidTypes
+from solvent import syntax as syn
 
-sys.path.append("..")
+
+# sys.path.append("..")
+
 
 def str_to_ast_expr(source: str):
     tree = ast.parse(source).body[0]
@@ -33,7 +34,13 @@ def test_simple_annot_assign():
 
     assign = AnnAssign.from_pyast(str_to_assign("xs: list[int] = [1,2,3]"))
     assert assign.lhs == Name("xs")
-    assert assign.rhs == List((Constant(1), Constant(2), Constant(3),))
+    assert assign.rhs == List(
+        (
+            Constant(1),
+            Constant(2),
+            Constant(3),
+        )
+    )
     assert assign.annotation == RefinementType(LiquidTypes.Array(LiquidTypes.Int()))
 
 
