@@ -1,0 +1,26 @@
+name: Format
+
+on: [push]
+
+jobs:
+  lint:
+    name: Python Linting
+    needs: format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Black Formatting Check
+        uses: psf/black@stable
+        with:
+          options: "--line-length 88"
+          src: 'solvent'
+      - name: Pyright Type check
+        uses: jakebailey/pyright-action@v1
+        with:
+          working-directory: 'solvent'
+      - name: Linting check
+        uses: TrueBrain/actions-flake8@master
+        with:
+          max_line_length: 88
+          path: 'solvent'
