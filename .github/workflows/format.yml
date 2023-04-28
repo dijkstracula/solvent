@@ -18,6 +18,7 @@ jobs:
         uses: jakebailey/pyright-action@v1
         with:
           working-directory: 'solvent'
+          project: 'pyproject.toml'
       - name: Linting check
         uses: TrueBrain/actions-flake8@master
         with:
