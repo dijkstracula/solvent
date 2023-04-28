@@ -25,4 +25,4 @@ jobs:
         uses: jakebailey/pyright-action@v1
         with:
           project: 'pyproject.toml'
-          venv-path: '.venv'
+          venv-path: '../.venv'
