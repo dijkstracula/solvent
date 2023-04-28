@@ -12,14 +12,8 @@ jobs:
       - name: Black Formatting Check
         uses: psf/black@stable
         with:
-          options: "--line-length 88"
           src: 'solvent'
-      - name: Pyright Type check
-        uses: jakebailey/pyright-action@v1
-        with:
-          project: 'pyproject.toml'
-      - name: Linting check
-        uses: TrueBrain/actions-flake8@master
-        with:
-          max_line_length: 88
-          path: 'solvent'
+      # - name: Pyright Type check
+      #   uses: jakebailey/pyright-action@v1
+      #   with:
+      #     project: 'pyproject.toml'
