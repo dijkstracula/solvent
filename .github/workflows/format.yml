@@ -3,9 +3,8 @@ name: Format
 on: [push]
 
 jobs:
-  lint:
+  format:
     name: Python Linting
-    needs: format
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
