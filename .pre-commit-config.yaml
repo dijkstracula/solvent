@@ -1,0 +1,21 @@
+repos:
+- repo: local
+  hooks:
+  - id: black
+    name: black[solvent]
+    entry: poetry run black solvent
+    language: system
+    pass_filenames: false
+    require_serial: true
+  - id: isort
+    name: isort[solvent]
+    entry: poetry run isort solvent
+    language: system
+    pass_filenames: false
+    require_serial: true
+  - id: pyright
+    name: pyright
+    entry: poetry run pyright
+    language: system
+    pass_filenames: false
+    require_serial: true
