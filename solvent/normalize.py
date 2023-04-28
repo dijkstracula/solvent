@@ -39,30 +39,30 @@ def normalize_expr(expr: syn.Expr) -> tuple[List[syn.Stmt], syn.Expr]:
         case syn.ArithBinOp(lhs=lhs, op=op, rhs=rhs):
             tmps = []
             if is_compound(lhs):
-                res, l = normalize_expr(lhs)
+                res, base = normalize_expr(lhs)
                 name = syn.NameGenerator.fresh("tmp")
-                tmps += res + [syn.Assign(name, l)]
+                tmps += res + [syn.Assign(name, base)]
                 lhs = syn.Variable(name)
 
             if is_compound(rhs):
-                res, l = normalize_expr(rhs)
+                res, base = normalize_expr(rhs)
                 name = syn.NameGenerator.fresh("tmp")
-                tmps += res + [syn.Assign(name, l)]
+                tmps += res + [syn.Assign(name, base)]
                 rhs = syn.Variable(name)
 
             return (tmps, syn.ArithBinOp(lhs, op, rhs))
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs):
             tmps = []
             if is_compound(lhs):
-                res, l = normalize_expr(lhs)
+                res, base = normalize_expr(lhs)
                 name = syn.NameGenerator.fresh("tmp")
-                tmps += res + [syn.Assign(name, l)]
+                tmps += res + [syn.Assign(name, base)]
                 lhs = syn.Variable(name)
 
             if is_compound(rhs):
-                res, l = normalize_expr(rhs)
+                res, base = normalize_expr(rhs)
                 name = syn.NameGenerator.fresh("tmp")
-                tmps += res + [syn.Assign(name, l)]
+                tmps += res + [syn.Assign(name, base)]
                 rhs = syn.Variable(name)
 
             return (tmps, syn.BoolOp(lhs, op, rhs))

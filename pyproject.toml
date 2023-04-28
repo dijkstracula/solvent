@@ -17,6 +17,8 @@ rise = "^5.7.1"
 pyright = "^1.1.305"
 isort = "^5.12.0"
 pre-commit = "^3.2.2"
+flake8 = "^6.0.0"
+flake8-pyproject = "^1.2.3"
 
 [build-system]
 requires = ["poetry-core"]
@@ -30,3 +32,9 @@ include = ["solvent"]
 
 [tool.isort]
 profile = "black"
+
+[tool.flake8]
+max-line-length = 88
+per-file-ignores = [
+    '__init__.py:F401',
+]

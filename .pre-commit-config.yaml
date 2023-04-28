@@ -15,6 +15,13 @@ repos:
     pass_filenames: false
     require_serial: true
     always_run: true
+  - id: flake8
+    name: flake8[solvent]
+    entry: poetry run flake8 solvent
+    language: system
+    pass_filenames: false
+    require_serial: true
+    always_run: true
   - id: pyright
     name: pyright
     entry: poetry run pyright

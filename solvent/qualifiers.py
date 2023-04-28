@@ -3,10 +3,9 @@ Module to implement expansion for qualifiers.
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, List
+from typing import Callable, List
 
 from solvent import constraints as constr
-from solvent import parse
 from solvent import syntax as syn
 
 
