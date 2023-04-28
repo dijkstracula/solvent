@@ -2,7 +2,7 @@
 name = "solvent"
 version = "0.1.0"
 description = ""
-authors = ["Nathan Taylor <ntaylor@cs.utexas.edu>"]
+authors = ["Nathan Taylor <ntaylor@cs.utexas.edu>", "Samuel Thomas <sgt@cs.utexas.edu>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
@@ -20,7 +20,7 @@ requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pyright]
-include = ["solvent", "tests"]
+include = ["solvent"]
 
 [tool.isort]
 profile = "black"
