@@ -14,6 +14,7 @@ pytest = "7.2.2"
 pytest = "^7.2.2"
 jupyter = "^1.0.0"
 rise = "^5.7.1"
+pyright = "^1.1.305"
 
 [build-system]
 requires = ["poetry-core"]
