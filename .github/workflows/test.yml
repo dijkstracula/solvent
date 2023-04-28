@@ -15,6 +15,6 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-          cache: '.venv'
+          cache: 'poetry'
       - run: poetry install
       - run: poetry run pytest tests
