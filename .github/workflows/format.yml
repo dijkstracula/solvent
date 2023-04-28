@@ -4,7 +4,7 @@ on: [push]
 
 jobs:
   format:
-    name: Python Linting
+    name: Formatting + Type-checking
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,10 +21,5 @@ jobs:
         uses: psf/black@stable
         with:
           src: 'solvent'
-      - run: ls -al
+      - run: poetry run isort solvent --check
       - run: poetry run pyright
-      # - name: Pyright Type check
-      #   uses: jakebailey/pyright-action@v1
-      #   with:
-      #     project: 'pyproject.toml'
-      #     venv-path: '../.venv'

@@ -1,6 +1,6 @@
 from typing import List
 
-from solvent import constraints, liquid, qualifiers, normalize
+from solvent import constraints, liquid, normalize, qualifiers
 from solvent import syntax as syn
 from solvent import unification
 
