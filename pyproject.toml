@@ -21,3 +21,6 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pyright]
 include = ["solvent", "tests"]
+
+[tool.isort]
+profile = "black"
