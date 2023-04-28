@@ -17,4 +17,4 @@ jobs:
           python-version: '3.10'
           cache: '.venv'
       - run: poetry install
-      - name: poetry run pytest tests
+      - run: poetry run pytest tests
