@@ -21,8 +21,10 @@ jobs:
         uses: psf/black@stable
         with:
           src: 'solvent'
-      - name: Pyright Type check
-        uses: jakebailey/pyright-action@v1
-        with:
-          project: 'pyproject.toml'
-          venv-path: '../.venv'
+      - run: ls -al
+      - run: poetry run pyright
+      # - name: Pyright Type check
+      #   uses: jakebailey/pyright-action@v1
+      #   with:
+      #     project: 'pyproject.toml'
+      #     venv-path: '../.venv'
