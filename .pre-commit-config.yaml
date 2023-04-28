@@ -7,15 +7,18 @@ repos:
     language: system
     pass_filenames: false
     require_serial: true
+    always_run: true
   - id: isort
     name: isort[solvent]
     entry: poetry run isort solvent
     language: system
     pass_filenames: false
     require_serial: true
+    always_run: true
   - id: pyright
     name: pyright
     entry: poetry run pyright
     language: system
     pass_filenames: false
     require_serial: true
+    always_run: true

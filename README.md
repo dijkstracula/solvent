@@ -19,6 +19,22 @@ $ poetry install
 $ poetry run pytest
 ```
 
+## Development
+
+Solvent uses `pre-commit` to ensure that committed code is formatted
+and type-checked. Install the pre-commit hook with:
+
+```
+$ poetry run pre-commit install
+```
+
+If you want to manually run the pre-commit, use the following command.
+Note that this only runs on committed files.
+
+```
+$ poetry run pre-commit run
+```
+
 ## Presentation
 
 To edit the presentation: `poetry run jupyter notebook paper/Presentation.ipynb`
