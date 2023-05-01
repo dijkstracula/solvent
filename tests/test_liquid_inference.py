@@ -1,9 +1,10 @@
 import ast
 import inspect
+from typing import get_type_hints
 
 from solvent import parse, frontend
 from solvent import syntax as syn
-from solvent import V, _, Q
+from solvent import V, _, Q, Refine
 
 
 def assert_type(quals, expected):
@@ -15,7 +16,7 @@ def assert_type(quals, expected):
     def inner(func):
         def repl():
             pyast = ast.parse(inspect.getsource(func))
-            res = parse.parse(pyast)
+            res = parse.parse(pyast, get_type_hints(func, include_extras=True))
 
             syn.NameGenerator.reset()
             assert str(frontend.check(res, quals, False)) == expected
@@ -73,6 +74,23 @@ def test_sum(k):
         return 0
     else:
         return test_sum(k - 1) + k
+
+
+@assert_type(
+    [
+        _ < V,
+        V < _,
+        _ <= V,
+        V <= _,
+        Q[0] <= V,
+    ],
+    "(k:{int | V >= 0}) -> {int | k <= V and 0 <= V}",
+)
+def test_sum_refine(k: Refine[int, V >= 0]):
+    if k <= 0:
+        return 0
+    else:
+        return test_sum_refine(k - 1) + k
 
 
 @assert_type(

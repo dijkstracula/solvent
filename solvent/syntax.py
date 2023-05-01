@@ -131,6 +131,15 @@ class Type:
                 print(x)
                 raise NotImplementedError
 
+    def set_predicate(self, predicate: Predicate) -> "Type":
+        match self:
+            case ArrowType():
+                raise NotImplementedError
+            case RType(base=base, pending_subst=ps):
+                return RType(ps, base, predicate)
+            case x:
+                raise Exception(f"`{x}` is not a Type.")
+
 
 @dataclass
 class RType(Type):

@@ -174,8 +174,8 @@ def check_stmt(
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
             # for now just throw away the predicate of ty
-            nty = add_predicate(
-                ty, Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=value)])
+            nty = ty.set_predicate(
+                Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=value)])
             )
             return nty, constrs, context
         case x:
@@ -283,16 +283,6 @@ def shape_typ(typ: Type) -> Type:
 
 def shape_env(env: Env) -> Env:
     return env.map(shape_typ)
-
-
-def add_predicate(typ: Type, predicate: Predicate) -> Type:
-    match typ:
-        case ArrowType():
-            raise NotImplementedError
-        case RType(base=base, pending_subst=ps):
-            return RType(ps, base, predicate)
-        case x:
-            raise Exception(f"`{x}` is not a Type.")
 
 
 # don't actually need this

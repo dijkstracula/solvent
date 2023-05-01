@@ -1,6 +1,6 @@
 from __future__ import annotations
 import solvent
-from solvent import V, _, Q
+from solvent import V, _, Q, Refine
 
 quals = [
     _ < V,
@@ -21,12 +21,12 @@ def my_max(x, y):
 
 
 @solvent.infer(quals)
-def double(f, x):
+def double(f, x: Refine[int, V < 0]):
     return f(f(x, x), f(x, x))
 
 
 @solvent.infer(quals)
-def my_sum(k):
+def my_sum(k: Refine[int, V >= 0]):
     if k <= 0:
         return 0
     else:

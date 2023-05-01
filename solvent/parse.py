@@ -1,5 +1,5 @@
 import ast
-from typing import List
+from typing import Annotated, List, Dict, Any, get_args, get_origin
 
 from solvent import syntax as syn
 
@@ -12,10 +12,10 @@ def string_to_expr(string: str) -> syn.Expr:
         raise Exception(f"Can't parse `{string}`")
 
 
-def parse(tree: ast.AST) -> List[syn.Stmt]:
+def parse(tree: ast.AST, typing_hints: Dict[str, Any]) -> List[syn.Stmt]:
     match tree:
         case ast.Module(body=body):
-            return sum([parse(b) for b in body], [])
+            return sum([parse(b, typing_hints) for b in body], [])
         case ast.FunctionDef(name=name, args=args, body=body, returns=returns):
             if returns is not None:
                 ret_ann = parse_annotation(returns)
@@ -25,8 +25,8 @@ def parse(tree: ast.AST) -> List[syn.Stmt]:
             return [
                 syn.FunctionDef(
                     name=name,
-                    args=[parse_argument(a) for a in args.args],
-                    body=sum([parse(b) for b in body], []),
+                    args=[parse_argument(a, typing_hints) for a in args.args],
+                    body=sum([parse(b, typing_hints) for b in body], []),
                     return_annotation=ret_ann,
                 )
             ]
@@ -34,8 +34,8 @@ def parse(tree: ast.AST) -> List[syn.Stmt]:
             return [
                 syn.If(
                     test=parse_expr(test),
-                    body=sum([parse(b) for b in body], []),
-                    orelse=sum([parse(b) for b in orelse], []),
+                    body=sum([parse(b, typing_hints) for b in body], []),
+                    orelse=sum([parse(b, typing_hints) for b in orelse], []),
                 )
             ]
         case ast.Assign(targets=[ast.Name(id=id)], value=e):
@@ -47,12 +47,33 @@ def parse(tree: ast.AST) -> List[syn.Stmt]:
             raise NotImplementedError
 
 
-def parse_argument(arg: ast.arg) -> syn.Argument:
-    if arg.annotation is None:
-        ann = None
+def parse_argument(arg: ast.arg, typing_hints: Dict[str, Any]) -> syn.Argument:
+    if arg.arg in typing_hints:
+        ann = parse_hint(typing_hints[arg.arg])
     else:
-        ann = parse_annotation(arg.annotation)
+        ann = None
     return syn.Argument(name=arg.arg, annotation=ann)
+
+
+def parse_hint(hint: type) -> syn.Type:
+    if get_origin(hint) is Annotated:
+        args = get_args(hint)
+        base = args[0]
+        rest = list(args[1:])
+
+        base_rtype = parse_base(base)
+        return base_rtype.set_predicate(syn.Conjoin([rest[0].template(syn.V())]))
+    else:
+        return parse_base(hint)
+
+
+def parse_base(hint: type) -> syn.Type:
+    if hint == int:
+        return syn.RType.lift(syn.Int())
+    elif hint == bool:
+        return syn.RType.lift(syn.Bool())
+    else:
+        raise NotImplementedError
 
 
 def parse_annotation(ann) -> syn.Type:
@@ -68,6 +89,8 @@ def parse_annotation(ann) -> syn.Type:
             if isinstance(base_type, syn.RType):
                 base_type.predicate = syn.Conjoin([parse_expr(refinement)])
             return base_type
+        case ast.Subscript(value=ast.Name(id="Refine")):
+            raise NotImplementedError(ast.dump(ann, indent=2))
         case ast.Subscript(
             value=ast.Name(id="Callable"), slice=ast.Tuple(elts=[*arg_types, ret_type])
         ):
@@ -85,9 +108,9 @@ def parse_annotation(ann) -> syn.Type:
                 ret=ret,
             )
         case x:
-            if x is not None:
+            if x is not None and isinstance(x, ast.AST):
                 print(ast.dump(ann, indent=2))
-            raise NotImplementedError
+            raise NotImplementedError(x)
 
 
 def parse_expr(expr) -> syn.Expr:
