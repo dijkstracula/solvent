@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import List
 
 from solvent import syntax as syn
-from solvent.syntax import ArrowType, Conjoin, Predicate, RType, Type, TypeVar
+from solvent.syntax import ArrowType, Conjoin, RType, Type, TypeVar
 
 
 @dataclass(frozen=True)

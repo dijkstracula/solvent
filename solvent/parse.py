@@ -1,5 +1,5 @@
 import ast
-from typing import Annotated, List, Dict, Any, get_args, get_origin
+from typing import Annotated, Any, Dict, List, get_args, get_origin
 
 from solvent import syntax as syn
 
