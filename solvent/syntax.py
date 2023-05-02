@@ -3,13 +3,33 @@ The internal DSL that we use for typechecking.  At parse time, the Python AST
 is transformed into this more manageable sublanguage.
 """
 
+import ast
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+from solvent.position import Position
+
+
+@dataclass(kw_only=True)
+class Pos:
+    """
+    Describes things that can carry position information around
+    """
+
+    position: Position | None = None
+
+    def ast(self, node: ast.AST):
+        self.position = Position(node.lineno, node.col_offset)
+        return self
+
+    def pos(self, p: "Pos"):
+        self.position = p.position
+        return self
 
 
 @dataclass
-class BaseType:
+class BaseType(Pos):
     def __str__(self):
         match self:
             case Int():
@@ -101,10 +121,9 @@ class PredicateVar(Predicate):
         return PredicateVar(NameGenerator.fresh(name))
 
 
-@dataclass
-class Type:
-    # pending_subst: List[tuple[str, "Expr"]]
-    pending_subst: Dict[str, "Expr"]
+@dataclass(kw_only=True)
+class Type(Pos):
+    pending_subst: Dict[str, "Expr"] = field(default_factory=dict)
 
     def subst(self, pairs: List[tuple[str, "Expr"]]):
         ret = deepcopy(self)
@@ -136,7 +155,7 @@ class Type:
             case ArrowType():
                 raise NotImplementedError
             case RType(base=base, pending_subst=ps):
-                return RType(ps, base, predicate)
+                return RType(base, predicate, pending_subst=ps)
             case x:
                 raise Exception(f"`{x}` is not a Type.")
 
@@ -148,19 +167,19 @@ class RType(Type):
 
     @staticmethod
     def lift(base_type: BaseType):
-        return RType({}, base_type, Conjoin([BoolLiteral(value=True)]))
+        return RType(base_type, Conjoin([BoolLiteral(value=True)])).pos(base_type)
 
     @staticmethod
     def template(base_type: BaseType):
-        return RType({}, base_type, PredicateVar.fresh("K"))
+        return RType(base_type, PredicateVar.fresh("K")).pos(base_type)
 
     @staticmethod
     def bool():
-        return RType({}, Bool(), Conjoin([BoolLiteral(value=True)]))
+        return RType(Bool(), Conjoin([BoolLiteral(value=True)]))
 
     @staticmethod
     def int():
-        return RType({}, Int(), Conjoin([BoolLiteral(value=True)]))
+        return RType(Int(), Conjoin([BoolLiteral(value=True)]))
 
 
 @dataclass
@@ -170,7 +189,7 @@ class ArrowType(Type):
 
 
 @dataclass
-class Expr:
+class Expr(Pos):
     def __str__(self):
         match self:
             case Variable(name=x):
@@ -257,7 +276,7 @@ class Argument:
 
 
 @dataclass
-class Stmt:
+class Stmt(Pos):
     pass
 
 

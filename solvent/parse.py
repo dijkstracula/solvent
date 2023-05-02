@@ -17,8 +17,8 @@ def parse(tree: ast.AST, typing_hints: Dict[str, Any]) -> List[syn.Stmt]:
         case ast.Module(body=body):
             return sum([parse(b, typing_hints) for b in body], [])
         case ast.FunctionDef(name=name, args=args, body=body, returns=returns):
-            if returns is not None:
-                ret_ann = parse_annotation(returns)
+            if returns is not None and "return" in typing_hints:
+                ret_ann = parse_hint(typing_hints["return"]).ast(returns)
             else:
                 ret_ann = None
 
@@ -28,7 +28,7 @@ def parse(tree: ast.AST, typing_hints: Dict[str, Any]) -> List[syn.Stmt]:
                     args=[parse_argument(a, typing_hints) for a in args.args],
                     body=sum([parse(b, typing_hints) for b in body], []),
                     return_annotation=ret_ann,
-                )
+                ).ast(tree)
             ]
         case ast.If(test=test, body=body, orelse=orelse):
             return [
@@ -36,12 +36,12 @@ def parse(tree: ast.AST, typing_hints: Dict[str, Any]) -> List[syn.Stmt]:
                     test=parse_expr(test),
                     body=sum([parse(b, typing_hints) for b in body], []),
                     orelse=sum([parse(b, typing_hints) for b in orelse], []),
-                )
+                ).ast(tree)
             ]
         case ast.Assign(targets=[ast.Name(id=id)], value=e):
-            return [syn.Assign(id, parse_expr(e))]
+            return [syn.Assign(id, parse_expr(e)).ast(tree)]
         case ast.Return(value=value):
-            return [syn.Return(value=parse_expr(value))]
+            return [syn.Return(value=parse_expr(value)).ast(tree)]
         case _:
             print(ast.dump(tree, indent=2))
             raise NotImplementedError
@@ -49,7 +49,7 @@ def parse(tree: ast.AST, typing_hints: Dict[str, Any]) -> List[syn.Stmt]:
 
 def parse_argument(arg: ast.arg, typing_hints: Dict[str, Any]) -> syn.Argument:
     if arg.arg in typing_hints:
-        ann = parse_hint(typing_hints[arg.arg])
+        ann = parse_hint(typing_hints[arg.arg]).ast(arg)
     else:
         ann = None
     return syn.Argument(name=arg.arg, annotation=ann)
@@ -100,7 +100,6 @@ def parse_annotation(ann) -> syn.Type:
                 ret = syn.RType.lift(syn.Unit())
 
             return syn.ArrowType(
-                {},
                 args=[
                     (syn.NameGenerator.fresh("x"), parse_annotation(a))
                     for a in arg_types
@@ -125,30 +124,32 @@ def parse_expr(expr) -> syn.Expr:
                 lhs=parse_expr(left),
                 op=binop_str(op),
                 rhs=parse_expr(right),
-            )
+            ).ast(expr)
         case ast.Name(id=name) if name == "V":
-            return syn.V()
+            return syn.V().ast(expr)
         case ast.Name(id=name):
-            return syn.Variable(name=name)
+            return syn.Variable(name=name).ast(expr)
         case ast.BinOp(left=left, op=op, right=right):
             return syn.ArithBinOp(
                 lhs=parse_expr(left),
                 op=binop_str(op),
                 rhs=parse_expr(right),
-            )
+            ).ast(expr)
         case ast.BoolOp(op=ast.And(), values=[lhs, rhs]):
-            return syn.BoolOp(lhs=parse_expr(lhs), op="and", rhs=parse_expr(rhs))
+            return syn.BoolOp(lhs=parse_expr(lhs), op="and", rhs=parse_expr(rhs)).ast(
+                expr
+            )
         case ast.Constant(value=val):
             if type(val) == int:
-                return syn.IntLiteral(value=val)
+                return syn.IntLiteral(value=val).ast(expr)
             elif type(val) == bool:
-                return syn.BoolLiteral(value=val)
+                return syn.BoolLiteral(value=val).ast(expr)
             else:
                 raise NotImplementedError
         case ast.Call(func=func, args=args):
             return syn.Call(
                 function_name=parse_expr(func), arglist=[parse_expr(e) for e in args]
-            )
+            ).ast(expr)
         case x:
             if x is not None:
                 print(ast.dump(expr, indent=2))
@@ -161,9 +162,9 @@ def parse_refinement(input: str) -> syn.RType:
     refine_expr = string_to_expr(refinement)
     match typ.strip():
         case "int":
-            return syn.RType({}, syn.Int(), syn.Conjoin([refine_expr]))
+            return syn.RType(syn.Int(), syn.Conjoin([refine_expr]))
         case "bool":
-            return syn.RType({}, syn.Bool(), syn.Conjoin([refine_expr]))
+            return syn.RType(syn.Bool(), syn.Conjoin([refine_expr]))
         case _:
             raise NotImplementedError
 
