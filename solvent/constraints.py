@@ -138,7 +138,9 @@ def check_stmt(
             inferred_typ, constrs, context = check_stmts(body_context, assums, body)
 
             ret_typ_constr = [
-                BaseEq(lhs=shape_typ(inferred_typ), rhs=shape_typ(ret_typ)),
+                BaseEq(lhs=shape_typ(inferred_typ), rhs=shape_typ(ret_typ)).pos(
+                    inferred_typ
+                ),
                 SubType(context, [], inferred_typ, ret_typ),
             ]
 
@@ -186,16 +188,16 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
     match expr:
         case syn.Variable(name=name):
             if name in context:
-                return (context[name], [])
+                return (context[name].pos(expr), [])
             else:
                 raise Exception(f"Variable {name} not bound in context.")
         case syn.IntLiteral(_):
-            return (RType.int(), [])
+            return (RType.int().pos(expr), [])
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
             return (
-                RType.int(),
+                RType.int().pos(expr),
                 lhs_constrs
                 + rhs_constrs
                 + [
@@ -204,7 +206,7 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 ],
             )
         case syn.BoolLiteral(_):
-            return (RType.bool(), [])
+            return (RType.bool().pos(expr), [])
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
@@ -273,9 +275,9 @@ def shape_typ(typ: Type) -> Type:
                 args=[(name, shape_typ(a)) for name, a in args],
                 ret=shape_typ(ret),
                 pending_subst=ps,
-            )
+            ).pos(typ)
         case RType(base=base):
-            return RType.lift(base)
+            return RType.lift(base).pos(typ)
         case x:
             raise Exception(f"`{x}` is not a Type.")
 

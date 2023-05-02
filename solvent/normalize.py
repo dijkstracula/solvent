@@ -17,26 +17,33 @@ def normalize(stmts: List[syn.Stmt]) -> List[syn.Stmt]:
 
 def normalize_stmt(stmt: syn.Stmt) -> List[syn.Stmt]:
     match stmt:
-        case syn.FunctionDef(name=name, args=args, return_annotation=retann, body=body):
-            return [syn.FunctionDef(name, args, retann, normalize(body))]
-        case syn.If(test=test, body=body, orelse=orelse):
+        case syn.FunctionDef(
+            name=name, args=args, return_annotation=retann, body=body, position=pos
+        ):
+            return [syn.FunctionDef(name, args, retann, normalize(body), position=pos)]
+        case syn.If(test=test, body=body, orelse=orelse, position=pos):
             temps, simple = normalize_expr(test)
             return temps + [
-                syn.If(test=simple, body=normalize(body), orelse=normalize(orelse))
+                syn.If(
+                    test=simple,
+                    body=normalize(body),
+                    orelse=normalize(orelse),
+                    position=pos,
+                )
             ]
-        case syn.Assign(name=name, value=expr):
+        case syn.Assign(name=name, value=expr, position=pos):
             temps, simple = normalize_expr(expr)
-            return temps + [syn.Assign(name, simple)]
-        case syn.Return(value=expr):
+            return temps + [syn.Assign(name, simple, position=pos)]
+        case syn.Return(value=expr, position=pos):
             temps, simple = normalize_expr(expr)
-            return temps + [syn.Return(simple)]
+            return temps + [syn.Return(simple, position=pos)]
         case x:
             raise NotImplementedError(x)
 
 
 def normalize_expr(expr: syn.Expr) -> tuple[List[syn.Stmt], syn.Expr]:
     match expr:
-        case syn.ArithBinOp(lhs=lhs, op=op, rhs=rhs):
+        case syn.ArithBinOp(lhs=lhs, op=op, rhs=rhs, position=pos):
             tmps = []
             if is_compound(lhs):
                 res, base = normalize_expr(lhs)
@@ -50,8 +57,8 @@ def normalize_expr(expr: syn.Expr) -> tuple[List[syn.Stmt], syn.Expr]:
                 tmps += res + [syn.Assign(name, base)]
                 rhs = syn.Variable(name)
 
-            return (tmps, syn.ArithBinOp(lhs, op, rhs))
-        case syn.BoolOp(lhs=lhs, op=op, rhs=rhs):
+            return (tmps, syn.ArithBinOp(lhs, op, rhs, position=pos))
+        case syn.BoolOp(lhs=lhs, op=op, rhs=rhs, position=pos):
             tmps = []
             if is_compound(lhs):
                 res, base = normalize_expr(lhs)
@@ -65,7 +72,7 @@ def normalize_expr(expr: syn.Expr) -> tuple[List[syn.Stmt], syn.Expr]:
                 tmps += res + [syn.Assign(name, base)]
                 rhs = syn.Variable(name)
 
-            return (tmps, syn.BoolOp(lhs, op, rhs))
+            return (tmps, syn.BoolOp(lhs, op, rhs, position=pos))
         case x:
             return ([], x)
 

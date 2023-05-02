@@ -11,8 +11,8 @@ quals = [
 ]
 
 
-@solvent.infer(quals, debug=False)
-def bogus(x: bool) -> bool:
+@solvent.infer(quals)
+def bogus(x: bool) -> int:
     return x + 1
 
 
