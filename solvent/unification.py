@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple, cast
 
 from solvent import errors
 from solvent.constraints import BaseEq, Constraint, Env, Scope, SubType
-from solvent.syntax import ArrowType, RType, Type, TypeVar
+from solvent.syntax import ArrowType, BaseType, RType, Type, TypeVar
 
 Solution = Dict[str, Type]
 
@@ -152,8 +152,14 @@ def subst(name: str, typ: Type, constrs: List[BaseEq]) -> List[BaseEq]:
 
 def subst_one(name: str, tar: Type, src: Type) -> Type:
     match src:
-        case RType(base=TypeVar(name=n)) if name == n:
-            return tar
+        case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if name == n:
+            match tar:
+                case BaseType():
+                    return RType(tar, p, pending_subst=ps)
+                case RType():
+                    return RType(tar.base, p, pending_subst=ps)
+                case x:
+                    raise NotImplementedError(repr(x))
         case RType():
             return src
         case ArrowType(args=args, ret=ret, pending_subst=ps):
@@ -177,7 +183,9 @@ def apply(typ: Type, solution: Solution) -> Type:
             base=TypeVar(name=n), predicate=p, pending_subst=ps
         ) if n in solution:
             new = solution[n]
-            if isinstance(new, RType):
+            if isinstance(new, BaseType):
+                return apply(RType(new, p, pending_subst=ps), solution)
+            elif isinstance(new, RType):
                 return apply(RType(new.base, p, pending_subst=ps), solution)
             else:
                 return new

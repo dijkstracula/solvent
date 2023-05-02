@@ -44,8 +44,8 @@ class Env:
 class Constraint(syn.Pos):
     def __str__(self):
         match self:
-            case BaseEq(lhs=lhs, rhs=rhs, position=p):
-                return f"{lhs} = {rhs} ({p})"
+            case BaseEq(lhs=lhs, rhs=rhs):
+                return f"{lhs} = {rhs}"
             case SubType(context=ctx, assumes=assumes, lhs=lhs, rhs=rhs):
                 # ctx_str = ", ".join([f"{x}:{t}" for x, t in ctx.items])
                 asm_str = ", ".join([str(e) for e in assumes])
@@ -160,8 +160,8 @@ def check_stmt(
                 # test is a boolean
                 BaseEq(shape_typ(test_typ), RType.bool()),
                 # base types of branches are equal
-                BaseEq(shape_typ(body_typ), shape_typ(else_typ)),
                 BaseEq(shape_typ(body_typ), shape_typ(ret_typ)),
+                BaseEq(shape_typ(body_typ), shape_typ(else_typ)),
                 # body is a subtype of ret type
                 SubType(body_ctx, [test] + assums, body_typ, ret_typ),
                 # else is a subtype of ret type
@@ -171,7 +171,10 @@ def check_stmt(
             return ret_typ, cstrs + test_constrs + body_constrs + else_constrs, context
         case syn.Assign(name=id, value=e):
             e_typ, e_constrs = check_expr(context, assums, e)
-            return e_typ, e_constrs, context.add(id, e_typ)
+            nty = e_typ.set_predicate(
+                Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=e)])
+            )
+            return e_typ, e_constrs, context.add(id, nty)
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
             # for now just throw away the predicate of ty
@@ -243,19 +246,24 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 case ArrowType(args=fn_arg_typs, ret=fn_ret_type) if len(
                     fn_arg_typs
                 ) == len(args):
-                    for (x1, t1), e in zip(fn_arg_typs, args):
-                        ty, cs = check_expr(context, assums, e)
-                        types += [(x1, ty)]
-                        constrs += cs + [SubType(context, assums, t1, ty)]
+                    for (x1, arg_ty), e in zip(fn_arg_typs, args):
+                        expr_ty, cs = check_expr(context, assums, e)
+                        print(f"{e} : {expr_ty}")
+                        types += [(x1, expr_ty)]
+                        constrs += cs + [
+                            BaseEq(shape_typ(expr_ty), shape_typ(arg_ty)).pos(expr_ty),
+                            SubType(context, assums, expr_ty, arg_ty),
+                        ]
                         subst += [(x1, e)]
                     ret_type = fn_ret_type
                 case x:
                     for e in args:
                         ty, cs = check_expr(context, assums, e)
+                        print(f"{e} : {ty}")
                         types += [(syn.NameGenerator.fresh("arg"), ty)]
                         constrs += cs
 
-                    ret_type = RType.lift(TypeVar.fresh())
+                    ret_type = RType.template(TypeVar.fresh())
                     constrs += [BaseEq(fn_ty, ArrowType(types, ret_type))]
             return (ret_type.subst(subst), constrs)
         case x:

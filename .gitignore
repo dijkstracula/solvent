@@ -2,3 +2,4 @@ __pycache__/
 paper/report.pdf
 paper/report.html
 *.ipynb_checkpoints
+/examples/play.py

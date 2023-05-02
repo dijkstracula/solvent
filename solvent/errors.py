@@ -23,3 +23,8 @@ class TypeError(Exception):
             res += " " * (pos.col_offset + lineno_width)
             res += "^" * (pos.end_col_offset - pos.col_offset)
         return res
+
+
+class Unreachable(Exception):
+    def __init__(self, *args):
+        super().__init__(*args)
