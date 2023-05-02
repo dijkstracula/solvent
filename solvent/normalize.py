@@ -73,6 +73,18 @@ def normalize_expr(expr: syn.Expr) -> tuple[List[syn.Stmt], syn.Expr]:
                 rhs = syn.Variable(name)
 
             return (tmps, syn.BoolOp(lhs, op, rhs, position=pos))
+        case syn.Call(function_name=fn, arglist=args, position=pos):
+            tmps = []
+            new_arglist = []
+            for a in args:
+                if is_compound(a):
+                    res, base = normalize_expr(a)
+                    name = syn.NameGenerator.fresh("tmp")
+                    tmps += res + [syn.Assign(name, base)]
+                    new_arglist.append(syn.Variable(name))
+                else:
+                    new_arglist.append(a)
+            return (tmps, syn.Call(fn, new_arglist, position=pos))
         case x:
             return ([], x)
 
