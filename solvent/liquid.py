@@ -25,7 +25,8 @@ def solve(
     for c in constrs:
         match c:
             case constr.Scope(
-                context=ctx, typ=syn.RType(predicate=syn.PredicateVar(name=n))
+                context=ctx,
+                typ=syn.RType(base=syn.Int(), predicate=syn.PredicateVar(name=n)),
             ):
                 solution[n] = qualifiers.predicate(ctx, quals)
 
@@ -58,7 +59,7 @@ def constraints_valid(
         sc = apply_constr(c, solution)
         valid = subtype.check_constr(sc)
         if show_work:
-            print(f"Checking for validity ({valid}): G |- {sc.lhs} <: {sc.rhs}")
+            print(f"Valid? ({valid}):\n\tG |- {sc.lhs} <: {sc.rhs}")
         if not valid:
             return constraints_valid(constrs, weaken(c, solution, show_work), show_work)
 
@@ -93,7 +94,6 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
                     print(f"  substs: {ps}")
                 if subtype.check(
                     apply_ctx(ctx, solution),
-                    # constr.Env.empty(),  # TODO: fix
                     assumes,
                     apply(lhs, solution),
                     syn.RType(b2, syn.Conjoin([apply_substs(qual, ps)])),

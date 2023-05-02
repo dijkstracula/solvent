@@ -25,7 +25,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     if debug:
         print("== Unification ==")
 
-    constrs, solution = unification.unify(constrs, show_work=False)
+    constrs, solution = unification.unify(constrs, show_work=debug)
 
     if debug:
         print("== Solution ==")
@@ -42,6 +42,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     predvar_solution = liquid.solve(constrs, quals, show_work=debug)
 
     if debug:
+        print("== Predicate Variable Solution ==")
         for k, v in predvar_solution.items():
             print(f"{k} := {v}")
 
