@@ -20,7 +20,12 @@ class Pos:
     position: Position | None = None
 
     def ast(self, node: ast.AST):
-        self.position = Position(node.lineno, node.col_offset)
+        self.position = Position(
+            lineno=node.lineno,
+            end_lineno=node.end_lineno,
+            col_offset=node.col_offset,
+            end_col_offset=node.end_col_offset,
+        )
         return self
 
     def pos(self, p: "Pos"):
@@ -154,8 +159,8 @@ class Type(Pos):
         match self:
             case ArrowType():
                 raise NotImplementedError
-            case RType(base=base, pending_subst=ps):
-                return RType(base, predicate, pending_subst=ps)
+            case RType(base=base, pending_subst=ps, position=pos):
+                return RType(base, predicate, pending_subst=ps, position=pos)
             case x:
                 raise Exception(f"`{x}` is not a Type.")
 
