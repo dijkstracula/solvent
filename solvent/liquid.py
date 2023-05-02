@@ -96,7 +96,7 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
                     # constr.Env.empty(),  # TODO: fix
                     assumes,
                     apply(lhs, solution),
-                    syn.RType({}, b2, syn.Conjoin([apply_substs(qual, ps)])),
+                    syn.RType(b2, syn.Conjoin([apply_substs(qual, ps)])),
                     show_work=show_work,
                 ):
                     if show_work:
@@ -149,7 +149,6 @@ def apply(typ: constr.Type, solution: Solution) -> constr.Type:
         ) if n in solution:
             cjct = syn.Conjoin([apply_substs(c, ps) for c in solution[n].conjuncts])
             return syn.RType(
-                {},
                 base,
                 cjct,
             )

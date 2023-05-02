@@ -4,6 +4,7 @@ Implementation of the Hindley-Milner Unification Algorithm
 
 from typing import Dict, List, Tuple, cast
 
+from solvent import errors
 from solvent.constraints import BaseEq, Constraint, Env, Scope, SubType
 from solvent.syntax import ArrowType, RType, Type, TypeVar
 
@@ -66,7 +67,7 @@ def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
                 ret_constr = BaseEq(lhs=top.lhs.ret, rhs=top.rhs.ret)
                 return solve(arg_constrs + [ret_constr] + rest, show_work)
             else:
-                raise Exception(f"{top.lhs} is incompatible with {top.rhs}")
+                raise errors.TypeError(top)
         case _:
             raise Exception(f"Constrs wasn't a list: {constrs}")
 
@@ -177,7 +178,7 @@ def apply(typ: Type, solution: Solution) -> Type:
         ) if n in solution:
             new = solution[n]
             if isinstance(new, RType):
-                return apply(RType(ps, new.base, p), solution)
+                return apply(RType(new.base, p, pending_subst=ps), solution)
             else:
                 return new
         case ArrowType(args=args, ret=ret, pending_subst=ps):

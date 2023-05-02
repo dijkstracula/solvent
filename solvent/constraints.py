@@ -41,12 +41,11 @@ class Env:
         return "{" + ", ".join([f"{x}: {t}" for x, t in self.items]) + "}"
 
 
-@dataclass
-class Constraint:
+class Constraint(syn.Pos):
     def __str__(self):
         match self:
-            case BaseEq(lhs=lhs, rhs=rhs):
-                return f"{lhs} = {rhs}"
+            case BaseEq(lhs=lhs, rhs=rhs, position=p):
+                return f"{lhs} = {rhs} ({p})"
             case SubType(context=ctx, assumes=assumes, lhs=lhs, rhs=rhs):
                 # ctx_str = ", ".join([f"{x}:{t}" for x, t in ctx.items])
                 asm_str = ", ".join([str(e) for e in assumes])
@@ -127,7 +126,7 @@ def check_stmt(
 
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
-            body_context = body_context.add(name, syn.ArrowType({}, argtypes, ret_typ))
+            body_context = body_context.add(name, syn.ArrowType(argtypes, ret_typ))
 
             # scope constraints
             scope_constr = [
@@ -143,7 +142,7 @@ def check_stmt(
                 SubType(context, [], inferred_typ, ret_typ),
             ]
 
-            this_type = syn.ArrowType({}, argtypes, ret_typ)
+            this_type = syn.ArrowType(argtypes, ret_typ)
             return this_type, constrs + ret_typ_constr + scope_constr, context
 
         case syn.If(test=test, body=body, orelse=orelse):
@@ -200,8 +199,8 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 lhs_constrs
                 + rhs_constrs
                 + [
-                    BaseEq(shape_typ(lhs_ty), RType.int()),
-                    BaseEq(shape_typ(rhs_ty), RType.int()),
+                    BaseEq(shape_typ(lhs_ty), RType.int()).pos(lhs_ty),
+                    BaseEq(shape_typ(rhs_ty), RType.int()).pos(rhs_ty),
                 ],
             )
         case syn.BoolLiteral(_):
@@ -214,8 +213,8 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 lhs_constrs
                 + rhs_constrs
                 + [
-                    BaseEq(shape_typ(lhs_ty), RType.int()),
-                    BaseEq(shape_typ(rhs_ty), RType.int()),
+                    BaseEq(shape_typ(lhs_ty), RType.int()).pos(lhs_ty),
+                    BaseEq(shape_typ(rhs_ty), RType.int()).pos(rhs_ty),
                 ],
             )
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["and", "or", "not"]:
@@ -226,8 +225,8 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 lhs_constrs
                 + rhs_constrs
                 + [
-                    BaseEq(shape_typ(lhs_ty), RType.bool()),
-                    BaseEq(shape_typ(rhs_ty), RType.bool()),
+                    BaseEq(shape_typ(lhs_ty), RType.bool()).pos(lhs_ty),
+                    BaseEq(shape_typ(rhs_ty), RType.bool()).pos(rhs_ty),
                 ],
             )
         case syn.Call(function_name=fn, arglist=args):
@@ -255,7 +254,7 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                         constrs += cs
 
                     ret_type = RType.lift(TypeVar.fresh())
-                    constrs += [BaseEq(fn_ty, ArrowType({}, types, ret_type))]
+                    constrs += [BaseEq(fn_ty, ArrowType(types, ret_type))]
             return (ret_type.subst(subst), constrs)
         case x:
             print(x)

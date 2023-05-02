@@ -8,8 +8,12 @@ quals = [
     _ <= V,
     V <= _,
     Q[0] <= V,
-    (_ >= 0).implies(((_ * (_ + 1)) // 2) == V),
 ]
+
+
+@solvent.infer(quals, debug=False)
+def bogus(x: bool) -> bool:
+    return x + 1
 
 
 @solvent.infer(quals)
@@ -25,8 +29,8 @@ def double(f, x: Refine[int, V < 0]):
     return f(f(x, x), f(x, x))
 
 
-@solvent.infer(quals)
-def my_sum(k: Refine[int, V >= 0]):
+@solvent.infer(quals + [(_ >= 0).implies(((_ * (_ + 1)) // 2) == V)])
+def my_sum(k):
     if k <= 0:
         return 0
     else:
