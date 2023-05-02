@@ -10,8 +10,9 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     Run Liquid-type inference and checking.
     """
 
+    norm_stmts = normalize.normalize(stmts)
     typ, constrs, context = constraints.check_stmts(
-        constraints.Env.empty(), [], normalize.normalize(stmts)
+        constraints.Env.empty(), [], norm_stmts
     )
 
     if debug:
