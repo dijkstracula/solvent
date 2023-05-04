@@ -140,6 +140,8 @@ class Type(Pos):
 
     def __str__(self):
         match self:
+            case HMType(base=base):
+                return f"{base}"
             case RType(base=base, predicate=Conjoin([BoolLiteral(value=True)])):
                 return f"{base}"
             case RType(base=base, predicate=Conjoin([])):
@@ -166,6 +168,23 @@ class Type(Pos):
                 return RType(base, predicate, pending_subst=ps, position=pos)
             case x:
                 raise Exception(f"`{x}` is not a Type.")
+
+
+@dataclass
+class HMType(Type):
+    base: BaseType
+
+    @staticmethod
+    def bool():
+        return HMType(Bool())
+
+    @staticmethod
+    def int():
+        return HMType(Int())
+
+    @staticmethod
+    def fresh(name="t"):
+        return HMType(TypeVar.fresh(name))
 
 
 @dataclass

@@ -1,1 +1,1 @@
-from .check import check
+from .check import check, infer_base
