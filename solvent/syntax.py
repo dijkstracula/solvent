@@ -217,31 +217,44 @@ class ArrowType(Type):
     ret: Type
 
 
+@dataclass(kw_only=True)
+class TypeAnnotation:
+    typ: Type | None = None
+
+    def annot(self, t: Type):
+        self.typ = t
+        return self
+
+
 @dataclass
-class Expr(Pos):
+class Expr(Pos, TypeAnnotation):
     def __str__(self):
+        e = ""
         match self:
             case Variable(name=x):
-                return f"{x}"
+                e = f"{x}"
             case IntLiteral(value=v):
-                return f"{v}"
+                e = f"{v}"
             case BoolLiteral(value=v):
-                return f"{v}"
+                e = f"{v}"
             case ArithBinOp(lhs=l, op=op, rhs=r):
-                return f"{l} {op} {r}"
+                e = f"{l} {op} {r}"
             case BoolOp(lhs=l, op=op, rhs=r):
-                return f"{l} {op} {r}"
+                e = f"{l} {op} {r}"
             case Neg(expr=e):
-                return f"-({e})"
+                e = f"-({e})"
             case V():
-                return "V"
+                e = "V"
             case Star():
-                return "*"
+                e = "*"
             case Call(function_name=fn, arglist=args):
                 args = [str(a) for a in args]
-                return f"{fn}({', '.join(args)})"
+                e = f"{fn}({', '.join(args)})"
             case x:
-                return f"`{repr(x)}`"
+                e = f"`{repr(x)}`"
+        if self.typ is not None:
+            return f"({e} : {self.typ})"
+        return e
 
 
 @dataclass
@@ -311,7 +324,7 @@ class Argument:
 
 
 @dataclass
-class Stmt(Pos):
+class Stmt(Pos, TypeAnnotation):
     def to_string(self, indent):
         align = " " * indent
         match self:
