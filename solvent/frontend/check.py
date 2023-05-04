@@ -11,6 +11,13 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     """
 
     norm_stmts = normalize.normalize(stmts)
+
+    if debug:
+        print("Normalized Program:")
+        for s in norm_stmts:
+            print(s)
+        print("======")
+
     typ, constrs, context = constraints.check_stmts(
         constraints.Env.empty(), [], norm_stmts
     )

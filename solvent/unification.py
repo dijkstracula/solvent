@@ -155,11 +155,11 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
         case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if name == n:
             match tar:
                 case BaseType():
-                    return RType(tar, p, pending_subst=ps)
+                    return RType(tar, p, pending_subst=ps).pos(tar)
                 case RType():
-                    return RType(tar.base, p, pending_subst=ps)
+                    return RType(tar.base, p, pending_subst=ps).pos(tar)
                 case x:
-                    raise NotImplementedError(repr(x))
+                    return x
         case RType():
             return src
         case ArrowType(args=args, ret=ret, pending_subst=ps):
@@ -167,7 +167,7 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
                 args=[(x, subst_one(name, tar, t)) for x, t in args],
                 ret=subst_one(name, tar, ret),
                 pending_subst=ps,
-            )
+            ).pos(src)
         case x:
             print("subst_one:", x)
             raise NotImplementedError
@@ -222,13 +222,13 @@ def apply_constraints(
                         assumes=asms,
                         lhs=apply(lhs, solution),
                         rhs=apply(rhs, solution),
-                    )
+                    ).pos(c)
                 ]
             case Scope(context=ctx, typ=typ):
                 res += [
                     Scope(
                         context=apply_context(ctx, solution),
                         typ=apply(typ, solution),
-                    )
+                    ).pos(c)
                 ]
     return res
