@@ -29,6 +29,8 @@ class Pos:
         return self
 
     def pos(self, p: "Pos"):
+        # if p.position is None:
+        #     raise Exception(f"`{p}` had no position.")
         self.position = p.position
         return self
 
@@ -142,11 +144,12 @@ class Type(Pos):
                 return f"{base}"
             case RType(base=base, predicate=Conjoin([])):
                 return f"{base}"
-            case RType(base=base, predicate=pred, pending_subst={}):
-                return f"{{{base} | {pred}}}"
             case RType(base=base, predicate=pred, pending_subst=ps):
-                inner = ",".join([f"{k}->({e})" for k, e in ps.items()])
-                return f"{{{base} | {pred} [{inner}]}}"
+                if len(ps) == 0:
+                    return f"{{{base} | {pred}}}"
+                else:
+                    inner = ",".join([f"{k}->({e})" for k, e in ps.items()])
+                    return f"{{{base} | {pred} [{inner}]}}"
             case ArrowType(args=args, ret=ret):
                 return "({}) -> {}".format(
                     ", ".join([f"{name}:{t}" for name, t in args]), ret
@@ -172,11 +175,13 @@ class RType(Type):
 
     @staticmethod
     def lift(base_type: BaseType):
-        return RType(base_type, Conjoin([BoolLiteral(value=True)])).pos(base_type)
+        return RType(
+            base_type, Conjoin([BoolLiteral(value=True)]), position=base_type.position
+        )
 
     @staticmethod
     def template(base_type: BaseType):
-        return RType(base_type, PredicateVar.fresh("K")).pos(base_type)
+        return RType(base_type, PredicateVar.fresh("K"), position=base_type.position)
 
     @staticmethod
     def bool():
@@ -279,10 +284,46 @@ class Argument:
     name: str
     annotation: Optional[Type]
 
+    def __str__(self):
+        if self.annotation is None:
+            return self.name
+        else:
+            return f"{self.name}: {self.annotation}"
+
 
 @dataclass
 class Stmt(Pos):
-    pass
+    def to_string(self, indent):
+        align = " " * indent
+        match self:
+            case FunctionDef(
+                name=name, args=args, return_annotation=retann, body=stmts
+            ):
+                argstr = ", ".join([str(a) for a in args])
+                retstr = f" -> {retann}:" if retann is not None else ":"
+                bodystr = "\n".join([s.to_string(indent + 2) for s in stmts])
+                return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
+            case If(test=test, body=body, orelse=orelse):
+                bodystr = "\n".join([s.to_string(indent + 2) for s in body])
+                elsestr = "\n".join([s.to_string(indent + 2) for s in orelse])
+                res = "\n".join(
+                    [
+                        f"{align}if {test}:",
+                        f"{bodystr}",
+                        f"{align}else:",
+                        f"{elsestr}",
+                    ]
+                )
+                return res
+            case Assign(name=name, value=value):
+                return f"{align}{name} = {value}"
+            case Return(value):
+                return f"{align}return {value}"
+            case x:
+                return f"{align}{repr(x)}"
+
+    def __str__(self):
+        return self.to_string(0)
 
 
 @dataclass

@@ -31,6 +31,15 @@ def solve(
                 solution[n] = qualifiers.predicate(ctx, quals)
 
     if show_work:
+        print("Initial Constraints:")
+        cs = []
+        for c in constrs:
+            if isinstance(c, constr.SubType):
+                cs += [(get_predicate_vars(c.rhs), c)]
+        for c in sorted(cs, key=lambda x: "" if x[0] is None else x[0]):
+            print(c[1])
+        print("======")
+
         print("Initial Predicates:")
         for k, v in solution.items():
             print(f"{k} := {v}")
@@ -89,7 +98,7 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
             for qual in solution[n].conjuncts:
                 if show_work:
                     print(f"Checking {qual}: ", end="\n")
-                    print(f"  ctx: {apply_ctx(ctx, solution)}")
+                    print(f"  ctx: {ctx}")
                     print(f"  constr: {apply_constr(c, solution)}")
                     print(f"  substs: {ps}")
                 if subtype.check(
@@ -104,6 +113,12 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
                     qs += [qual]
 
             solution[n] = syn.Conjoin(qs)
+        case constr.SubType(lhs=lhs):
+            if get_predicate_vars(lhs) is not None:
+                raise Exception(f"Invalid constraint: {c}")
+
+            if not subtype.check_constr(c):
+                raise Exception(f"Not subtype: {c}")
         case x:
             pprint.pprint(x)
             raise NotImplementedError(str(x))
@@ -135,6 +150,7 @@ def apply_constr(c: constr.SubType, solution: Solution) -> constr.SubType:
         c.assumes,
         apply(c.lhs, solution),
         apply(c.rhs, solution),
+        position=c.position,
     )
 
 

@@ -28,6 +28,9 @@ class Env:
     def map(self, fn):
         return Env([(k, fn(v)) for k, v in self.items])
 
+    def keys(self):
+        return list(map(lambda x: x[0], self.items))
+
     def __getitem__(self, name):
         for n, t in self.items:
             if name == n:
@@ -47,7 +50,6 @@ class Constraint(syn.Pos):
             case BaseEq(lhs=lhs, rhs=rhs):
                 return f"{lhs} = {rhs}"
             case SubType(context=ctx, assumes=assumes, lhs=lhs, rhs=rhs):
-                # ctx_str = ", ".join([f"{x}:{t}" for x, t in ctx.items])
                 asm_str = ", ".join([str(e) for e in assumes])
                 return f"[{asm_str}] |- {lhs} <: {rhs}"
             case Scope(context=ctx, typ=typ):
@@ -104,6 +106,7 @@ def check_stmt(
     match stmt:
         case syn.FunctionDef(name=name, args=args, return_annotation=ret, body=body):
             # construct a new context to typecheck our body with
+
             body_context = context
             # add the type of arguments to the new context
             argtypes: List[tuple[str, Type]] = []
@@ -123,10 +126,12 @@ def check_stmt(
                 ret_typ = ret
             else:
                 ret_typ = RType.template(TypeVar.fresh(name="ret"))
+            ret_typ.pos(stmt)
 
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
-            body_context = body_context.add(name, syn.ArrowType(argtypes, ret_typ))
+            this_type = syn.ArrowType(argtypes, ret_typ).pos(stmt)
+            body_context = body_context.add(name, this_type)
 
             # scope constraints
             scope_constr = [
@@ -135,17 +140,22 @@ def check_stmt(
             ]
 
             # now typecheck the body
-            inferred_typ, constrs, context = check_stmts(body_context, assums, body)
+            inferred_typ, constrs, body_context = check_stmts(
+                body_context, assums, body
+            )
 
             ret_typ_constr = [
                 BaseEq(lhs=shape_typ(inferred_typ), rhs=shape_typ(ret_typ)).pos(
                     inferred_typ
                 ),
-                SubType(context, [], inferred_typ, ret_typ),
+                SubType(body_context, [], inferred_typ, ret_typ).pos(inferred_typ),
             ]
 
-            this_type = syn.ArrowType(argtypes, ret_typ)
-            return this_type, constrs + ret_typ_constr + scope_constr, context
+            return (
+                this_type,
+                constrs + ret_typ_constr + scope_constr,
+                context.add(name, this_type),
+            )
 
         case syn.If(test=test, body=body, orelse=orelse):
             test_typ, test_constrs = check_expr(context, assums, test)
@@ -155,7 +165,7 @@ def check_stmt(
             else_typ, else_constrs, else_ctx = check_stmts(
                 context, [syn.Neg(test)] + assums, orelse
             )
-            ret_typ = RType.template(TypeVar.fresh("if"))
+            ret_typ = RType.template(TypeVar.fresh("if")).pos(stmt)
             cstrs = [
                 # test is a boolean
                 BaseEq(shape_typ(test_typ), RType.bool()),
@@ -163,25 +173,28 @@ def check_stmt(
                 BaseEq(shape_typ(body_typ), shape_typ(ret_typ)),
                 BaseEq(shape_typ(body_typ), shape_typ(else_typ)),
                 # body is a subtype of ret type
-                SubType(body_ctx, [test] + assums, body_typ, ret_typ),
+                SubType(body_ctx, [test] + assums, body_typ, ret_typ).pos(body_typ),
                 # else is a subtype of ret type
-                SubType(else_ctx, [syn.Neg(test)] + assums, else_typ, ret_typ),
+                SubType(else_ctx, [syn.Neg(test)] + assums, else_typ, ret_typ).pos(
+                    else_typ
+                ),
                 Scope(context, ret_typ),
             ]
-            return ret_typ, cstrs + test_constrs + body_constrs + else_constrs, context
+            return (
+                ret_typ.pos(stmt),
+                cstrs + test_constrs + body_constrs + else_constrs,
+                context,
+            )
         case syn.Assign(name=id, value=e):
             e_typ, e_constrs = check_expr(context, assums, e)
-            nty = e_typ.set_predicate(
-                Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=e)])
-            )
-            return e_typ, e_constrs, context.add(id, nty)
+            return e_typ, e_constrs, context.add(id, e_typ)
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
             # for now just throw away the predicate of ty
             nty = ty.set_predicate(
                 Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=value)])
             )
-            return nty, constrs, context
+            return nty.pos(stmt), constrs, context
         case x:
             print(x)
             raise NotImplementedError
@@ -194,18 +207,25 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 return (context[name].pos(expr), [])
             else:
                 raise Exception(f"Variable {name} not bound in context.")
-        case syn.IntLiteral(_):
-            return (RType.int().pos(expr), [])
+        case syn.IntLiteral():
+            typ = RType(syn.Int(), syn.Conjoin([syn.BoolOp(syn.V(), "==", expr)])).pos(
+                expr
+            )
+            return (typ, [])
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
+            ret_ty = RType(syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])).pos(
+                expr
+            )
             return (
-                RType.int().pos(expr),
+                ret_ty,
                 lhs_constrs
                 + rhs_constrs
                 + [
                     BaseEq(shape_typ(lhs_ty), RType.int()).pos(lhs_ty),
                     BaseEq(shape_typ(rhs_ty), RType.int()).pos(rhs_ty),
+                    Scope(context, ret_ty).pos(ret_ty),
                 ],
             )
         case syn.BoolLiteral(_):
@@ -214,7 +234,7 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
             return (
-                RType.bool(),
+                RType.bool().pos(expr),
                 lhs_constrs
                 + rhs_constrs
                 + [
@@ -226,7 +246,7 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
             return (
-                RType.bool(),
+                RType.bool().pos(expr),
                 lhs_constrs
                 + rhs_constrs
                 + [
@@ -248,24 +268,22 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
                 ) == len(args):
                     for (x1, arg_ty), e in zip(fn_arg_typs, args):
                         expr_ty, cs = check_expr(context, assums, e)
-                        print(f"{e} : {expr_ty}")
                         types += [(x1, expr_ty)]
                         constrs += cs + [
                             BaseEq(shape_typ(expr_ty), shape_typ(arg_ty)).pos(expr_ty),
-                            SubType(context, assums, expr_ty, arg_ty),
+                            SubType(context, assums, expr_ty, arg_ty).pos(expr_ty),
                         ]
                         subst += [(x1, e)]
                     ret_type = fn_ret_type
                 case x:
                     for e in args:
                         ty, cs = check_expr(context, assums, e)
-                        print(f"{e} : {ty}")
                         types += [(syn.NameGenerator.fresh("arg"), ty)]
                         constrs += cs
 
                     ret_type = RType.template(TypeVar.fresh())
-                    constrs += [BaseEq(fn_ty, ArrowType(types, ret_type))]
-            return (ret_type.subst(subst), constrs)
+                    constrs += [BaseEq(fn_ty, ArrowType(types, ret_type.subst(subst)))]
+            return (ret_type.subst(subst).pos(expr), constrs)
         case x:
             print(x)
             raise NotImplementedError

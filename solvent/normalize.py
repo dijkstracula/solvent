@@ -48,13 +48,13 @@ def normalize_expr(expr: syn.Expr) -> tuple[List[syn.Stmt], syn.Expr]:
             if is_compound(lhs):
                 res, base = normalize_expr(lhs)
                 name = syn.NameGenerator.fresh("tmp")
-                tmps += res + [syn.Assign(name, base)]
+                tmps += res + [syn.Assign(name, base).pos(lhs)]
                 lhs = syn.Variable(name)
 
             if is_compound(rhs):
                 res, base = normalize_expr(rhs)
                 name = syn.NameGenerator.fresh("tmp")
-                tmps += res + [syn.Assign(name, base)]
+                tmps += res + [syn.Assign(name, base).pos(rhs)]
                 rhs = syn.Variable(name)
 
             return (tmps, syn.ArithBinOp(lhs, op, rhs, position=pos))
@@ -63,13 +63,13 @@ def normalize_expr(expr: syn.Expr) -> tuple[List[syn.Stmt], syn.Expr]:
             if is_compound(lhs):
                 res, base = normalize_expr(lhs)
                 name = syn.NameGenerator.fresh("tmp")
-                tmps += res + [syn.Assign(name, base)]
+                tmps += res + [syn.Assign(name, base).pos(lhs)]
                 lhs = syn.Variable(name)
 
             if is_compound(rhs):
                 res, base = normalize_expr(rhs)
                 name = syn.NameGenerator.fresh("tmp")
-                tmps += res + [syn.Assign(name, base)]
+                tmps += res + [syn.Assign(name, base).pos(rhs)]
                 rhs = syn.Variable(name)
 
             return (tmps, syn.BoolOp(lhs, op, rhs, position=pos))
@@ -80,8 +80,8 @@ def normalize_expr(expr: syn.Expr) -> tuple[List[syn.Stmt], syn.Expr]:
                 if is_compound(a):
                     res, base = normalize_expr(a)
                     name = syn.NameGenerator.fresh("tmp")
-                    tmps += res + [syn.Assign(name, base)]
-                    new_arglist.append(syn.Variable(name))
+                    tmps += res + [syn.Assign(name, base).pos(a)]
+                    new_arglist.append(syn.Variable(name).pos(a))
                 else:
                     new_arglist.append(a)
             return (tmps, syn.Call(fn, new_arglist, position=pos))

@@ -83,11 +83,7 @@ def from_type(name: str, t: syn.Type):
     match t:
         case syn.RType(predicate=syn.Conjoin(conj)):
             return from_exprs(conj, name)
-        case syn.ArrowType():
-            # k = z3.Int("k")
-            # v = z3.Int(".v")
-            # return z3.And(k - 1 < v, k - 1 <= v, 0 <= v)
+        case syn.ArrowType(args=_, ret=_):
             return True
-            # return z3.Function(name, *[base_type(t) for _, t in args], base_type(ret))
         case x:
             raise NotImplementedError(x)
