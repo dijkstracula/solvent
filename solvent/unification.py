@@ -2,11 +2,12 @@
 Implementation of the Hindley-Milner Unification Algorithm
 """
 
-from typing import Dict, List, Tuple, cast
+from typing import Dict, List, Tuple
 
 from solvent import errors
-from solvent.constraints import BaseEq, Constraint, Env, Scope, SubType
-from solvent.syntax import ArrowType, BaseType, RType, Type, TypeVar
+from solvent.constraints import Env
+from solvent.hm import BaseEq
+from solvent.syntax import ArrowType, Bool, HMType, Int, Type, TypeVar
 
 Solution = Dict[str, Type]
 
@@ -17,10 +18,12 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
     """
 
     match (t1, t2):
-        case (TypeVar(name=n1), TypeVar(name=n2)):
+        case HMType(base=Int()), HMType(base=Int()):
+            return True
+        case HMType(base=Bool()), HMType(base=Bool()):
+            return True
+        case HMType(TypeVar(name=n1)), HMType(TypeVar(name=n2)):
             return n1 == n2
-        case (RType(base=v1, predicate=_), RType(base=v2, predicate=_)):
-            return v1 == v2
         case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
             args_eq = all(
                 map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
@@ -72,20 +75,14 @@ def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
             raise Exception(f"Constrs wasn't a list: {constrs}")
 
 
-def unify(
-    constrs: List[Constraint], show_work=False
-) -> Tuple[List[Constraint], Solution]:
+def unify(constrs: List[BaseEq], show_work=False) -> Tuple[List[BaseEq], Solution]:
     """
     Find a satisfying assignment of types for a list of equality constraints
     over base types.
     """
 
     # call solve to find a solution to the system of constraints
-    base_eqs = cast(
-        List[BaseEq],
-        list(filter(lambda x: isinstance(x, BaseEq), constrs)),
-    )
-    solution = dict(solve(base_eqs, show_work))
+    solution = dict(solve(constrs, show_work))
 
     # then use a worklist algorithm to simplify the solution so
     # that you only ever have to look up one step to find the type
@@ -106,7 +103,7 @@ def unify(
             # if this name maps to a variable in the solution,
             # update solution, and add name back to the worklist.
             # it may need to be updated again.
-            case RType(base=TypeVar(name=n)) if n in solution:
+            case HMType(TypeVar(name=n)) if n in solution:
                 solution[name] = solution[n]
                 worklist += [name]
 
@@ -119,8 +116,9 @@ def tvar_name(typ: Type):
     """
 
     match typ:
-        case RType(base=TypeVar(name=name)):
+        case HMType(TypeVar(name=name)):
             return name
+    return None
 
 
 def free_vars(typ: Type):
@@ -129,9 +127,9 @@ def free_vars(typ: Type):
     """
 
     match typ:
-        case RType(base=TypeVar(name=n)):
+        case HMType(TypeVar(name=n)):
             return [n]
-        case RType():
+        case HMType():
             return []
         case ArrowType(args=args, ret=ret):
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
@@ -152,21 +150,14 @@ def subst(name: str, typ: Type, constrs: List[BaseEq]) -> List[BaseEq]:
 
 def subst_one(name: str, tar: Type, src: Type) -> Type:
     match src:
-        case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if name == n:
-            match tar:
-                case BaseType():
-                    return RType(tar, p, pending_subst=ps).pos(tar)
-                case RType():
-                    return RType(tar.base, p, pending_subst=ps).pos(tar)
-                case x:
-                    return x
-        case RType():
+        case HMType(TypeVar(name=n)) if name == n:
+            return tar
+        case HMType():
             return src
-        case ArrowType(args=args, ret=ret, pending_subst=ps):
+        case ArrowType(args=args, ret=ret):
             return ArrowType(
                 args=[(x, subst_one(name, tar, t)) for x, t in args],
                 ret=subst_one(name, tar, ret),
-                pending_subst=ps,
             ).pos(src)
         case x:
             print("subst_one:", x)
@@ -179,21 +170,12 @@ def apply(typ: Type, solution: Solution) -> Type:
     """
 
     match typ:
-        case RType(
-            base=TypeVar(name=n), predicate=p, pending_subst=ps
-        ) if n in solution:
-            new = solution[n]
-            if isinstance(new, BaseType):
-                return apply(RType(new, p, pending_subst=ps), solution)
-            elif isinstance(new, RType):
-                return apply(RType(new.base, p, pending_subst=ps), solution)
-            else:
-                return new
-        case ArrowType(args=args, ret=ret, pending_subst=ps):
+        case HMType(TypeVar(name=n)) if n in solution:
+            return apply(solution[n], solution)
+        case ArrowType(args=args, ret=ret):
             return ArrowType(
                 args=[(name, apply(t, solution)) for name, t in args],
                 ret=apply(ret, solution),
-                pending_subst=ps,
             )
         case _:
             return typ
@@ -207,28 +189,8 @@ def apply_context(context: Env, solution) -> Env:
     return context.map(lambda v: apply(v, solution))
 
 
-def apply_constraints(
-    constrs: List[Constraint], solution: Solution
-) -> List[Constraint]:
+def apply_constraints(constrs: List[BaseEq], solution: Solution) -> List[BaseEq]:
     res = []
     for c in constrs:
-        match c:
-            case BaseEq(lhs=lhs, rhs=rhs):
-                res += [BaseEq(apply(lhs, solution), apply(rhs, solution))]
-            case SubType(context=ctx, assumes=asms, lhs=lhs, rhs=rhs):
-                res += [
-                    SubType(
-                        context=apply_context(ctx, solution),
-                        assumes=asms,
-                        lhs=apply(lhs, solution),
-                        rhs=apply(rhs, solution),
-                    ).pos(c)
-                ]
-            case Scope(context=ctx, typ=typ):
-                res += [
-                    Scope(
-                        context=apply_context(ctx, solution),
-                        typ=apply(typ, solution),
-                    ).pos(c)
-                ]
+        res += [BaseEq(apply(c.lhs, solution), apply(c.rhs, solution))]
     return res
