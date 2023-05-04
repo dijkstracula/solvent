@@ -2,13 +2,12 @@ from typing import List
 
 from solvent import hm, normalize, qualifiers
 from solvent import syntax as syn
-from solvent import unification
-from solvent.constraints import Env
 from solvent.syntax import Type
 
 
 def infer_base(stmts: List[syn.Stmt], debug=False) -> Type:
     norm_stmts = normalize.normalize(stmts)
+    solved_type = hm.solve(norm_stmts, debug)
 
     if debug:
         print("Normalized Program:")
@@ -16,27 +15,6 @@ def infer_base(stmts: List[syn.Stmt], debug=False) -> Type:
             print(s)
         print("======")
 
-    typ, constrs, context = hm.check_stmts(Env.empty(), norm_stmts)
-
-    if debug:
-        print(f"Initial type: {typ}")
-        print("== Constraints ==")
-        print("\n".join([str(c) for c in constrs]))
-        print("== Context ==")
-        for k, v in context.items:
-            print(f"{k} := {v}")
-
-    if debug:
-        print("== Unification ==")
-
-    constrs, solution = unification.unify(constrs, show_work=debug)
-
-    if debug:
-        print("== Solution ==")
-        for k, v in solution.items():
-            print(f"{k} := {v}")
-
-    solved_type = unification.apply(typ, solution)
     return alpha_rename(solved_type)
 
 
@@ -71,10 +49,10 @@ def alpha_rename(typ: syn.Type) -> syn.Type:
     """
 
     rename_map = {}
-    for i, var in enumerate(set(unification.free_vars(typ))):
+    for i, var in enumerate(set(hm.free_vars(typ))):
         if i < len(NAMES):
             rename_map[var] = syn.TypeVar(NAMES[i])
         else:
             raise NotImplementedError
 
-    return unification.apply(typ, rename_map)
+    return hm.apply(typ, rename_map)
