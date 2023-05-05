@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple
 
 from solvent import errors
 from solvent.env import Env
-from solvent.syntax import ArrowType, Bool, HMType, Int, Type, TypeVar
+from solvent.syntax import ArrowType, Bool, HMType, Int, RType, Type, TypeVar
 
 from .check import BaseEq
 
@@ -132,11 +132,14 @@ def free_vars(typ: Type) -> list[str]:
             return [n]
         case HMType():
             return []
+        case RType(base=TypeVar(name=n)):
+            return [n]
+        case RType():
+            return []
         case ArrowType(args=args, ret=ret):
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x, type(x))
 
 
 def subst(name: str, typ: Type, constrs: List[BaseEq]) -> List[BaseEq]:
@@ -172,6 +175,8 @@ def apply(typ: Type, solution: Solution) -> Type:
 
     match typ:
         case HMType(TypeVar(name=n)) if n in solution:
+            return apply(solution[n], solution)
+        case RType(base=TypeVar(name=n)) if n in solution:
             return apply(solution[n], solution)
         case ArrowType(args=args, ret=ret):
             return ArrowType(

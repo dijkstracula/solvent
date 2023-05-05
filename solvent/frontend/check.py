@@ -48,7 +48,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
         for k, v in predvar_solution.items():
             print(f"{k} := {v}")
 
-    return alpha_rename(liquid.apply(inferred_base_typ, predvar_solution))
+    return alpha_rename(liquid.apply(typ, predvar_solution))
 
 
 NAMES = "abcdefghijklmnopqrstuvwxyz"
@@ -65,5 +65,7 @@ def alpha_rename(typ: syn.Type) -> syn.Type:
             rename_map[var] = syn.TypeVar(NAMES[i])
         else:
             raise NotImplementedError
+
+    print(rename_map)
 
     return hm.apply(typ, rename_map)

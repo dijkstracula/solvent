@@ -15,6 +15,21 @@ from solvent import syntax as syn
 Solution = Dict[str, syn.Conjoin]
 
 
+def initial_predicates(
+    t: syn.Type, ctx, quals: List[quals.Qualifier], solution: Solution
+) -> Solution:
+    match t:
+        case syn.RType(base=syn.Int(), predicate=syn.PredicateVar(name=n)):
+            solution[n] = qualifiers.predicate(ctx, quals)
+        case syn.ArrowType(args=args, ret=ret):
+            for _, ty in args:
+                solution = initial_predicates(ty, ctx, quals, solution)
+
+            solution = initial_predicates(ret, ctx, quals, solution)
+
+    return solution
+
+
 def solve(
     constrs: List[constr.Constraint],
     quals: List[quals.Qualifier],
@@ -23,19 +38,19 @@ def solve(
     solution: Solution = {}
 
     for c in constrs:
-        match c:
-            case constr.Scope(
-                context=ctx,
-                typ=syn.RType(base=syn.Int(), predicate=syn.PredicateVar(name=n)),
-            ):
-                solution[n] = qualifiers.predicate(ctx, quals)
+        if isinstance(c, constr.Scope):
+            solution = initial_predicates(c.typ, c.context, quals, solution)
 
     if show_work:
         print("Initial Constraints:")
         cs = []
         for c in constrs:
             if isinstance(c, constr.SubType):
-                cs += [(get_predicate_vars(c.rhs), c)]
+                if isinstance(c.lhs, syn.RType) and not isinstance(
+                    c.lhs.base, syn.TypeVar
+                ):
+                    cs += [(get_predicate_vars(c.rhs), c)]
+
         for c in sorted(cs, key=lambda x: "" if x[0] is None else x[0]):
             print(c[1])
         print("======")
@@ -47,7 +62,14 @@ def solve(
 
     subtype_eqs = cast(
         List[constr.SubType],
-        list(filter(lambda x: isinstance(x, constr.SubType), constrs)),
+        list(
+            filter(
+                lambda x: isinstance(x, constr.SubType)
+                and isinstance(x.lhs, constr.RType)
+                and not isinstance(x.lhs.base, constr.TypeVar),
+                constrs,
+            )
+        ),
     )
 
     return liquid.constraints_valid(subtype_eqs, solution, show_work)
@@ -68,7 +90,7 @@ def constraints_valid(
         sc = apply_constr(c, solution)
         valid = subtype.check_constr(sc)
         if show_work:
-            print(f"Valid? ({valid}):\n\tG |- {sc.lhs} <: {sc.rhs}")
+            print(f"Valid? ({valid}):\n\tG |- {c.lhs} <: {c.rhs}")
         if not valid:
             return constraints_valid(constrs, weaken(c, solution, show_work), show_work)
 
@@ -98,7 +120,7 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
             for qual in solution[n].conjuncts:
                 if show_work:
                     print(f"Checking {qual}: ", end="\n")
-                    print(f"  ctx: {ctx}")
+                    print(f"  ctx: {apply_ctx(ctx, solution)}")
                     print(f"  constr: {apply_constr(c, solution)}")
                     print(f"  substs: {ps}")
                 if subtype.check(

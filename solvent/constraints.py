@@ -21,7 +21,7 @@ class Constraint(syn.Pos):
         match self:
             case SubType(context=ctx, assumes=assumes, lhs=lhs, rhs=rhs):
                 asm_str = ", ".join([str(e) for e in assumes])
-                return f"[{asm_str}] |- {lhs} <: {rhs} ({self.position})"
+                return f"[{asm_str}] |- {lhs} <: {rhs}"
             case Scope(context=ctx, typ=typ):
                 asm_str = ", ".join([f"{k}: {v}" for k, v in ctx.items])
                 return f"[{asm_str}] |- {typ}"
@@ -68,8 +68,11 @@ def check_stmt(
             # construct a new context to typecheck our body with
             body_context = context
 
+            scope_constr = []
+
             # add the type of arguments to the new context
             for name, t in args:
+                scope_constr += [Scope(context, t)]
                 body_context = body_context.add(name, t)
 
             # add the function that we are currently defining to our
@@ -78,10 +81,7 @@ def check_stmt(
             body_context = body_context.add(name, this_type)
 
             # scope constraints
-            scope_constr = [
-                *[Scope(context, t) for _, t in args],
-                Scope(body_context, ret),
-            ]
+            scope_constr += [Scope(body_context, ret)]
 
             # now typecheck the body
             body_type, body_constrs, body_context = check_stmts(
@@ -124,14 +124,15 @@ def check_stmt(
             )
         case syn.Assign(name=id, value=e):
             e_typ, e_constrs = check_expr(context, assums, e)
+            e_constrs += [Scope(context, e_typ)]
             return e_typ, e_constrs, context.add(id, e_typ)
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
             # for now just throw away the predicate of ty
-            nty = ty.set_predicate(
-                Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=value)])
-            )
-            return nty.pos(stmt), constrs, context
+            # nty = ty.set_predicate(
+            #     Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=value)])
+            # )
+            return ty.pos(stmt), constrs, context
         case x:
             print(x)
             raise NotImplementedError
@@ -141,7 +142,15 @@ def check_expr(context: Env, assums, expr: syn.Expr) -> tuple[Type, List[Constra
     match expr:
         case syn.Variable(typ=typ):
             assert typ is not None
-            return (typ, [])
+            if isinstance(typ, RType) and not isinstance(typ.base, TypeVar):
+                return (
+                    typ.pos(expr).set_predicate(
+                        Conjoin([syn.BoolOp(lhs=syn.V(), op="==", rhs=expr)])
+                    ),
+                    [],
+                )
+            else:
+                return (typ.pos(expr), [])
         case syn.IntLiteral():
             typ = RType(syn.Int(), syn.Conjoin([syn.BoolOp(syn.V(), "==", expr)])).pos(
                 expr
