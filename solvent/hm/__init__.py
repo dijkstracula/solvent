@@ -29,6 +29,11 @@ def solve(stmts: List[syn.Stmt], debug=False) -> syn.Type:
         for k, v in solution.items():
             print(f"{k} := {v}")
 
+        print("Normalized Program:")
+        for s in stmts:
+            print(s.to_string(include_types=True))
+        print("======")
+
     solved_type = apply(typ, solution)
     subst_stmts(solution, stmts)
     return solved_type

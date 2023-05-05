@@ -94,7 +94,7 @@ class Visitor:
     def visit_typ(self, typ: Type) -> Type:
         return typ
 
-    def start(self) -> None:
+    def start(self):
         pass
 
     def start_Stmt(self, stmt: Stmt):

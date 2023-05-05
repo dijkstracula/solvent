@@ -12,9 +12,8 @@ def subst_stmts(solution: Solution, stmts: List[syn.Stmt]):
 
 
 def subst_stmt(solution: Solution, stmt: syn.Stmt):
-    if stmt.typ is not None:
-        for var in free_vars(stmt.typ):
-            assert var in solution
+    for var in free_vars(stmt.typ):
+        if var in solution:
             stmt.annot(subst_one(var, solution[var], stmt.typ))
 
     match stmt:
@@ -34,9 +33,8 @@ def subst_stmt(solution: Solution, stmt: syn.Stmt):
 
 
 def subst_expr(solution: Solution, expr: syn.Expr):
-    if expr.typ is not None:
-        for var in free_vars(expr.typ):
-            assert var in solution
+    for var in free_vars(expr.typ):
+        if var in solution:
             expr.annot(subst_one(var, solution[var], expr.typ))
 
     match expr.typ:
