@@ -2,7 +2,7 @@ from typing import List
 
 from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
-from solvent.constraints import Env
+from solvent.env import Env
 from solvent.syntax import Type
 from solvent.template import template_stmts
 

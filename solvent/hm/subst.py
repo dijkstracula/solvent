@@ -12,6 +12,11 @@ def subst_stmts(solution: Solution, stmts: List[syn.Stmt]):
 
 
 def subst_stmt(solution: Solution, stmt: syn.Stmt):
+    if stmt.typ is not None:
+        for var in free_vars(stmt.typ):
+            assert var in solution
+            stmt.annot(subst_one(var, solution[var], stmt.typ))
+
     match stmt:
         case syn.FunctionDef(body=body):
             subst_stmts(solution, body)
@@ -37,8 +42,6 @@ def subst_expr(solution: Solution, expr: syn.Expr):
     match expr.typ:
         case HMType(TypeVar(name=n)) if n in solution:
             expr.annot(solution[n])
-        case x:
-            print(f"NBT: not ok {expr}")
 
     match expr:
         case syn.Variable():

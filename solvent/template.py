@@ -13,7 +13,8 @@ def template_type(typ: Type) -> Type:
             return RType.template(base)
         case ArrowType(args=args, ret=ret):
             return ArrowType(
-                [(x, template_type(t)) for x, t in args], ret=template_type(ret)
+                [(x, template_type(t)) for x, t in args],
+                ret=template_type(ret),
             ).pos(typ)
         case x:
             raise errors.Unreachable(x)

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 
 from solvent import syntax as syn
-from solvent.constraints import Env
+from solvent.env import Env
 from solvent.syntax import ArrowType, HMType, Type, TypeVar
 
 

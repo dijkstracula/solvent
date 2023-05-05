@@ -1,7 +1,7 @@
 from typing import List
 
 import solvent.syntax as syn
-from solvent.constraints import Env
+from solvent.env import Env
 
 from .check import check_stmts
 from .subst import subst_stmts
