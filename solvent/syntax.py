@@ -252,8 +252,8 @@ class Expr(Pos, TypeAnnotation):
                 e = f"{fn}({', '.join(args)})"
             case x:
                 e = f"`{repr(x)}`"
-        if self.typ is not None:
-            return f"({e} : {self.typ})"
+        # if self.typ is not None:
+        #     return f"({e} : {self.typ})"
         return e
 
 
@@ -328,6 +328,14 @@ class Stmt(Pos, TypeAnnotation):
     def to_string(self, indent):
         align = " " * indent
         match self:
+            case FunctionDef(
+                name=name, body=stmts, typ=ArrowType(args=args, ret=retann)
+            ):
+                argstr = ", ".join([f"{x}:{t}" for x, t in args])
+                retstr = f" -> {retann}:" if retann is not None else ":"
+                bodystr = "\n".join([s.to_string(indent + 2) for s in stmts])
+                return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
+
             case FunctionDef(
                 name=name, args=args, return_annotation=retann, body=stmts
             ):

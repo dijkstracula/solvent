@@ -1,8 +1,10 @@
 from typing import List
 
-from solvent import hm, normalize, qualifiers
+from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
+from solvent.constraints import Env
 from solvent.syntax import Type
+from solvent.template import template_stmts
 
 
 def infer_base(stmts: List[syn.Stmt], debug=False) -> Type:
@@ -23,21 +25,30 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     Run Liquid-type inference and checking.
     """
 
-    inferred_base_typ = infer_base(stmts, debug)
+    stmts = normalize.normalize(stmts)
+    inferred_base_typ = hm.solve(stmts, debug)
+    template_stmts(stmts)
 
     if debug:
         print("== Inferred Base Type ==")
         print(f"{inferred_base_typ}")
 
-    return inferred_base_typ  # TODO: now do liquid type inference
-    # predvar_solution = liquid.solve(constrs, quals, show_work=debug)
+    if debug:
+        print("Templated program:")
+        for s in stmts:
+            print(s)
+        print("======")
 
-    # if debug:
-    #     print("== Predicate Variable Solution ==")
-    #     for k, v in predvar_solution.items():
-    #         print(f"{k} := {v}")
+    typ, constrs, context = constraints.check_stmts(Env.empty(), [], stmts)
 
-    # return alpha_rename(liquid.apply(inferred_base_typ, predvar_solution))
+    predvar_solution = liquid.solve(constrs, quals, show_work=debug)
+
+    if debug:
+        print("== Predicate Variable Solution ==")
+        for k, v in predvar_solution.items():
+            print(f"{k} := {v}")
+
+    return alpha_rename(liquid.apply(inferred_base_typ, predvar_solution))
 
 
 NAMES = "abcdefghijklmnopqrstuvwxyz"
