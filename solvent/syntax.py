@@ -217,9 +217,14 @@ class ArrowType(Type):
     ret: Type
 
 
+@dataclass
+class Bottom(Type):
+    pass
+
+
 @dataclass(kw_only=True)
 class TypeAnnotation:
-    typ: Type | None = None
+    typ: Type = field(default_factory=Bottom)
 
     def annot(self, t: Type):
         self.typ = t
@@ -228,7 +233,7 @@ class TypeAnnotation:
 
 @dataclass
 class Expr(Pos, TypeAnnotation):
-    def __str__(self):
+    def to_string(self, include_types=False):
         e = ""
         match self:
             case Variable(name=x):
@@ -238,23 +243,26 @@ class Expr(Pos, TypeAnnotation):
             case BoolLiteral(value=v):
                 e = f"{v}"
             case ArithBinOp(lhs=l, op=op, rhs=r):
-                e = f"{l} {op} {r}"
+                e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
             case BoolOp(lhs=l, op=op, rhs=r):
-                e = f"{l} {op} {r}"
+                e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
             case Neg(expr=e):
-                e = f"-({e})"
+                e = f"-({e.to_string(include_types)})"
             case V():
                 e = "V"
             case Star():
                 e = "*"
             case Call(function_name=fn, arglist=args):
-                args = [str(a) for a in args]
-                e = f"{fn}({', '.join(args)})"
+                args = [a.to_string(include_types) for a in args]
+                e = f"{fn.to_string(include_types)}({', '.join(args)})"
             case x:
                 e = f"`{repr(x)}`"
-        if self.typ is not None:
+        if include_types and self.typ != Bottom():
             return f"({e} : {self.typ})"
         return e
+
+    def __str__(self):
+        return self.to_string()
 
 
 @dataclass
@@ -325,15 +333,17 @@ class Argument:
 
 @dataclass
 class Stmt(Pos, TypeAnnotation):
-    def to_string(self, indent):
+    def to_string(self, indent=0, include_types=False):
         align = " " * indent
         match self:
             case FunctionDef(
                 name=name, body=stmts, typ=ArrowType(args=args, ret=retann)
-            ):
+            ) if include_types:
                 argstr = ", ".join([f"{x}:{t}" for x, t in args])
                 retstr = f" -> {retann}:" if retann is not None else ":"
-                bodystr = "\n".join([s.to_string(indent + 2) for s in stmts])
+                bodystr = "\n".join(
+                    [s.to_string(indent + 2, include_types) for s in stmts]
+                )
                 return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
 
             case FunctionDef(
@@ -341,14 +351,20 @@ class Stmt(Pos, TypeAnnotation):
             ):
                 argstr = ", ".join([str(a) for a in args])
                 retstr = f" -> {retann}:" if retann is not None else ":"
-                bodystr = "\n".join([s.to_string(indent + 2) for s in stmts])
+                bodystr = "\n".join(
+                    [s.to_string(indent + 2, include_types) for s in stmts]
+                )
                 return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
             case If(test=test, body=body, orelse=orelse):
-                bodystr = "\n".join([s.to_string(indent + 2) for s in body])
-                elsestr = "\n".join([s.to_string(indent + 2) for s in orelse])
+                bodystr = "\n".join(
+                    [s.to_string(indent + 2, include_types) for s in body]
+                )
+                elsestr = "\n".join(
+                    [s.to_string(indent + 2, include_types) for s in orelse]
+                )
                 res = "\n".join(
                     [
-                        f"{align}if {test}:",
+                        f"{align}if {test.to_string(include_types)}:",
                         f"{bodystr}",
                         f"{align}else:",
                         f"{elsestr}",
@@ -356,9 +372,10 @@ class Stmt(Pos, TypeAnnotation):
                 )
                 return res
             case Assign(name=name, value=value):
-                return f"{align}{name} = {value}"
+                typann = f": {self.typ}" if include_types else ""
+                return f"{align}{name}{typann} = {value.to_string(include_types)}"
             case Return(value):
-                return f"{align}return {value}"
+                return f"{align}return {value.to_string(include_types)}"
             case x:
                 return f"{align}{repr(x)}"
 

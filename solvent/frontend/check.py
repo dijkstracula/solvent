@@ -4,7 +4,7 @@ from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
 from solvent.env import Env
 from solvent.syntax import Type
-from solvent.template import template_stmts
+from solvent.template import Templatizer
 
 
 def infer_base(stmts: List[syn.Stmt], debug=False) -> Type:
@@ -26,8 +26,8 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     """
 
     stmts = normalize.normalize(stmts)
-    inferred_base_typ = hm.solve(stmts, debug)
-    template_stmts(stmts)
+    inferred_base_typ = hm.solve(stmts, False)
+    Templatizer().visit_stmts(stmts)
 
     if debug:
         print("== Inferred Base Type ==")
@@ -36,7 +36,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     if debug:
         print("Templated program:")
         for s in stmts:
-            print(s)
+            print(s.to_string(include_types=True))
         print("======")
 
     typ, constrs, context = constraints.check_stmts(Env.empty(), [], stmts)

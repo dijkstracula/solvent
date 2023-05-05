@@ -16,7 +16,7 @@ class BaseEq(syn.Pos):
     rhs: Type
 
     def __str__(self):
-        return f"{self.lhs} == {self.rhs}"
+        return f"{self.lhs} == {self.rhs} ({self.position})"
 
 
 def check_stmts(
@@ -56,8 +56,7 @@ def check_stmt(context: Env, stmt: syn.Stmt) -> tuple[syn.Type, List[BaseEq], En
             if ret is not None:
                 ret_typ = ret
             else:
-                ret_typ = HMType.fresh(name="ret")
-            ret_typ.pos(stmt)
+                ret_typ = HMType.fresh(name="ret").pos(stmt)
 
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
@@ -162,8 +161,8 @@ def check_expr(context: Env, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 types += [(syn.NameGenerator.fresh("arg"), ty)]
                 constrs += cs
 
-            ret_typ = HMType.fresh("f")
-            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ))]
+            ret_typ = HMType.fresh("ret")
+            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ)).pos(fn_ty)]
             ret_constrs = constrs
         case x:
             print(x)
