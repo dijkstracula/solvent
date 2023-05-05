@@ -19,7 +19,7 @@ def assert_type(quals, expected):
             res = parse.parse(pyast, get_type_hints(func, include_extras=True))
 
             syn.NameGenerator.reset()
-            assert str(frontend.check(res, quals, False)) == expected
+            assert str(frontend.check(res, quals)) == expected
 
         repl.__name__ = func.__name__
 

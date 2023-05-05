@@ -254,7 +254,7 @@ class Expr(Pos, TypeAnnotation):
                 e = "*"
             case Call(function_name=fn, arglist=args):
                 args = [a.to_string(include_types) for a in args]
-                e = f"{fn.to_string(include_types)}({', '.join(args)})"
+                e = f"{fn}({', '.join(args)})"
             case x:
                 e = f"`{repr(x)}`"
         if include_types and self.typ != Bottom():
