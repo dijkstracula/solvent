@@ -252,8 +252,8 @@ class Expr(Pos, TypeAnnotation):
                 e = f"{fn}({', '.join(args)})"
             case x:
                 e = f"`{repr(x)}`"
-        # if self.typ is not None:
-        #     return f"({e} : {self.typ})"
+        if self.typ is not None:
+            return f"({e} : {self.typ})"
         return e
 
 

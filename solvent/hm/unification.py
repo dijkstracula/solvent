@@ -5,7 +5,7 @@ Implementation of the Hindley-Milner Unification Algorithm
 from typing import Dict, List, Tuple
 
 from solvent import errors
-from solvent.constraints import Env
+from solvent.env import Env
 from solvent.syntax import ArrowType, Bool, HMType, Int, Type, TypeVar
 
 from .check import BaseEq
