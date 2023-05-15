@@ -4,8 +4,9 @@ from solvent.env import ScopedEnv, ScopedEnvVisitor
 from solvent.syntax import (
     ArrowType,
     BoolOp,
-    Bottom,
     Conjoin,
+    Expr,
+    FunctionDef,
     HMType,
     IntLiteral,
     RType,
@@ -42,21 +43,47 @@ class Templatizer(ScopedEnvVisitor):
     def start_Stmt(self, stmt: Stmt):
         super().start_Stmt(stmt)
 
-        if stmt.typ != Bottom():
-            tt = template_type(stmt.typ, self.env)
-            stmt.annot(tt)
+        if isinstance(stmt, FunctionDef):
+            return
 
-    # def start_Expr(self, expr: syn.Expr):
-    #     super().start_Expr(expr)
+        tt = template_type(stmt.typ, self.env)
+        stmt.annot(tt)
 
-    #     if expr.typ != Bottom():
-    #         expr.annot(template_type(expr.typ, self.env))
+    def start_FunctionDef(self, fd: FunctionDef):
+        # super().start_FunctionDef(fd)
+        assert isinstance(fd.typ, ArrowType)
+
+        args = []
+        for arg, (base_name, base_typ) in zip(fd.args, fd.typ.args):
+            if arg.annotation is not None:
+                args += [(arg.name, arg.annotation)]
+            else:
+                args += [(base_name, template_type(base_typ, self.env))]
+
+        if fd.return_annotation is not None:
+            ret = fd.return_annotation
+        else:
+            ret = template_type(fd.typ.ret, self.env)
+
+        fd.annot(ArrowType(args, ret))
+
+        # we want to add our newly templated type to the scoped env
+        # so we call our superclass after we have created the template types
+        super().start_FunctionDef(fd)
+
+    def start_Expr(self, expr: Expr):
+        super().start_Expr(expr)
+
+        tt = template_type(expr.typ, self.env)
+        expr.annot(tt)
 
     def start_Variable(self, var: Variable):
         super().start_Variable(var)
 
         if var.name in self.env:
             var.annot(self.env[var.name])
+        else:
+            raise errors.Unreachable()
 
     def start_IntLiteral(self, lit: IntLiteral):
         super().start_IntLiteral(lit)

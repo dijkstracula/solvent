@@ -3,7 +3,7 @@ Implement Liquid Type inference
 """
 
 import pprint
-from typing import Dict, List, Optional, cast
+from typing import Dict, List, cast
 
 from solvent import constraints as constr
 from solvent import liquid
@@ -11,21 +11,30 @@ from solvent import qualifiers
 from solvent import qualifiers as quals
 from solvent import subtype
 from solvent import syntax as syn
+from solvent.env import ScopedEnv
 
 Solution = Dict[str, syn.Conjoin]
 
 
 def initial_predicates(
-    t: syn.Type, ctx, quals: List[quals.Qualifier], solution: Solution
+    t: syn.Type,
+    ctx: ScopedEnv,
+    quals: List[quals.Qualifier],
+    solution: Solution,
+    calls: set[str],
 ) -> Solution:
     match t:
-        case syn.RType(base=syn.Int(), predicate=syn.PredicateVar(name=n)):
+        case syn.RType(
+            base=syn.Int(), predicate=syn.PredicateVar(name=n)
+        ):  # if n in calls:
             solution[n] = qualifiers.predicate(ctx, quals)
         case syn.ArrowType(args=args, ret=ret):
-            for _, ty in args:
-                solution = initial_predicates(ty, ctx, quals, solution)
+            new_ctx = ctx.clone()
+            for x, ty in args:
+                solution = initial_predicates(ty, ctx, quals, solution, calls)
+                new_ctx[x] = ty
 
-            solution = initial_predicates(ret, ctx, quals, solution)
+            solution = initial_predicates(ret, new_ctx, quals, solution, calls)
 
     return solution
 
@@ -37,9 +46,14 @@ def solve(
 ) -> Solution:
     solution: Solution = {}
 
+    call_constrs: List[constr.Call] = cast(
+        List[constr.Call], list(filter(lambda c: isinstance(c, constr.Call), constrs))
+    )
+    calls = set(sum(map(lambda c: get_predicate_vars(c.typ), call_constrs), []))
+
     for c in constrs:
         if isinstance(c, constr.Scope):
-            solution = initial_predicates(c.typ, c.context, quals, solution)
+            solution = initial_predicates(c.typ, c.context, quals, solution, calls)
 
     if show_work:
         print("Initial Constraints:")
@@ -88,9 +102,21 @@ def constraints_valid(
 
     for c in constrs:
         sc = apply_constr(c, solution)
-        valid = subtype.check_constr(sc)
         if show_work:
-            print(f"Valid? ({valid}):\n\tG |- {c.lhs} <: {c.rhs}")
+            print(f"G |- {c.lhs} <: {c.rhs} ({c.position})")
+        try:
+            valid = subtype.check_constr(sc, show_work)
+        except NotImplementedError:
+            print("culprit", sc)
+            ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
+            assums = "\n    ".join([str(a) for a in c.assumes])
+            print(f"  Valid? w/ context:\n    {ctx}\n    {assums}")
+            raise Exception()
+
+        if show_work:
+            ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
+            assums = "\n    ".join([str(a) for a in c.assumes])
+            print(f"  Valid? ({valid}) w/ context:\n    {ctx}\n    {assums}")
         if not valid:
             return constraints_valid(constrs, weaken(c, solution, show_work), show_work)
 
@@ -158,12 +184,16 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
     return solution
 
 
-def get_predicate_vars(t: syn.Type) -> Optional[str]:
+def get_predicate_vars(t: syn.Type) -> List[str]:
     match t:
         case syn.RType(predicate=syn.PredicateVar(name=name)):
-            return name
+            return [name]
+        case syn.ArrowType(args=args, ret=ret):
+            return sum(
+                [get_predicate_vars(t) for _, t in args], []
+            ) + get_predicate_vars(ret)
         case _:
-            return None
+            return []
 
 
 def apply_constr(c: constr.SubType, solution: Solution) -> constr.SubType:
@@ -176,11 +206,11 @@ def apply_constr(c: constr.SubType, solution: Solution) -> constr.SubType:
     )
 
 
-def apply_ctx(ctx: constr.Env, solution: Solution) -> constr.Env:
+def apply_ctx(ctx: ScopedEnv, solution: Solution) -> ScopedEnv:
     return ctx.map(lambda v: apply(v, solution))
 
 
-def apply(typ: constr.Type, solution: Solution) -> constr.Type:
+def apply(typ: syn.Type, solution: Solution) -> syn.Type:
     match typ:
         case syn.RType(
             base=base, predicate=syn.PredicateVar(name=n), pending_subst=ps

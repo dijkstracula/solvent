@@ -22,85 +22,94 @@ from solvent.syntax import (
 
 
 class Visitor:
-    def __init__(self) -> None:
-        self.start()
+    def __init__(self, *args, **kwargs) -> None:
+        self.start(*args, **kwargs)
 
-    def visit_stmts(self, stmts: List[Stmt]):
-        for stmt in stmts:
-            self.visit_stmt(stmt)
+    def visit_stmts(self, stmts: List[Stmt]) -> List[Stmt]:
+        return [self.visit_stmt(stmt) for stmt in stmts]
 
-    def visit_stmt(self, stmt: Stmt):
+    def visit_stmt(self, stmt: Stmt) -> Stmt:
         self.start_Stmt(stmt)
+        new_stmt = stmt
         match stmt:
-            case FunctionDef(body=body):
+            case FunctionDef(name=name, args=args, return_annotation=retann, body=body):
                 self.start_FunctionDef(cast(FunctionDef, stmt))
-                self.visit_stmts(body)
-                self.end_FunctionDef(cast(FunctionDef, stmt))
+                new_stmt = FunctionDef(name, args, retann, self.visit_stmts(body))
+                self.end_FunctionDef(new_stmt)
             case If(test=test, body=body, orelse=orelse):
                 self.start_If(cast(If, stmt))
-                self.visit_expr(test)
-                self.visit_stmts(body)
-                self.visit_stmts(orelse)
-                self.end_If(cast(If, stmt))
-            case Assign(value=expr):
+                new_stmt = If(
+                    self.visit_expr(test),
+                    self.visit_stmts(body),
+                    self.visit_stmts(orelse),
+                )
+                self.end_If(new_stmt)
+            case Assign(name=name, value=expr):
                 self.start_Assign(cast(Assign, stmt))
-                self.visit_expr(expr)
-                self.end_Assign(cast(Assign, stmt))
+                new_stmt = Assign(name, self.visit_expr(expr))
+                self.end_Assign(new_stmt)
             case Return(value=expr):
                 self.start_Return(cast(Return, stmt))
-                self.visit_expr(expr)
-                self.end_Return(cast(Return, stmt))
+                new_stmt = Return(self.visit_expr(expr))
+                self.end_Return(new_stmt)
             case x:
                 raise errors.Unreachable(x)
-        self.end_Stmt(stmt)
+        ret_stmt = self.end_Stmt(new_stmt)
+        if ret_stmt is None:
+            return new_stmt
+        else:
+            return ret_stmt
 
-    def visit_expr(self, expr: Expr):
+    def visit_expr(self, expr: Expr) -> Expr:
         self.start_Expr(expr)
         match expr:
             case V():
-                self.start_V(cast(V, expr))
+                new_expr = self.start_V(cast(V, expr))
             case Star():
-                self.start_Star(cast(Star, expr))
+                new_expr = self.start_Star(cast(Star, expr))
             case Variable():
-                self.start_Variable(cast(Variable, expr))
+                new_expr = self.start_Variable(cast(Variable, expr))
             case IntLiteral():
-                self.start_IntLiteral(cast(IntLiteral, expr))
-            case ArithBinOp(lhs=lhs, rhs=rhs):
+                new_expr = self.start_IntLiteral(cast(IntLiteral, expr))
+            case ArithBinOp(lhs=lhs, op=op, rhs=rhs):
                 self.start_ArithBinOp(cast(ArithBinOp, expr))
-                self.visit_expr(lhs)
-                self.visit_expr(rhs)
-                self.end_ArithBinOp(cast(ArithBinOp, expr))
+                new_expr = ArithBinOp(self.visit_expr(lhs), op, self.visit_expr(rhs))
+                self.end_ArithBinOp(new_expr)
             case BoolLiteral():
-                self.start_BoolLiteral(cast(BoolLiteral, expr))
-            case BoolOp(lhs=lhs, rhs=rhs):
+                new_expr = self.start_BoolLiteral(cast(BoolLiteral, expr))
+            case BoolOp(lhs=lhs, op=op, rhs=rhs):
                 self.start_BoolOp(cast(BoolOp, expr))
-                self.visit_expr(lhs)
-                self.visit_expr(rhs)
-                self.end_BoolOp(cast(BoolOp, expr))
+                new_expr = BoolOp(self.visit_expr(lhs), op, self.visit_expr(rhs))
+                self.end_BoolOp(new_expr)
             case Neg(expr=expr):
                 self.start_Neg(cast(Neg, expr))
-                self.visit_expr(expr)
-                self.end_Neg(cast(Neg, expr))
+                new_expr = Neg(self.visit_expr(expr))
+                self.end_Neg(new_expr)
             case Call(function_name=fn, arglist=args):
                 self.start_Call(cast(Call, expr))
-                self.visit_expr(fn)
-                for a in args:
-                    self.visit_expr(a)
-                self.end_Call(cast(Call, expr))
+                new_expr = Call(self.visit_expr(fn), [self.visit_expr(a) for a in args])
+                self.end_Call(new_expr)
             case x:
                 raise errors.Unreachable(x)
-        self.end_Expr(expr)
+        if new_expr is None:
+            new_expr = expr
+
+        end_expr = self.end_Expr(new_expr)
+        if end_expr is None:
+            return new_expr
+        else:
+            return end_expr
 
     def visit_typ(self, typ: Type) -> Type:
         return typ
 
-    def start(self):
+    def start(self, *args, **kwargs):
         pass
 
     def start_Stmt(self, stmt: Stmt):
         pass
 
-    def end_Stmt(self, stmt: Stmt):
+    def end_Stmt(self, stmt: Stmt) -> Stmt | None:
         pass
 
     def start_FunctionDef(self, fd: FunctionDef):
@@ -130,13 +139,13 @@ class Visitor:
     def start_Expr(self, expr: Expr):
         pass
 
-    def end_Expr(self, expr: Expr):
+    def end_Expr(self, expr: Expr) -> Expr | None:
         pass
 
-    def start_V(self, v: V):
+    def start_V(self, v: V) -> Expr | None:
         pass
 
-    def start_Star(self, star: Star):
+    def start_Star(self, star: Star) -> Expr | None:
         pass
 
     def start_Variable(self, var: Variable):

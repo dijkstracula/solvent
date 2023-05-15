@@ -36,9 +36,9 @@ def assert_type(quals, expected):
         V <= _,
         Q[0] <= V,
     ],
-    "(x:int, y:int) -> {int | y <= V and x <= V}",
+    "(x:int, y:int) -> {int | x <= V and y <= V}",
 )
-def test_max(x, y):
+def test_max(x: Refine[int, True], y: Refine[int, True]):
     if x > y:
         return x
     else:
@@ -69,7 +69,7 @@ def test_double(f, x):
     ],
     "(k:int) -> {int | k <= V and 0 <= V}",
 )
-def test_sum(k):
+def test_sum(k: Refine[int, True]):
     if k <= 0:
         return 0
     else:
@@ -104,7 +104,7 @@ def test_sum_refine(k: Refine[int, V >= 0]):
     ],
     "(k:int) -> {int | k <= V and 0 <= V and k >= 0 ==> k * k + 1 // 2 == V}",
 )
-def test_sum_impl(k):
+def test_sum_impl(k: Refine[int, True]):
     if k <= 0:
         return 0
     else:
@@ -121,7 +121,7 @@ def test_sum_impl(k):
     ],
     "(n:int) -> {int | 0 <= V}",
 )
-def test_fib(n):
+def test_fib(n: Refine[int, True]):
     if n <= 1:
         return 1
     else:
@@ -138,7 +138,7 @@ def test_fib(n):
     ],
     "(n:int, b:'a, f:(arg0:{int | 0 <= V}, arg1:'a) -> 'a) -> 'a",
 )
-def test_foldn(n, b, f):
+def test_foldn(n: Refine[int, True], b, f):
     def loop(i, c):
         if i < n:
             return loop(i + 1, f(i, c))

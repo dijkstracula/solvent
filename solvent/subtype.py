@@ -7,11 +7,11 @@ from functools import reduce
 import z3
 
 from solvent import constraints as constr
-from solvent import smt
+from solvent import env, smt
 from solvent import syntax as syn
 
 
-def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
+def check(context: env.ScopedEnv, assumes, typ1, typ2, show_work=False) -> bool:
     match (typ1, typ2):
         case (
             syn.RType(base=t1, predicate=syn.Conjoin(cs1)),
@@ -19,7 +19,7 @@ def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
         ) if t1 == t2:
             ctx_smt = reduce(
                 lambda a, b: z3.And(a, b),
-                [smt.from_type(x, t) for x, t in context.items],
+                [smt.from_type(x, t) for x, t in context.items()],
                 True,
             )
 
@@ -28,12 +28,12 @@ def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
             )
 
             to_check = z3.Implies(
-                z3.simplify(z3.And(ctx_smt, z3.And(assumes_smt, smt.from_exprs(cs1)))),
+                z3.And(ctx_smt, z3.And(assumes_smt, smt.from_exprs(cs1))),
                 smt.from_exprs(cs2),
             )
 
             if show_work:
-                print(f"    {to_check}")
+                print(f"  SMT: {to_check}")
 
             s = z3.Solver()
             s.add(z3.Not(to_check))
@@ -49,10 +49,9 @@ def check(context: constr.Env, assumes, typ1, typ2, show_work=False) -> bool:
         case (syn.ArrowType(), syn.ArrowType()):
             print(typ1, typ2)
             raise NotImplementedError
-        case x:
-            print(x)
+        case _:
             return False
 
 
-def check_constr(c: constr.SubType) -> bool:
-    return check(c.context, c.assumes, c.lhs, c.rhs)
+def check_constr(c: constr.SubType, show_work=False) -> bool:
+    return check(c.context, c.assumes, c.lhs, c.rhs, show_work)

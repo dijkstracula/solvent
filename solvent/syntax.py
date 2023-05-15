@@ -156,9 +156,11 @@ class Type(Pos):
                 return "({}) -> {}".format(
                     ", ".join([f"{name}:{t}" for name, t in args]), ret
                 )
+            case Bottom():
+                return "False"
             case x:
-                print(x)
-                raise NotImplementedError
+                print(type(x))
+                raise Exception(x)
 
     def set_predicate(self, predicate: Predicate) -> "Type":
         match self:
@@ -362,12 +364,14 @@ class Stmt(Pos, TypeAnnotation):
                 elsestr = "\n".join(
                     [s.to_string(indent + 2, include_types) for s in orelse]
                 )
+                typstr0 = "(" if include_types else ""
+                typstr1 = f") : {self.typ}" if include_types else ""
                 res = "\n".join(
                     [
-                        f"{align}if {test.to_string(include_types)}:",
+                        f"{align}{typstr0}if {test.to_string(include_types)}:",
                         f"{bodystr}",
                         f"{align}else:",
-                        f"{elsestr}",
+                        f"{elsestr}{typstr1}",
                     ]
                 )
                 return res
