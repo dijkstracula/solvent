@@ -2,6 +2,7 @@ import ast
 from typing import Annotated, Any, Dict, List, get_args, get_origin
 
 from solvent import syntax as syn
+from solvent.qualifiers import Qualifier
 
 
 def string_to_expr(string: str) -> syn.Expr:
@@ -59,10 +60,16 @@ def parse_hint(hint: type) -> syn.Type:
     if get_origin(hint) is Annotated:
         args = get_args(hint)
         base = args[0]
-        rest = list(args[1:])
+        rest = list(args[1:])[0]
 
         base_rtype = parse_base(base)
-        return base_rtype.set_predicate(syn.Conjoin([rest[0].template(syn.V())]))
+        match rest:
+            case Qualifier():
+                return base_rtype.set_predicate(syn.Conjoin([rest.template]))
+            case bool():
+                return base_rtype.set_predicate(syn.Conjoin([syn.BoolLiteral(rest)]))
+            case x:
+                raise NotImplementedError(x)
     else:
         return parse_base(hint)
 

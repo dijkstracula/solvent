@@ -1,10 +1,11 @@
 from typing import Annotated
 
+import solvent.syntax
 from solvent.frontend.annotations import infer
-from solvent.qualifiers import MagicQ, MagicStar, MagicV
+from solvent.qualifiers import Magic, MagicQ
 
-_ = MagicStar()
-V = MagicV()
+_ = Magic(solvent.syntax.Star())
+V = Magic(solvent.syntax.V())
 Q = MagicQ()
 
 

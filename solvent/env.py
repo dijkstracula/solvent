@@ -1,39 +1,9 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
 from solvent import syntax as syn
-from solvent.syntax import Type
 from solvent.visitor import Visitor
-
-
-@dataclass(frozen=True)
-class Env:
-    items: List[tuple[str, Type]]
-
-    @staticmethod
-    def empty():
-        return Env([])
-
-    def add(self, name: str, typ: Type) -> "Env":
-        return Env([(name, typ)] + self.items)
-
-    def map(self, fn):
-        return Env([(k, fn(v)) for k, v in self.items])
-
-    def keys(self):
-        return list(map(lambda x: x[0], self.items))
-
-    def __getitem__(self, name):
-        for n, t in self.items:
-            if name == n:
-                return t
-        raise IndexError(f"{name} not bound in context")
-
-    def __contains__(self, name):
-        return name in [x for x, _ in self.items]
-
-    def __str__(self):
-        return "{" + ", ".join([f"{x}: {t}" for x, t in self.items]) + "}"
 
 
 @dataclass(frozen=True)
@@ -51,15 +21,27 @@ class ScopedEnv:
         return ScopedEnv([{}])
 
     def add(self, name: str, data: Any) -> "ScopedEnv":
-        new = ScopedEnv(self.scopes)
+        new = deepcopy(self)
         new.scopes[0][name] = data
         return new
 
-    def push_scope(self):
+    def add_mut(self, name: str, data: Any):
+        self.scopes[0][name] = data
+
+    def push_scope(self) -> "ScopedEnv":
         return ScopedEnv([{}] + self.scopes)
 
-    def pop_scope(self):
+    def push_scope_mut(self):
+        self.scopes.insert(0, {})
+
+    def pop_scope(self) -> "ScopedEnv":
         return ScopedEnv(self.scopes[1:])
+
+    def pop_scope_mut(self):
+        self.scopes.pop(0)
+
+    def clone(self) -> "ScopedEnv":
+        return deepcopy(self)
 
     def map(self, fn):
         return ScopedEnv(
@@ -82,7 +64,7 @@ class ScopedEnv:
         raise IndexError(f"{name} not bound in context.")
 
     def __setitem__(self, name, value):
-        self.add(name, value)
+        self.add_mut(name, value)
 
     def __contains__(self, name):
         return name in self.keys()
@@ -105,17 +87,17 @@ class ScopedEnvVisitor(Visitor):
         self.env = ScopedEnv.empty()
 
     def start_FunctionDef(self, fd: syn.FunctionDef):
-        # add function name to current scope
-        self.env.add(fd.name, fd.typ)
-        self.env.push_scope()
-
         assert isinstance(fd.typ, syn.ArrowType)
 
+        # add function name to current scope
+        self.env.add_mut(fd.name, fd.typ)
+
+        self.env.push_scope_mut()
         for name, t in fd.typ.args:
-            self.env.add(name, t)
+            self.env.add_mut(name, t)
 
     def end_FunctionDef(self, _: syn.FunctionDef):
-        self.env.pop_scope()
+        self.env.pop_scope_mut()
 
     def start_Assign(self, stmt: syn.Assign):
-        self.env.add(stmt.name, stmt.typ)
+        self.env.add_mut(stmt.name, stmt.typ)

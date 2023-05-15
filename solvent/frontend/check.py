@@ -2,7 +2,8 @@ from typing import List
 
 from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
-from solvent.env import Env
+from solvent.env import ScopedEnv
+from solvent.sanitize import AssertNoHmTypes
 from solvent.syntax import Type
 from solvent.template import Templatizer
 
@@ -20,14 +21,35 @@ def infer_base(stmts: List[syn.Stmt], debug=False) -> Type:
     return alpha_rename(solved_type)
 
 
+def number(blob: str) -> str:
+    lines = blob.split("\n")
+    ret = []
+    total = len(lines)
+    width = len(str(total))
+    for lineno, l in enumerate(lines, 1):
+        padding = " " * (width - len(str(lineno)))
+        ret += [f"{lineno}{padding}|{l}"]
+    return "\n".join(ret)
+
+
 def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False):
     """
     Run Liquid-type inference and checking.
     """
-
     stmts = normalize.normalize(stmts)
     inferred_base_typ = hm.solve(stmts, False)
+    if debug:
+        print("HmType program:")
+        for s in stmts:
+            print(number(s.to_string(include_types=True)))
+        print("======")
     Templatizer().visit_stmts(stmts)
+    if debug:
+        print("Template program:")
+        for s in stmts:
+            print(number(s.to_string(include_types=True)))
+        print("======")
+    AssertNoHmTypes().visit_stmts(stmts)
 
     if debug:
         print("== Inferred Base Type ==")
@@ -36,10 +58,12 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     if debug:
         print("Templated program:")
         for s in stmts:
-            print(s.to_string(include_types=True))
+            print(number(s.to_string(include_types=True)))
         print("======")
 
-    typ, constrs, context = constraints.check_stmts(Env.empty(), [], stmts)
+    typ, constrs, context = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
+    for c in constrs:
+        AssertNoHmTypes().check_constraint(c)
 
     predvar_solution = liquid.solve(constrs, quals, show_work=debug)
 
@@ -65,7 +89,5 @@ def alpha_rename(typ: syn.Type) -> syn.Type:
             rename_map[var] = syn.TypeVar(NAMES[i])
         else:
             raise NotImplementedError
-
-    print(rename_map)
 
     return hm.apply(typ, rename_map)

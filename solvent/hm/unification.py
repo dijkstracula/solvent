@@ -5,7 +5,7 @@ Implementation of the Hindley-Milner Unification Algorithm
 from typing import Dict, List, Tuple
 
 from solvent import errors
-from solvent.env import Env
+from solvent.env import ScopedEnv
 from solvent.syntax import ArrowType, Bool, HMType, Int, RType, Type, TypeVar
 
 from .check import BaseEq
@@ -187,7 +187,7 @@ def apply(typ: Type, solution: Solution) -> Type:
             return typ
 
 
-def apply_context(context: Env, solution) -> Env:
+def apply_context(context: ScopedEnv, solution) -> ScopedEnv:
     """
     Given a type, resolve all type variables using `solution'.
     """

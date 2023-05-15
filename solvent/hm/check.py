@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 
 from solvent import syntax as syn
-from solvent.env import Env
+from solvent.env import ScopedEnv
 from solvent.syntax import ArrowType, HMType, Type, TypeVar
 
 
@@ -20,8 +20,8 @@ class BaseEq(syn.Pos):
 
 
 def check_stmts(
-    context: Env, stmts: List[syn.Stmt]
-) -> tuple[syn.Type, List[BaseEq], Env]:
+    context: ScopedEnv, stmts: List[syn.Stmt]
+) -> tuple[syn.Type, List[BaseEq], ScopedEnv]:
     typ = HMType(syn.Unit())
     constraints = []
     for stmt in stmts:
@@ -30,15 +30,16 @@ def check_stmts(
     return typ, constraints, context
 
 
-def check_stmt(context: Env, stmt: syn.Stmt) -> tuple[syn.Type, List[BaseEq], Env]:
+def check_stmt(
+    context: ScopedEnv, stmt: syn.Stmt
+) -> tuple[syn.Type, List[BaseEq], ScopedEnv]:
     ret_type: syn.Type
     ret_constrs: List[BaseEq]
-    ret_context: Env
+    ret_context: ScopedEnv
 
     match stmt:
         case syn.FunctionDef(name=name, args=args, return_annotation=ret, body=body):
-            # construct a new context to typecheck our body with
-            body_context = context
+            ret_context = context.push_scope()
             # add the type of arguments to the new context
             argtypes: List[tuple[str, Type]] = []
             for a in args:
@@ -47,7 +48,7 @@ def check_stmt(context: Env, stmt: syn.Stmt) -> tuple[syn.Type, List[BaseEq], En
                 else:
                     t = HMType.fresh(name=a.name)
                 argtypes += [(a.name, t)]
-                body_context = body_context.add(a.name, t)
+                ret_context = ret_context.add(a.name, t)
 
             # we want to add the name of the function currently being defined
             # to the context so that we can define recursive functions.
@@ -61,18 +62,21 @@ def check_stmt(context: Env, stmt: syn.Stmt) -> tuple[syn.Type, List[BaseEq], En
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
             this_type = syn.ArrowType(argtypes, ret_typ).pos(stmt)
-            body_context = body_context.add(name, this_type)
+            ret_context = ret_context.add(name, this_type)
 
             # now typecheck the body
-            inferred_typ, constrs, body_context = check_stmts(body_context, body)
+            inferred_typ, constrs, ret_context = check_stmts(ret_context, body)
 
             ret_typ_constr = [
                 BaseEq(lhs=inferred_typ, rhs=ret_typ).pos(inferred_typ),
             ]
 
+            # remove the scope that we check the body with
+            ret_context = ret_context.pop_scope()
+
             ret_type = this_type
             ret_constrs = constrs + ret_typ_constr
-            ret_context = context.add(name, this_type)
+            ret_context = ret_context.add(name, this_type)
 
         case syn.If(test=test, body=body, orelse=orelse):
             test_typ, test_constrs = check_expr(context, test)
@@ -103,7 +107,7 @@ def check_stmt(context: Env, stmt: syn.Stmt) -> tuple[syn.Type, List[BaseEq], En
     return ret_type.pos(stmt), ret_constrs, ret_context
 
 
-def check_expr(context: Env, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
+def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
     ret_typ = None
     ret_constrs: List[BaseEq] = []
     match expr:

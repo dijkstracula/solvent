@@ -65,8 +65,7 @@ def from_expr(e: syn.Expr, val_name: str = ".v"):
             # when that happens, this becomes an error
             raise Exception(f"Can't convert TypeVar, {n}, to smt.")
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x, repr(x))
 
 
 def base_type(b: syn.Type):
@@ -86,4 +85,4 @@ def from_type(name: str, t: syn.Type):
         case syn.ArrowType(args=_, ret=_):
             return True
         case x:
-            raise NotImplementedError(x)
+            raise NotImplementedError(name, type(x))

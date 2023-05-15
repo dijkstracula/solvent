@@ -4,7 +4,7 @@ from typing import get_type_hints
 
 from solvent import parse, frontend
 from solvent import syntax as syn
-from solvent import V, _, Q, Refine
+from solvent import V, _, Refine
 
 
 def assert_hm(expected):
