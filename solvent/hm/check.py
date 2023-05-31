@@ -3,7 +3,7 @@ from typing import List
 
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
-from solvent.syntax import ArrowType, HMType, Type, TypeVar
+from solvent.syntax import ArrowType, HMType, ListType, Type, TypeVar, base_type_eq
 
 
 @dataclass
@@ -132,6 +132,22 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             )
         case syn.BoolLiteral(_):
             ret_typ = HMType.bool()
+        case syn.ListLiteral(elts=[]):
+            inner_ty = HMType.fresh("lst")
+            ret_typ = ListType(inner_ty)
+        case syn.ListLiteral(elts=elts):
+            elts_typs = [check_expr(context, e) for e in elts]
+            assert elts_typs != []
+            inner_ty: Type = elts_typs[0][0]
+
+            # check that all list types are of inner type
+            # add all constrs to the ret_constrs
+            for ty, cstrs in elts_typs:
+                if not base_type_eq(inner_ty, ty):
+                    raise Exception(f"{repr(inner_ty)} != {repr(ty)}")
+                ret_constrs += cstrs
+
+            ret_typ = ListType(inner_ty)
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)

@@ -158,6 +158,8 @@ class Type(Pos):
                 )
             case Bottom():
                 return "False"
+            case ListType(inner_typ=inner_typ):
+                return f"List[{inner_typ}]"
             case x:
                 print(type(x))
                 raise Exception(x)
@@ -169,7 +171,7 @@ class Type(Pos):
             case RType(base=base, pending_subst=ps, position=pos):
                 return RType(base, predicate, pending_subst=ps, position=pos)
             case x:
-                raise Exception(f"`{x}` is not a Type.")
+                raise Exception(f"`{x}` is not an RType.")
 
 
 @dataclass
@@ -220,8 +222,36 @@ class ArrowType(Type):
 
 
 @dataclass
+class ListType(Type):
+    inner_typ: Type
+
+
+@dataclass
 class Bottom(Type):
     pass
+
+
+def base_type_eq(t1: Type, t2: Type) -> bool:
+    """
+    Implements equality between base types.
+    """
+
+    match (t1, t2):
+        case HMType(base=Int()), HMType(base=Int()):
+            return True
+        case HMType(base=Bool()), HMType(base=Bool()):
+            return True
+        case HMType(TypeVar(name=n1)), HMType(TypeVar(name=n2)):
+            return n1 == n2
+        case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
+            args_eq = all(
+                map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
+            )
+            return args_eq and base_type_eq(ret1, ret2)
+        case ListType(inner_typ1), ListType(inner_typ2):
+            return base_type_eq(inner_typ1, inner_typ2)
+        case _:
+            return False
 
 
 @dataclass(kw_only=True)
@@ -244,6 +274,9 @@ class Expr(Pos, TypeAnnotation):
                 e = f"{v}"
             case BoolLiteral(value=v):
                 e = f"{v}"
+            case ListLiteral(elts=elts):
+                inner = ", ".join([e.to_string(include_types) for e in elts])
+                e = f"[{inner}]"
             case ArithBinOp(lhs=l, op=op, rhs=r):
                 e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
             case BoolOp(lhs=l, op=op, rhs=r):
@@ -301,6 +334,11 @@ class ArithBinOp(Expr):
 @dataclass
 class BoolLiteral(Expr):
     value: bool
+
+
+@dataclass
+class ListLiteral(Expr):
+    elts: List[Expr]
 
 
 @dataclass

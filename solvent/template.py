@@ -3,12 +3,14 @@ from solvent import syntax as syn
 from solvent.env import ScopedEnv, ScopedEnvVisitor
 from solvent.syntax import (
     ArrowType,
+    Assign,
     BoolOp,
     Conjoin,
     Expr,
     FunctionDef,
     HMType,
     IntLiteral,
+    ListType,
     RType,
     Stmt,
     Type,
@@ -34,7 +36,8 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
                 argtypes,
                 template_type(ret, env),
             )
-
+        case ListType(inner_typ):
+            return ListType(template_type(inner_typ, env))
         case x:
             raise errors.Unreachable(x)
 
@@ -76,6 +79,12 @@ class Templatizer(ScopedEnvVisitor):
 
         tt = template_type(expr.typ, self.env)
         expr.annot(tt)
+
+    def start_Assign(self, stmt: Assign):
+        super().start_Assign(stmt)
+
+        tt = template_type(stmt.value.typ, self.env)
+        stmt.annot(tt)
 
     def start_Variable(self, var: Variable):
         super().start_Variable(var)

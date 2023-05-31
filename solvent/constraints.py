@@ -13,7 +13,7 @@ from typing import List
 from solvent import errors
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
-from solvent.syntax import ArrowType, Conjoin, RType, Type, TypeVar
+from solvent.syntax import ArrowType, Conjoin, ListType, RType, Type, TypeVar
 
 
 class Constraint(syn.Pos):
@@ -174,6 +174,13 @@ def check_expr(
             )
         case syn.BoolLiteral(_):
             return (RType.bool().pos(expr), [])
+        case syn.ListLiteral(elts=elts, typ=ListType(inner_typ)):
+            constrs = []
+            for e in elts:
+                ty, cs = check_expr(context, assums, e)
+                constrs += cs
+                constrs += [SubType(context, assums, ty, inner_typ)]
+            return (ListType(inner_typ), constrs)
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             _, lhs_constrs = check_expr(context, assums, lhs)
             _, rhs_constrs = check_expr(context, assums, rhs)
@@ -206,8 +213,7 @@ def check_expr(
                     raise errors.Unreachable(x)
             return (ret_type.subst(subst).pos(expr), constrs)
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
 
 
 def shape_typ(typ: Type) -> Type:

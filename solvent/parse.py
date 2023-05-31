@@ -153,6 +153,9 @@ def parse_expr(expr) -> syn.Expr:
                 return syn.BoolLiteral(value=val).ast(expr)
             else:
                 raise NotImplementedError
+        case ast.List(elts=elts, ctx=ast.Load()):
+            exprs = [parse_expr(e) for e in elts]
+            return syn.ListLiteral(exprs)
         case ast.Call(func=func, args=args):
             return syn.Call(
                 function_name=parse_expr(func), arglist=[parse_expr(e) for e in args]

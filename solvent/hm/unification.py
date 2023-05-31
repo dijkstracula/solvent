@@ -6,32 +6,19 @@ from typing import Dict, List, Tuple
 
 from solvent import errors
 from solvent.env import ScopedEnv
-from solvent.syntax import ArrowType, Bool, HMType, Int, RType, Type, TypeVar
+from solvent.syntax import (
+    ArrowType,
+    HMType,
+    ListType,
+    RType,
+    Type,
+    TypeVar,
+    base_type_eq,
+)
 
 from .check import BaseEq
 
 Solution = Dict[str, Type]
-
-
-def base_type_eq(t1: Type, t2: Type) -> bool:
-    """
-    Implements equality between base types.
-    """
-
-    match (t1, t2):
-        case HMType(base=Int()), HMType(base=Int()):
-            return True
-        case HMType(base=Bool()), HMType(base=Bool()):
-            return True
-        case HMType(TypeVar(name=n1)), HMType(TypeVar(name=n2)):
-            return n1 == n2
-        case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
-            args_eq = all(
-                map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
-            )
-            return args_eq and base_type_eq(ret1, ret2)
-        case _:
-            return False
 
 
 def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
@@ -138,6 +125,8 @@ def free_vars(typ: Type) -> list[str]:
             return []
         case ArrowType(args=args, ret=ret):
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
+        case ListType(inner_typ=inner_typ):
+            return free_vars(inner_typ)
         case x:
             raise NotImplementedError(x, type(x))
 

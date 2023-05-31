@@ -11,6 +11,7 @@ from solvent.syntax import (
     FunctionDef,
     If,
     IntLiteral,
+    ListLiteral,
     Neg,
     Return,
     Star,
@@ -77,6 +78,10 @@ class Visitor:
                 self.end_ArithBinOp(new_expr)
             case BoolLiteral():
                 new_expr = self.start_BoolLiteral(cast(BoolLiteral, expr))
+            case ListLiteral(elts=elts):
+                self.start_ListLiteral(cast(ListLiteral, expr))
+                new_expr = ListLiteral([self.visit_expr(e) for e in elts])
+                self.end_ListLiteral(new_expr)
             case BoolOp(lhs=lhs, op=op, rhs=rhs):
                 self.start_BoolOp(cast(BoolOp, expr))
                 new_expr = BoolOp(self.visit_expr(lhs), op, self.visit_expr(rhs))
@@ -161,6 +166,12 @@ class Visitor:
         pass
 
     def start_BoolLiteral(self, lit: BoolLiteral):
+        pass
+
+    def start_ListLiteral(self, lit: ListLiteral):
+        pass
+
+    def end_ListLiteral(self, lit: ListLiteral):
         pass
 
     def start_BoolOp(self, op: BoolOp):
