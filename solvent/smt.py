@@ -58,8 +58,9 @@ def from_expr(e: syn.Expr, val_name: str = ".v"):
             return v
         case syn.IntLiteral(value=v):
             return v
-        case syn.Neg(expr=e):
-            return -from_expr(e, val_name)
+        case syn.Not(expr=e):
+            # return z3.Int(0) - from_expr(e, val_name)
+            return z3.Not(from_expr(e, val_name))
         case syn.TypeVar(name=n):
             # will need to infer this type eventually.
             # when that happens, this becomes an error

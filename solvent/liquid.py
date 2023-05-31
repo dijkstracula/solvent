@@ -42,6 +42,10 @@ def initial_predicates(
 
 
 def split(c: constr.Constraint) -> List[constr.Constraint]:
+    """
+    Split compound constraints into simpler constraints.
+    """
+
     match c:
         case constr.SubType(context=ctx, assumes=asms, lhs=lhs, rhs=rhs):
             match (lhs, rhs):
@@ -81,11 +85,11 @@ def solve(
     )
     calls = set(sum(map(lambda c: get_predicate_vars(c.typ), call_constrs), []))
 
+    # split all the constraints that we have into base constraints
     constrs = sum([split(c) for c in constrs], [])
 
     for c in constrs:
         if isinstance(c, constr.Scope):
-            print(f"scope: {c}")
             solution = initial_predicates(c.typ, c.context, quals, solution, calls)
 
     if show_work:

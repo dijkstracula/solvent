@@ -277,12 +277,14 @@ class Expr(Pos, TypeAnnotation):
             case ListLiteral(elts=elts):
                 inner = ", ".join([e.to_string() for e in elts])
                 e = f"[{inner}]"
+            case Neg(expr=e):
+                e = f"-({e.to_string(include_types)})"
             case ArithBinOp(lhs=l, op=op, rhs=r):
                 e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
             case BoolOp(lhs=l, op=op, rhs=r):
                 e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
-            case Neg(expr=e):
-                e = f"-({e.to_string(include_types)})"
+            case Not(expr=e):
+                e = f"!({e.to_string(include_types)})"
             case V():
                 e = "V"
             case Star():
@@ -325,6 +327,11 @@ class IntLiteral(Expr):
 
 
 @dataclass
+class Neg(Expr):
+    expr: Expr
+
+
+@dataclass
 class ArithBinOp(Expr):
     lhs: Expr
     op: str
@@ -349,7 +356,7 @@ class BoolOp(Expr):
 
 
 @dataclass
-class Neg(Expr):
+class Not(Expr):
     expr: Expr
 
 

@@ -112,13 +112,13 @@ def check_stmt(
                 context, [test] + assums, body
             )
             else_typ, else_constrs, else_ctx = check_stmts(
-                context, [syn.Neg(test)] + assums, orelse
+                context, [syn.Not(test)] + assums, orelse
             )
             cstrs = [
                 # body is a subtype of ret type
                 SubType(body_ctx, [test] + assums, body_typ, if_typ).pos(body_typ),
                 # else is a subtype of ret type
-                SubType(else_ctx, [syn.Neg(test)] + assums, else_typ, if_typ).pos(
+                SubType(else_ctx, [syn.Not(test)] + assums, else_typ, if_typ).pos(
                     else_typ
                 ),
                 Scope(context, if_typ),
@@ -181,7 +181,7 @@ def check_expr(
         case syn.BoolLiteral(_):
             return (RType.bool().pos(expr), [])
         case syn.ListLiteral(elts=elts, typ=ListType(inner_typ)):
-            constrs = []
+            constrs: List[Constraint] = [Scope(context, expr.typ)]
             for e in elts:
                 ty, cs = check_expr(context, assums, e)
                 constrs += cs

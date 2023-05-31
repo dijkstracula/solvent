@@ -97,6 +97,8 @@ def is_compound(expr: syn.Expr) -> bool:
             return True
         case syn.Neg():
             return True
+        case syn.ListLiteral():
+            return True
         case syn.Call():
             return True
         case _:
