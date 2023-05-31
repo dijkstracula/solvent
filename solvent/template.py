@@ -46,11 +46,17 @@ class Templatizer(ScopedEnvVisitor):
     def start_Stmt(self, stmt: Stmt):
         super().start_Stmt(stmt)
 
-        if isinstance(stmt, FunctionDef):
+        if isinstance(stmt, FunctionDef) or isinstance(stmt, Assign):
             return
 
         tt = template_type(stmt.typ, self.env)
         stmt.annot(tt)
+
+    def end_Assign(self, stmt: syn.Assign):
+        super().end_Assign(stmt)
+
+        stmt.annot(stmt.value.typ)
+        self.env[stmt.name] = stmt.value.typ
 
     def start_FunctionDef(self, fd: FunctionDef):
         # super().start_FunctionDef(fd)
@@ -77,14 +83,11 @@ class Templatizer(ScopedEnvVisitor):
     def start_Expr(self, expr: Expr):
         super().start_Expr(expr)
 
+        if isinstance(expr, Variable) or isinstance(expr, IntLiteral):
+            return
+
         tt = template_type(expr.typ, self.env)
         expr.annot(tt)
-
-    def start_Assign(self, stmt: Assign):
-        super().start_Assign(stmt)
-
-        tt = template_type(stmt.value.typ, self.env)
-        stmt.annot(tt)
 
     def start_Variable(self, var: Variable):
         super().start_Variable(var)

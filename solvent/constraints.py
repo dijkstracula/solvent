@@ -162,6 +162,12 @@ def check_expr(
                 expr
             )
             return (typ, [])
+        case syn.Neg(expr=e):
+            _, e_constrs = check_expr(context, assums, e)
+            return (
+                RType(syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])),
+                e_constrs,
+            )
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             _, lhs_constrs = check_expr(context, assums, lhs)
             _, rhs_constrs = check_expr(context, assums, rhs)

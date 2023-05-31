@@ -118,6 +118,10 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 raise Exception(f"Variable {name} not bound in context.")
         case syn.IntLiteral():
             ret_typ = HMType.int()
+        case syn.Neg(expr=e):
+            e_ty, e_constrs = check_expr(context, e)
+            ret_typ = HMType.int()
+            ret_constrs = e_constrs + [BaseEq(e_ty, HMType.int())]
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)

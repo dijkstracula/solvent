@@ -152,9 +152,10 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
                 args=[(x, subst_one(name, tar, t)) for x, t in args],
                 ret=subst_one(name, tar, ret),
             ).pos(src)
+        case ListType(inner_typ=inner):
+            return ListType(subst_one(name, tar, inner))
         case x:
-            print("subst_one:", x)
-            raise NotImplementedError
+            raise NotImplementedError(f"subst one: {x}")
 
 
 def apply(typ: Type, solution: Solution) -> Type:

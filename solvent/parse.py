@@ -160,6 +160,8 @@ def parse_expr(expr) -> syn.Expr:
             return syn.Call(
                 function_name=parse_expr(func), arglist=[parse_expr(e) for e in args]
             ).ast(expr)
+        case ast.UnaryOp(op=ast.USub(), operand=val):
+            return syn.Neg(parse_expr(val))
         case x:
             if x is not None:
                 print(ast.dump(expr, indent=2))

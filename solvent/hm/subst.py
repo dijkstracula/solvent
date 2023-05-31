@@ -46,6 +46,8 @@ def subst_expr(solution: Solution, expr: syn.Expr):
             pass
         case syn.IntLiteral():
             pass
+        case syn.Neg(expr=e):
+            subst_expr(solution, e)
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             subst_expr(solution, lhs)
             subst_expr(solution, rhs)

@@ -275,7 +275,7 @@ class Expr(Pos, TypeAnnotation):
             case BoolLiteral(value=v):
                 e = f"{v}"
             case ListLiteral(elts=elts):
-                inner = ", ".join([e.to_string(include_types) for e in elts])
+                inner = ", ".join([e.to_string() for e in elts])
                 e = f"[{inner}]"
             case ArithBinOp(lhs=l, op=op, rhs=r):
                 e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"

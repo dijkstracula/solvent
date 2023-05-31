@@ -35,8 +35,38 @@ def initial_predicates(
                 new_ctx[x] = ty
 
             solution = initial_predicates(ret, new_ctx, quals, solution, calls)
+        case syn.ListType(inner_typ=inner):
+            solution = initial_predicates(inner, ctx, quals, solution, calls)
 
     return solution
+
+
+def split(c: constr.Constraint) -> List[constr.Constraint]:
+    match c:
+        case constr.SubType(context=ctx, assumes=asms, lhs=lhs, rhs=rhs):
+            match (lhs, rhs):
+                case (syn.ListType(inner_typ=t0), syn.ListType(inner_typ=t1)):
+                    return split(constr.SubType(ctx, asms, t0, t1))
+                case (
+                    syn.ArrowType(args=args0, ret=ret0),
+                    syn.ArrowType(args=args1, ret=ret1),
+                ):
+                    split_constrs = [
+                        # arguments are contravariant
+                        *[
+                            constr.SubType(ctx, asms, a1, a0)
+                            for (_, a0), (_, a1) in zip(args0, args1)
+                        ],
+                        # ret type is covariant
+                        # TODO: I don't add arguments to the context like in the algo
+                        # I probably should?
+                        constr.SubType(ctx, asms, ret0, ret1),
+                    ]
+                    return sum([split(x) for x in split_constrs], [])
+                case _:
+                    return [c]
+        case _:
+            return [c]
 
 
 def solve(
@@ -51,8 +81,11 @@ def solve(
     )
     calls = set(sum(map(lambda c: get_predicate_vars(c.typ), call_constrs), []))
 
+    constrs = sum([split(c) for c in constrs], [])
+
     for c in constrs:
         if isinstance(c, constr.Scope):
+            print(f"scope: {c}")
             solution = initial_predicates(c.typ, c.context, quals, solution, calls)
 
     if show_work:
@@ -64,6 +97,8 @@ def solve(
                     c.lhs.base, syn.TypeVar
                 ):
                     cs += [(get_predicate_vars(c.rhs), c)]
+                else:
+                    print(c)
 
         for c in sorted(cs, key=lambda x: "" if x[0] is None else x[0]):
             print(c[1])
@@ -228,6 +263,8 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
                 ret=apply(ret, solution),
                 pending_subst=ps,
             )
+        case syn.ListType(inner_typ=inner):
+            return syn.ListType(inner_typ=apply(inner, solution))
         case x:
             return x
 
