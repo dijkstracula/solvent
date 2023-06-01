@@ -26,6 +26,8 @@ def infer(quals=None, debug=False):
             msg += f"Type Error: {e.msg}"
             print(msg)
 
+            raise e
+
         return func
 
     return inner

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List
 
 from solvent import syntax as syn
+from solvent import utils
 from solvent.env import ScopedEnv
 from solvent.syntax import ArrowType, HMType, ListType, Type, TypeVar, base_type_eq
 
@@ -14,6 +15,9 @@ class BaseEq(syn.Pos):
 
     lhs: Type
     rhs: Type
+
+    def __post_init__(self):
+        self.call_site = utils.debuginfo()
 
     def __str__(self):
         return f"{self.lhs} == {self.rhs} ({self.position})"
@@ -85,10 +89,10 @@ def check_stmt(
             ret_typ = HMType(TypeVar.fresh("if")).pos(stmt)
             cstrs = [
                 # test is a boolean
-                BaseEq(test_typ, HMType.bool()),
+                BaseEq(test_typ, HMType.bool()).pos(test_typ),
                 # base types of branches are equal
-                BaseEq(body_typ, ret_typ),
-                BaseEq(body_typ, else_typ),
+                BaseEq(body_typ, ret_typ).pos(ret_typ),
+                BaseEq(body_typ, else_typ).pos(else_typ),
             ]
             ret_type = ret_typ.pos(stmt)
             ret_constrs = cstrs + test_constrs + body_constrs + else_constrs
@@ -121,7 +125,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
         case syn.Neg(expr=e):
             e_ty, e_constrs = check_expr(context, e)
             ret_typ = HMType.int()
-            ret_constrs = e_constrs + [BaseEq(e_ty, HMType.int())]
+            ret_constrs = e_constrs + [BaseEq(e_ty, HMType.int()).pos(expr)]
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)
@@ -137,7 +141,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
         case syn.BoolLiteral(_):
             ret_typ = HMType.bool()
         case syn.ListLiteral(elts=[]):
-            inner_ty = HMType.fresh("lst")
+            inner_ty = HMType.fresh("lst").pos(expr)
             ret_typ = ListType(inner_ty)
         case syn.ListLiteral(elts=elts):
             elts_typs = [check_expr(context, e) for e in elts]
@@ -186,7 +190,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 constrs += cs
 
             ret_typ = HMType.fresh("ret")
-            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ)).pos(fn_ty)]
+            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(fn_ty)]
             ret_constrs = constrs
         case x:
             print(x)

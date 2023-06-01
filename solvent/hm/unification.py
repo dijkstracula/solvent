@@ -153,7 +153,7 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
                 ret=subst_one(name, tar, ret),
             ).pos(src)
         case ListType(inner_typ=inner):
-            return ListType(subst_one(name, tar, inner))
+            return ListType(subst_one(name, tar, inner)).pos(src)
         case x:
             raise NotImplementedError(f"subst one: {x}")
 
