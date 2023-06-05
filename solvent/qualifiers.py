@@ -46,36 +46,51 @@ class HasStar(Visitor):
         return super().start_Star(star)
 
 
+def type_eq(t0: syn.Type, t1: syn.Type) -> bool:
+    match (t0, t1):
+        case syn.ListType(inner_typ=t0), syn.ListType(inner_typ=t1):
+            return type_eq(t0, t1)
+        case syn.Bottom(), _:
+            return True
+        case _, syn.Bottom():
+            return True
+        case syn.ArrowType(args=args0, ret=ret0), syn.ArrowType(args=args1, ret=ret1):
+            return all(
+                [type_eq(a0, a1) for (_, a0), (_, a1) in zip(args0, args1)]
+            ) and type_eq(ret0, ret1)
+        case t0, t1:
+            return t0 == t1
+
+
 @dataclass
 class Qualifier:
     template: syn.Expr
-    required_type: syn.BaseType
+    required_type: syn.Type
 
-    def correct_type(self, typ: syn.BaseType) -> bool:
-        return self.required_type == typ
+    def correct_type(self, typ: syn.Type) -> bool:
+        return type_eq(self.required_type, typ)
 
     def __eq__(self, other: object) -> "Qualifier":
         return Qualifier(
-            syn.BoolOp(self.template, "==", parse_other(other)),
-            syn.Int(),
+            syn.BoolOp(self.template, "==", parse_other(other)), syn.RType.int()
         )
 
     def __add__(self, other: object) -> "Qualifier":
         return Qualifier(
             syn.ArithBinOp(self.template, "+", parse_other(other)),
-            syn.Int(),
+            syn.RType.int(),
         )
 
     def __floordiv__(self, other: object) -> "Qualifier":
         return Qualifier(
             syn.ArithBinOp(self.template, "//", parse_other(other)),
-            syn.Int(),
+            syn.RType.int(),
         )
 
     def implies(self, other: object) -> "Qualifier":
         return Qualifier(
             syn.BoolOp(self.template, "==>", parse_other(other)),
-            syn.Int(),
+            syn.RType.int(),
         )
 
     def subst(self, name: str) -> syn.Expr:
@@ -94,13 +109,17 @@ class Magic:
     def int_op(self, op: str, other: object) -> "Qualifier":
         if op in ["*", "+"]:
             return Qualifier(
-                syn.ArithBinOp(self.symbol, op, parse_other(other)), syn.Int()
+                syn.ArithBinOp(self.symbol, op, parse_other(other)), syn.RType.int()
             )
         else:
-            return Qualifier(syn.BoolOp(self.symbol, op, parse_other(other)), syn.Int())
+            return Qualifier(
+                syn.BoolOp(self.symbol, op, parse_other(other)), syn.RType.int()
+            )
 
     def bool_op(self, op: str, other: object) -> "Qualifier":
-        return Qualifier(syn.BoolOp(self.symbol, op, parse_other(other)), syn.Bool())
+        return Qualifier(
+            syn.BoolOp(self.symbol, op, parse_other(other)), syn.RType.bool()
+        )
 
     def __lt__(self, other):
         return self.int_op("<", other)
@@ -125,6 +144,12 @@ class Magic:
 
     def __mul__(self, other):
         return self.int_op("*", other)
+
+    def len(self):
+        return Qualifier(
+            syn.Call(syn.Variable("len"), [self.symbol]),
+            syn.ListType(inner_typ=syn.Bottom()),
+        )
 
 
 class MagicQ:
@@ -157,7 +182,7 @@ def predicate(context: env.ScopedEnv, quals: List[Qualifier]) -> syn.Conjoin:
             continue
 
         for k, v in context.items():
-            if isinstance(v, syn.RType) and q.correct_type(v.base):
+            if q.correct_type(v):
                 conjuncts += [SubstStar(k).visit_expr(q.template)]
 
     return syn.Conjoin(conjuncts)

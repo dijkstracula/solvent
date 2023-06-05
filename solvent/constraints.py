@@ -13,7 +13,15 @@ from typing import List
 from solvent import errors
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
-from solvent.syntax import ArrowType, Conjoin, ListType, RType, Type, TypeVar
+from solvent.syntax import (
+    ArrowType,
+    Conjoin,
+    ListType,
+    RType,
+    Type,
+    TypeVar,
+    base_type_eq,
+)
 
 
 class Constraint(syn.Pos):
@@ -169,11 +177,19 @@ def check_expr(
                 e_constrs,
             )
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
-            _, lhs_constrs = check_expr(context, assums, lhs)
-            _, rhs_constrs = check_expr(context, assums, rhs)
-            ret_ty = RType(syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])).pos(
-                expr
-            )
+            lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
+            rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
+
+            if base_type_eq(lhs_ty, rhs_ty) and isinstance(lhs_ty, ListType):
+                ret_ty = ListType(RType(syn.Int(), Conjoin([syn.BoolLiteral(True)])))
+                print("here", lhs_ty, rhs_ty, ret_ty)
+                # ret_ty = RType(
+                #     syn.Int(),
+                #     Conjoin([syn.BoolOp(syn.V(), "==", expr)])).pos(expr)
+            else:
+                ret_ty = RType(
+                    syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])
+                ).pos(expr)
             return (
                 ret_ty,
                 lhs_constrs + rhs_constrs + [Scope(context, ret_ty).pos(ret_ty)],

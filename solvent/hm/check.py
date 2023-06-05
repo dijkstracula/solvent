@@ -126,6 +126,19 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             e_ty, e_constrs = check_expr(context, e)
             ret_typ = HMType.int()
             ret_constrs = e_constrs + [BaseEq(e_ty, HMType.int()).pos(expr)]
+        case syn.ArithBinOp(lhs=lhs, rhs=rhs, op="+"):
+            # give `+` the type `'a -> 'a -> 'a`
+            lhs_ty, lhs_constrs = check_expr(context, lhs)
+            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            ret_typ = HMType.fresh()
+            ret_constrs = (
+                lhs_constrs
+                + rhs_constrs
+                + [
+                    BaseEq(lhs_ty, ret_typ).pos(lhs_ty),
+                    BaseEq(rhs_ty, ret_typ).pos(rhs_ty),
+                ]
+            )
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)

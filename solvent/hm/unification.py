@@ -57,6 +57,9 @@ def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
                 )
                 ret_constr = BaseEq(lhs=top.lhs.ret, rhs=top.rhs.ret)
                 return solve(arg_constrs + [ret_constr] + rest, show_work)
+            elif isinstance(top.lhs, ListType) and isinstance(top.rhs, ListType):
+                inner_constr = BaseEq(lhs=top.lhs.inner_typ, rhs=top.rhs.inner_typ)
+                return solve([inner_constr] + rest, show_work)
             else:
                 raise errors.TypeError(top)
         case _:
@@ -86,14 +89,15 @@ def unify(constrs: List[BaseEq], show_work=False) -> Tuple[List[BaseEq], Solutio
         # get an element from the worklist
         name: str = worklist.pop()
         match solution[name]:
-            case ArrowType():
-                solution[name] = apply(solution[name], solution)
             # if this name maps to a variable in the solution,
             # update solution, and add name back to the worklist.
             # it may need to be updated again.
             case HMType(TypeVar(name=n)) if n in solution:
                 solution[name] = solution[n]
                 worklist += [name]
+            # otherwise call apply
+            case x:
+                solution[name] = apply(x, solution)
 
     return (apply_constraints(constrs, solution), solution)
 
@@ -173,6 +177,8 @@ def apply(typ: Type, solution: Solution) -> Type:
                 args=[(name, apply(t, solution)) for name, t in args],
                 ret=apply(ret, solution),
             )
+        case ListType(inner_typ=inner):
+            return ListType(inner_typ=apply(inner, solution))
         case _:
             return typ
 

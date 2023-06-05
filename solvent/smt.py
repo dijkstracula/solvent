@@ -85,5 +85,7 @@ def from_type(name: str, t: syn.Type):
             return from_exprs(conj, name)
         case syn.ArrowType(args=_, ret=_):
             return True
+        case syn.ListType():
+            return True
         case x:
             raise NotImplementedError(name, type(x))

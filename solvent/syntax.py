@@ -29,8 +29,8 @@ class Pos:
         return self
 
     def pos(self, p: "Pos"):
-        if p.position is None:
-            raise Exception(f"`{p}` had no position.")
+        # if p.position is None:
+        #     raise Exception(f"`{p}` had no position.")
         self.position = p.position
         return self
 
@@ -248,6 +248,12 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
                 map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
             )
             return args_eq and base_type_eq(ret1, ret2)
+        case RType(base=Int()), RType(base=Int()):
+            return True
+        case RType(base=Bool()), RType(base=Bool()):
+            return True
+        case RType(base=TypeVar(name=n1)), RType(base=TypeVar(name=n2)):
+            return n1 == n2
         case ListType(inner_typ1), ListType(inner_typ2):
             return base_type_eq(inner_typ1, inner_typ2)
         case _:
