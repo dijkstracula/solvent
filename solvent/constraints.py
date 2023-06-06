@@ -181,11 +181,22 @@ def check_expr(
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
 
             if base_type_eq(lhs_ty, rhs_ty) and isinstance(lhs_ty, ListType):
-                ret_ty = ListType(RType(syn.Int(), Conjoin([syn.BoolLiteral(True)])))
-                print("here", lhs_ty, rhs_ty, ret_ty)
-                # ret_ty = RType(
-                #     syn.Int(),
-                #     Conjoin([syn.BoolOp(syn.V(), "==", expr)])).pos(expr)
+                # ret_ty = ListType(RType(syn.Int(), Conjoin([syn.BoolLiteral(True)])))
+                # print("here", lhs_ty, rhs_ty, ret_ty)
+                ret_ty = ListType(
+                    RType(
+                        syn.Int(),
+                        Conjoin(
+                            [
+                                syn.BoolOp(
+                                    syn.BoolOp(syn.V(), "==", lhs),
+                                    "or",
+                                    syn.BoolOp(syn.V(), "==", rhs),
+                                )
+                            ]
+                        ),
+                    )
+                ).pos(expr)
             else:
                 ret_ty = RType(
                     syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])
