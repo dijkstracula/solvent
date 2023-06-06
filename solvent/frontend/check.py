@@ -3,6 +3,7 @@ from typing import List
 from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
+from solvent.initial_predicates import InitialPredicatesVisitor
 from solvent.sanitize import AssertNoHmTypes
 from solvent.syntax import Type
 from solvent.template import Templatizer
@@ -62,6 +63,11 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     typ, constrs, context = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
     for c in constrs:
         AssertNoHmTypes().check_constraint(c)
+
+    ipv = InitialPredicatesVisitor(quals)
+    ipv.visit_stmts(stmts)
+    for k, v in ipv.solution:
+        print(f"{k}: {v}")
 
     predvar_solution = liquid.solve(constrs, quals, show_work=debug)
 

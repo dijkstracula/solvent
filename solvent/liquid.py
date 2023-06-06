@@ -44,6 +44,8 @@ def initial_predicates(
 def split(c: constr.Constraint) -> List[constr.Constraint]:
     """
     Split compound constraints into simpler constraints.
+
+    TODO: Do I need to split constraints in the environment?
     """
 
     match c:
