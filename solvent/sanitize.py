@@ -49,5 +49,3 @@ class AssertNoHmTypes(Visitor):
         match constr:
             case constraints.SubType(context=ctx):
                 self.check_context(ctx)
-            case constraints.Scope(context=ctx):
-                self.check_context(ctx)

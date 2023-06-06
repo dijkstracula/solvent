@@ -58,8 +58,12 @@ def type_eq(t0: syn.Type, t1: syn.Type) -> bool:
             return all(
                 [type_eq(a0, a1) for (_, a0), (_, a1) in zip(args0, args1)]
             ) and type_eq(ret0, ret1)
-        case t0, t1:
-            return t0 == t1
+        case syn.RType(base=syn.Int()), syn.RType(base=syn.Int()):
+            return True
+        case syn.RType(base=syn.Bool()), syn.RType(base=syn.Bool()):
+            return True
+        case _:
+            return False
 
 
 @dataclass
@@ -68,7 +72,9 @@ class Qualifier:
     required_type: syn.Type
 
     def correct_type(self, typ: syn.Type) -> bool:
-        return type_eq(self.required_type, typ)
+        res = type_eq(self.required_type, typ)
+        # print(f"  testing {self.required_type} ?= {typ}: {res}")
+        return res
 
     def __eq__(self, other: object) -> "Qualifier":
         return Qualifier(
@@ -181,6 +187,7 @@ def predicate(context: env.ScopedEnv, quals: List[Qualifier]) -> syn.Conjoin:
             conjuncts += [q.template]
             continue
 
+        # print(f"{q.template}: {q.required_type}")
         for k, v in context.items():
             if q.correct_type(v):
                 conjuncts += [SubstStar(k).visit_expr(q.template)]

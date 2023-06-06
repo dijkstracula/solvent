@@ -12,6 +12,7 @@ from solvent import qualifiers as quals
 from solvent import subtype
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
+from solvent.initial_predicates import InitialPredicatesVisitor
 
 Solution = Dict[str, syn.Conjoin]
 
@@ -76,23 +77,24 @@ def split(c: constr.Constraint) -> List[constr.Constraint]:
 
 
 def solve(
+    stmts: List[syn.Stmt],
     constrs: List[constr.Constraint],
     quals: List[quals.Qualifier],
     show_work=False,
 ) -> Solution:
     solution: Solution = {}
 
-    call_constrs: List[constr.Call] = cast(
-        List[constr.Call], list(filter(lambda c: isinstance(c, constr.Call), constrs))
-    )
-    calls = set(sum(map(lambda c: get_predicate_vars(c.typ), call_constrs), []))
+    # call_constrs: List[constr.Call] = cast(
+    #     List[constr.Call], list(filter(lambda c: isinstance(c, constr.Call), constrs))
+    # )
+    # calls = set(sum(map(lambda c: get_predicate_vars(c.typ), call_constrs), []))
 
     # split all the constraints that we have into base constraints
     constrs = sum([split(c) for c in constrs], [])
 
-    for c in constrs:
-        if isinstance(c, constr.Scope):
-            solution = initial_predicates(c.typ, c.context, quals, solution, calls)
+    ipv = InitialPredicatesVisitor(quals)
+    ipv.visit_stmts(stmts)
+    solution = ipv.solution
 
     if show_work:
         print("Initial Constraints:")

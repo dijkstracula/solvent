@@ -8,7 +8,8 @@ from typing import Dict, List
 
 from solvent import qualifiers
 from solvent import syntax as syn
-from solvent.env import ScopedEnvVisitor
+from solvent.env import ScopedEnv, ScopedEnvVisitor
+from solvent.syntax import Expr
 
 Solution = Dict[str, syn.Conjoin]
 
@@ -33,14 +34,44 @@ class InitialPredicatesVisitor(ScopedEnvVisitor):
         self.solution: Solution = {}
         self.quals = quals
 
+    def calculate(self, typ: syn.Type, env: ScopedEnv, quals):
+        pvars = predicate_variables(typ)
+        if len(pvars) == 0:
+            return
+
+        print("here ==")
+        print(f"{pvars} {typ}: {env}")
+
+        for pvar in pvars:
+            # only consider the first time a predicate is computed
+            # this is a slightly hacky way to get at the notion of
+            # only considering variables that are in scope at definition
+            # time. At some point, we probably want a more robust solution
+            # than this
+            if pvar not in self.solution:
+                self.solution[pvar] = qualifiers.predicate(env, quals)
+
     def start_Stmt(self, stmt: syn.Stmt):
         super().start_Stmt(stmt)
 
-        print("== here ==")
-        print(list(self.env.keys()))
-        pred = qualifiers.predicate(self.env, self.quals)
-        print(pred)
+        if isinstance(stmt, syn.FunctionDef):
+            return
 
-        for pvar in predicate_variables(stmt.typ):
-            print("  pvar:", pvar)
-            self.solution[pvar] = pred
+        self.calculate(stmt.typ, self.env, self.quals)
+
+    def start_FunctionDef(self, fd: syn.FunctionDef):
+        super().start_FunctionDef(fd)
+
+        assert isinstance(fd.typ, syn.ArrowType)
+
+        new_env = self.env.clone()
+        for x, t in fd.typ.args:
+            self.calculate(t, self.env, self.quals)
+            new_env = new_env.add(x, t)
+
+        self.calculate(fd.typ.ret, new_env, self.quals)
+
+    def start_Expr(self, expr: Expr):
+        super().start_Expr(expr)
+
+        self.calculate(expr.typ, self.env, self.quals)
