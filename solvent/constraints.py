@@ -27,11 +27,9 @@ from solvent.syntax import (
 class Constraint(syn.Pos):
     def __str__(self):
         match self:
-            case SubType(context=ctx, assumes=assumes, lhs=lhs, rhs=rhs):
+            case SubType(context=_, assumes=assumes, lhs=lhs, rhs=rhs):
                 asm_str = ", ".join([str(e) for e in assumes])
                 return f"[{asm_str}] |- {lhs} <: {rhs}"
-            case Scope(context=ctx, typ=typ):
-                return f"{list(ctx.keys())} |- {typ}"
             case Call(typ=typ):
                 return f"{typ} called"
 
@@ -46,16 +44,6 @@ class SubType(Constraint):
     assumes: List[syn.Expr]
     lhs: Type
     rhs: Type
-
-
-@dataclass
-class Scope(Constraint):
-    """
-    Represents the context of an expression
-    """
-
-    context: ScopedEnv
-    typ: Type
 
 
 @dataclass
@@ -83,8 +71,6 @@ def check_stmt(
 ) -> tuple[syn.Type, List[Constraint], ScopedEnv]:
     match stmt:
         case syn.FunctionDef(name=name, body=body, typ=ArrowType(args=args, ret=ret)):
-            scope_constr = []
-
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
             this_type = syn.ArrowType(args, ret)
@@ -96,9 +82,6 @@ def check_stmt(
                 # scope_constr += [Scope(context, t)]
                 body_context = body_context.add(name, t)
 
-            # scope constraints
-            scope_constr += [Scope(context, this_type)]
-
             # now typecheck the body
             body_type, body_constrs, context = check_stmts(body_context, assums, body)
 
@@ -108,7 +91,7 @@ def check_stmt(
 
             return (
                 this_type,
-                body_constrs + ret_typ_constr + scope_constr,
+                body_constrs + ret_typ_constr,
                 body_context.pop_scope(),
             )
 
@@ -129,7 +112,6 @@ def check_stmt(
                 SubType(else_ctx, [syn.Not(test)] + assums, else_typ, if_typ).pos(
                     else_typ
                 ),
-                Scope(context, if_typ),
             ]
             return (
                 if_typ.pos(stmt),
@@ -138,7 +120,6 @@ def check_stmt(
             )
         case syn.Assign(name=id, value=e):
             e_typ, e_constrs = check_expr(context, assums, e)
-            e_constrs += [Scope(context, e_typ)]
             return e_typ, e_constrs, context.add(id, e_typ)
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
@@ -203,12 +184,12 @@ def check_expr(
                 ).pos(expr)
             return (
                 ret_ty,
-                lhs_constrs + rhs_constrs + [Scope(context, ret_ty).pos(ret_ty)],
+                lhs_constrs + rhs_constrs,
             )
         case syn.BoolLiteral(_):
             return (RType.bool().pos(expr), [])
         case syn.ListLiteral(elts=elts, typ=ListType(inner_typ)):
-            constrs: List[Constraint] = [Scope(context, expr.typ)]
+            constrs: List[Constraint] = []
             for e in elts:
                 ty, cs = check_expr(context, assums, e)
                 constrs += cs
