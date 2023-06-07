@@ -42,7 +42,7 @@ def initial_predicates(
     return solution
 
 
-def split(c: constr.Constraint) -> List[constr.Constraint]:
+def split(c: constr.SubType) -> List[constr.SubType]:
     """
     Split compound constraints into simpler constraints.
 
@@ -78,16 +78,17 @@ def split(c: constr.Constraint) -> List[constr.Constraint]:
 
 def solve(
     stmts: List[syn.Stmt],
-    constrs: List[constr.Constraint],
+    constrs: List[constr.SubType],
     quals: List[quals.Qualifier],
     show_work=False,
 ) -> Solution:
     solution: Solution = {}
 
-    # call_constrs: List[constr.Call] = cast(
-    #     List[constr.Call], list(filter(lambda c: isinstance(c, constr.Call), constrs))
-    # )
-    # calls = set(sum(map(lambda c: get_predicate_vars(c.typ), call_constrs), []))
+    if show_work:
+        print("Raw Constraints:")
+        for c in constrs:
+            print(c)
+        print("======")
 
     # split all the constraints that we have into base constraints
     constrs = sum([split(c) for c in constrs], [])
@@ -98,18 +99,8 @@ def solve(
 
     if show_work:
         print("Initial Constraints:")
-        cs = []
         for c in constrs:
-            if isinstance(c, constr.SubType):
-                if isinstance(c.lhs, syn.RType) and not isinstance(
-                    c.lhs.base, syn.TypeVar
-                ):
-                    cs += [(get_predicate_vars(c.rhs), c)]
-                else:
-                    print(c)
-
-        for c in sorted(cs, key=lambda x: "" if x[0] is None else x[0]):
-            print(c[1])
+            print(c)
         print("======")
 
         print("Initial Predicates:")

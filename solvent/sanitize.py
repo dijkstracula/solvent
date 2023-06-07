@@ -45,7 +45,7 @@ class AssertNoHmTypes(Visitor):
             self.check_typ(f"{ctx}", ty)
         return None
 
-    def check_constraint(self, constr: constraints.Constraint):
+    def check_constraint(self, constr: constraints.SubType):
         match constr:
             case constraints.SubType(context=ctx):
                 self.check_context(ctx)

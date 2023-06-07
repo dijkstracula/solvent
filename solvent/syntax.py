@@ -419,7 +419,7 @@ class Stmt(Pos, TypeAnnotation):
                 typstr1 = f") : {self.typ}" if include_types else ""
                 res = "\n".join(
                     [
-                        f"{align}{typstr0}if {test.to_string(include_types)}:",
+                        f"{align}{typstr0}if {test.to_string(False)}:",
                         f"{bodystr}",
                         f"{align}else:",
                         f"{elsestr}{typstr1}",
@@ -428,9 +428,9 @@ class Stmt(Pos, TypeAnnotation):
                 return res
             case Assign(name=name, value=value):
                 typann = f": {self.typ}" if include_types else ""
-                return f"{align}{name}{typann} = {value.to_string(include_types)}"
+                return f"{align}{name}{typann} = {value.to_string(False)}"
             case Return(value):
-                return f"{align}return {value.to_string(include_types)}"
+                return f"{align}return {value.to_string(False)}"
             case x:
                 return f"{align}{repr(x)}"
 

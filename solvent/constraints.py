@@ -24,18 +24,8 @@ from solvent.syntax import (
 )
 
 
-class Constraint(syn.Pos):
-    def __str__(self):
-        match self:
-            case SubType(context=_, assumes=assumes, lhs=lhs, rhs=rhs):
-                asm_str = ", ".join([str(e) for e in assumes])
-                return f"[{asm_str}] |- {lhs} <: {rhs}"
-            case Call(typ=typ):
-                return f"{typ} called"
-
-
 @dataclass
-class SubType(Constraint):
+class SubType(syn.Pos):
     """
     Represents a subtype constraint between two types with a context of `assumes'
     """
@@ -45,19 +35,14 @@ class SubType(Constraint):
     lhs: Type
     rhs: Type
 
-
-@dataclass
-class Call(Constraint):
-    """
-    Tracks whether a function was ever called.
-    """
-
-    typ: Type
+    def __str__(self):
+        asm_str = ", ".join([str(e) for e in self.assumes])
+        return f"[{asm_str}] |- {self.lhs} <: {self.rhs}"
 
 
 def check_stmts(
     context: ScopedEnv, assums: List[syn.Expr], stmts: List[syn.Stmt]
-) -> tuple[syn.Type, List[Constraint], ScopedEnv]:
+) -> tuple[syn.Type, List[SubType], ScopedEnv]:
     typ = syn.RType.lift(syn.Unit())
     constraints = []
     for stmt in stmts:
@@ -68,7 +53,7 @@ def check_stmts(
 
 def check_stmt(
     context: ScopedEnv, assums: List[syn.Expr], stmt: syn.Stmt
-) -> tuple[syn.Type, List[Constraint], ScopedEnv]:
+) -> tuple[syn.Type, List[SubType], ScopedEnv]:
     match stmt:
         case syn.FunctionDef(name=name, body=body, typ=ArrowType(args=args, ret=ret)):
             # add the function that we are currently defining to our
@@ -131,7 +116,7 @@ def check_stmt(
 
 def check_expr(
     context: ScopedEnv, assums, expr: syn.Expr
-) -> tuple[Type, List[Constraint]]:
+) -> tuple[Type, List[SubType]]:
     match expr:
         case syn.Variable(typ=typ):
             if typ is None:
@@ -189,7 +174,7 @@ def check_expr(
         case syn.BoolLiteral(_):
             return (RType.bool().pos(expr), [])
         case syn.ListLiteral(elts=elts, typ=ListType(inner_typ)):
-            constrs: List[Constraint] = []
+            constrs: List[SubType] = []
             for e in elts:
                 ty, cs = check_expr(context, assums, e)
                 constrs += cs
@@ -221,7 +206,6 @@ def check_expr(
                             SubType(context, assums, expr_ty, arg_ty).pos(expr_ty),
                         ]
                         subst += [(x1, e)]
-                    constrs += [Call(fn_ty)]
                     ret_type = fn_ret_type
                 case x:
                     raise errors.Unreachable(x)
