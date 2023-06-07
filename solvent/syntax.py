@@ -272,37 +272,36 @@ class TypeAnnotation:
 @dataclass
 class Expr(Pos, TypeAnnotation):
     def to_string(self, include_types=False):
-        e = ""
         match self:
             case Variable(name=x):
-                e = f"{x}"
+                return f"{x}"
             case IntLiteral(value=v):
-                e = f"{v}"
+                return f"{v}"
             case BoolLiteral(value=v):
-                e = f"{v}"
+                return f"{v}"
             case ListLiteral(elts=elts):
                 inner = ", ".join([e.to_string() for e in elts])
-                e = f"[{inner}]"
+                if include_types:
+                    return f"([{inner}] : {self.typ})"
+                else:
+                    return f"[{inner}]"
             case Neg(expr=e):
-                e = f"-({e.to_string(include_types)})"
+                return f"-({e.to_string(include_types)})"
             case ArithBinOp(lhs=l, op=op, rhs=r):
-                e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
+                return f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
             case BoolOp(lhs=l, op=op, rhs=r):
-                e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
+                return f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
             case Not(expr=e):
-                e = f"!({e.to_string(include_types)})"
+                return f"!({e.to_string(include_types)})"
             case V():
-                e = "V"
+                return "V"
             case Star():
-                e = "*"
+                return "*"
             case Call(function_name=fn, arglist=args):
                 args = [a.to_string(include_types) for a in args]
-                e = f"{fn}({', '.join(args)})"
+                return f"{fn}({', '.join(args)})"
             case x:
-                e = f"`{repr(x)}`"
-        if include_types and self.typ != Bottom():
-            return f"({e} : {self.typ})"
-        return e
+                return f"`{repr(x)}`"
 
     def __str__(self):
         return self.to_string()
@@ -419,7 +418,7 @@ class Stmt(Pos, TypeAnnotation):
                 typstr1 = f") : {self.typ}" if include_types else ""
                 res = "\n".join(
                     [
-                        f"{align}{typstr0}if {test.to_string(False)}:",
+                        f"{align}{typstr0}if {test.to_string(include_types)}:",
                         f"{bodystr}",
                         f"{align}else:",
                         f"{elsestr}{typstr1}",
@@ -430,7 +429,7 @@ class Stmt(Pos, TypeAnnotation):
                 typann = f": {self.typ}" if include_types else ""
                 return f"{align}{name}{typann} = {value.to_string(False)}"
             case Return(value):
-                return f"{align}return {value.to_string(False)}"
+                return f"{align}return {value.to_string(include_types)}"
             case x:
                 return f"{align}{repr(x)}"
 

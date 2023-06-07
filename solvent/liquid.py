@@ -7,7 +7,6 @@ from typing import Dict, List, cast
 
 from solvent import constraints as constr
 from solvent import liquid
-from solvent import qualifiers
 from solvent import qualifiers as quals
 from solvent import subtype
 from solvent import syntax as syn
@@ -15,31 +14,6 @@ from solvent.env import ScopedEnv
 from solvent.initial_predicates import InitialPredicatesVisitor
 
 Solution = Dict[str, syn.Conjoin]
-
-
-def initial_predicates(
-    t: syn.Type,
-    ctx: ScopedEnv,
-    quals: List[quals.Qualifier],
-    solution: Solution,
-    calls: set[str],
-) -> Solution:
-    match t:
-        case syn.RType(
-            base=syn.Int(), predicate=syn.PredicateVar(name=n)
-        ):  # if n in calls:
-            solution[n] = qualifiers.predicate(ctx, quals)
-        case syn.ArrowType(args=args, ret=ret):
-            new_ctx = ctx.clone()
-            for x, ty in args:
-                solution = initial_predicates(ty, ctx, quals, solution, calls)
-                new_ctx[x] = ty
-
-            solution = initial_predicates(ret, new_ctx, quals, solution, calls)
-        case syn.ListType(inner_typ=inner):
-            solution = initial_predicates(inner, ctx, quals, solution, calls)
-
-    return solution
 
 
 def split(c: constr.SubType) -> List[constr.SubType]:

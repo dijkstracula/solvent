@@ -105,6 +105,7 @@ def check_stmt(
             )
         case syn.Assign(name=id, value=e):
             e_typ, e_constrs = check_expr(context, assums, e)
+            # e_constrs += [SubType(context, assums, e.typ, e_typ)]
             return e_typ, e_constrs, context.add(id, e_typ)
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
@@ -145,31 +146,21 @@ def check_expr(
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
+            constrs = []
 
             if base_type_eq(lhs_ty, rhs_ty) and isinstance(lhs_ty, ListType):
-                # ret_ty = ListType(RType(syn.Int(), Conjoin([syn.BoolLiteral(True)])))
-                # print("here", lhs_ty, rhs_ty, ret_ty)
-                ret_ty = ListType(
-                    RType(
-                        syn.Int(),
-                        Conjoin(
-                            [
-                                syn.BoolOp(
-                                    syn.BoolOp(syn.V(), "==", lhs),
-                                    "or",
-                                    syn.BoolOp(syn.V(), "==", rhs),
-                                )
-                            ]
-                        ),
-                    )
-                ).pos(expr)
+                constrs += [
+                    SubType(context, assums, lhs_ty, expr.typ),
+                    SubType(context, assums, rhs_ty, expr.typ),
+                ]
+                ret_ty = expr.typ
             else:
                 ret_ty = RType(
                     syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])
                 ).pos(expr)
             return (
                 ret_ty,
-                lhs_constrs + rhs_constrs,
+                lhs_constrs + rhs_constrs + constrs,
             )
         case syn.BoolLiteral(_):
             return (RType.bool().pos(expr), [])
@@ -178,7 +169,7 @@ def check_expr(
             for e in elts:
                 ty, cs = check_expr(context, assums, e)
                 constrs += cs
-                constrs += [SubType(context, assums, ty, inner_typ)]
+                constrs += [SubType(context, assums, ty, inner_typ).pos(expr)]
             return (ListType(inner_typ), constrs)
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             _, lhs_constrs = check_expr(context, assums, lhs)
@@ -206,10 +197,11 @@ def check_expr(
                             SubType(context, assums, expr_ty, arg_ty).pos(expr_ty),
                         ]
                         subst += [(x1, e)]
-                    ret_type = fn_ret_type
+                    ret_type = fn_ret_type.subst(subst)
                 case x:
                     raise errors.Unreachable(x)
-            return (ret_type.subst(subst).pos(expr), constrs)
+            constrs += [SubType(context, assums, ret_type, expr.typ)]
+            return (ret_type.pos(expr), constrs)
         case x:
             raise NotImplementedError(x)
 
