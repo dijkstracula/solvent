@@ -39,9 +39,6 @@ class InitialPredicatesVisitor(ScopedEnvVisitor):
         if len(pvars) == 0:
             return
 
-        print("here ==")
-        print(f"{pvars} {typ}: {env}")
-
         for pvar in pvars:
             # only consider the first time a predicate is computed
             # this is a slightly hacky way to get at the notion of
@@ -60,8 +57,6 @@ class InitialPredicatesVisitor(ScopedEnvVisitor):
         self.calculate(stmt.typ, self.env, self.quals)
 
     def start_FunctionDef(self, fd: syn.FunctionDef):
-        super().start_FunctionDef(fd)
-
         assert isinstance(fd.typ, syn.ArrowType)
 
         new_env = self.env.clone()
@@ -70,6 +65,10 @@ class InitialPredicatesVisitor(ScopedEnvVisitor):
             new_env = new_env.add(x, t)
 
         self.calculate(fd.typ.ret, new_env, self.quals)
+
+        # Call super after calculating this so that the arguments
+        # aren't added to the environment yet
+        super().start_FunctionDef(fd)
 
     def start_Expr(self, expr: Expr):
         super().start_Expr(expr)
