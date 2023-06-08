@@ -6,7 +6,7 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from solvent.position import Position
 
@@ -132,7 +132,7 @@ class PredicateVar(Predicate):
 class Type(Pos):
     pending_subst: Dict[str, "Expr"] = field(default_factory=dict)
 
-    def subst(self, pairs: List[tuple[str, "Expr"]]):
+    def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
         ret = deepcopy(self)
         for k, v in pairs:
             ret.pending_subst[k] = v

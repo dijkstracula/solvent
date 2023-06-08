@@ -197,11 +197,11 @@ def check_expr(
                             SubType(context, assums, expr_ty, arg_ty).pos(expr_ty),
                         ]
                         subst += [(x1, e)]
-                    ret_type = fn_ret_type.subst(subst)
+                    ret_type = fn_ret_type.subst(subst).pos(expr)
                 case x:
                     raise errors.Unreachable(x)
-            constrs += [SubType(context, assums, ret_type, expr.typ)]
-            return (ret_type.pos(expr), constrs)
+            constrs += [SubType(context, assums, ret_type, expr.typ).pos(expr)]
+            return (ret_type, constrs)
         case x:
             raise NotImplementedError(x)
 

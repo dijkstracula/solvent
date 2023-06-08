@@ -27,7 +27,14 @@ def split(c: constr.SubType) -> List[constr.SubType]:
         case constr.SubType(context=ctx, assumes=asms, lhs=lhs, rhs=rhs):
             match (lhs, rhs):
                 case (syn.ListType(inner_typ=t0), syn.ListType(inner_typ=t1)):
-                    return split(constr.SubType(ctx, asms, t0, t1))
+                    return split(
+                        constr.SubType(
+                            ctx,
+                            asms,
+                            t0.subst(lhs.pending_subst.items()),
+                            t1.subst(rhs.pending_subst.items()),
+                        )
+                    )
                 case (
                     syn.ArrowType(args=args0, ret=ret0),
                     syn.ArrowType(args=args1, ret=ret1),
@@ -156,7 +163,7 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
                     print(f"Checking {qual}: ", end="\n")
                     print(f"  ctx: {apply_ctx(ctx, solution)}")
                     print(f"  constr: {apply_constr(c, solution)}")
-                    print(f"  substs: {ps}")
+                    print(f"  substs: {lhs.pending_subst}, {ps}")
                 if subtype.check(
                     apply_ctx(ctx, solution),
                     assumes,
