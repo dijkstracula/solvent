@@ -28,3 +28,52 @@ Supports "recoders" which are basically coercing functions that convert arbitrar
 Has some nice python type syntax. You can write `Dataset["id", "name", "location"]` to represent a table with those columns. You can write `Dataset["id": int, "name", "location"]` to indicate that the `id` column should have type `int`.
 
 Also comes with a `@validator` annotation.
+
+## Examples
+
+### Pandera
+
+Simple example from the pandera docs:
+
+```python
+from pandera.typing import Series
+
+class Schema(pa.DataFrameModel):
+
+    column1: Series[int] = pa.Field(le=10)
+    column2: Series[float] = pa.Field(lt=-1.2)
+    column3: Series[str] = pa.Field(str_startswith="value_")
+
+    @pa.check("column3")
+    def column_3_check(cls, series: Series[str]) -> Series[bool]:
+        """Check that column3 values have two elements after being split with '_'"""
+        return series.str.split("_", expand=True).shape[1] == 2
+
+Schema.validate(df)
+```
+
+## Signatures of Pandas functions
+
+### `max`
+`Series[{t | R}] -> Series[{t | R}]`
+
+This is what I want for this input.
+
+`Series[{int | 0 <= V <= 100}] -> Series[{t | V <= 100}]`
+
+This blog post is relevant.
+https://ucsd-progsys.github.io/liquidhaskell/blogposts/2013-06-03-abstracting-over-refinements.lhs/#
+
+## Open Questions
+
+### How should we handle missing values?
+
+If a dataframe has type `DataFrame[.., A: {int | 0 <= V}]`, what values are allowed in column A? Should it just be non-negative values? Are NaNs allowed? Allowing NaNs are slightly more aligned with the semantics of Pandas dataframes, however it also makes the types less useful.
+
+Do we want predicates across the values in a column?
+
+```python
+df["mean"] = df["A"].mean()
+
+# DataFrame[.., mean: {float | V == self["A"].mean()}]
+```
