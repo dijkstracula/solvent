@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from typing import List
 
 from solvent import syntax as syn
+from solvent import utils
 from solvent.env import ScopedEnv
-from solvent.syntax import ArrowType, HMType, Type, TypeVar
+from solvent.syntax import ArrowType, HMType, ListType, Type, TypeVar, base_type_eq
 
 
 @dataclass
@@ -14,6 +15,9 @@ class BaseEq(syn.Pos):
 
     lhs: Type
     rhs: Type
+
+    def __post_init__(self):
+        self.call_site = utils.debuginfo()
 
     def __str__(self):
         return f"{self.lhs} == {self.rhs} ({self.position})"
@@ -85,10 +89,10 @@ def check_stmt(
             ret_typ = HMType(TypeVar.fresh("if")).pos(stmt)
             cstrs = [
                 # test is a boolean
-                BaseEq(test_typ, HMType.bool()),
+                BaseEq(test_typ, HMType.bool()).pos(test_typ),
                 # base types of branches are equal
-                BaseEq(body_typ, ret_typ),
-                BaseEq(body_typ, else_typ),
+                BaseEq(body_typ, ret_typ).pos(ret_typ),
+                BaseEq(body_typ, else_typ).pos(else_typ),
             ]
             ret_type = ret_typ.pos(stmt)
             ret_constrs = cstrs + test_constrs + body_constrs + else_constrs
@@ -118,6 +122,23 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 raise Exception(f"Variable {name} not bound in context.")
         case syn.IntLiteral():
             ret_typ = HMType.int()
+        case syn.Neg(expr=e):
+            e_ty, e_constrs = check_expr(context, e)
+            ret_typ = HMType.int()
+            ret_constrs = e_constrs + [BaseEq(e_ty, HMType.int()).pos(expr)]
+        case syn.ArithBinOp(lhs=lhs, rhs=rhs, op="+"):
+            # give `+` the type `'a -> 'a -> 'a`
+            lhs_ty, lhs_constrs = check_expr(context, lhs)
+            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            ret_typ = HMType.fresh()
+            ret_constrs = (
+                lhs_constrs
+                + rhs_constrs
+                + [
+                    BaseEq(lhs_ty, ret_typ).pos(lhs_ty),
+                    BaseEq(rhs_ty, ret_typ).pos(rhs_ty),
+                ]
+            )
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)
@@ -132,6 +153,36 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             )
         case syn.BoolLiteral(_):
             ret_typ = HMType.bool()
+        case syn.ListLiteral(elts=[]):
+            inner_ty = HMType.fresh("lst").pos(expr)
+            ret_typ = ListType(inner_ty)
+        case syn.ListLiteral(elts=elts):
+            elts_typs = [check_expr(context, e) for e in elts]
+            assert elts_typs != []
+            inner_ty: Type = elts_typs[0][0]
+
+            # check that all list types are of inner type
+            # add all constrs to the ret_constrs
+            for ty, cstrs in elts_typs:
+                if not base_type_eq(inner_ty, ty):
+                    raise Exception(f"{repr(inner_ty)} != {repr(ty)}")
+                ret_constrs += cstrs
+
+            ret_typ = ListType(inner_ty)
+        case syn.Subscript(value=v, idx=e):
+            v_ty, v_constrs = check_expr(context, v)
+            e_ty, e_constrs = check_expr(context, e)
+
+            ret_typ = HMType.fresh("inner")
+            ret_constrs = (
+                v_constrs
+                + e_constrs
+                + [
+                    BaseEq(v_ty, ListType(ret_typ)).pos(v),
+                    BaseEq(e_ty, HMType.int()).pos(e),
+                ]
+            )
+
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)
@@ -166,10 +217,9 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 constrs += cs
 
             ret_typ = HMType.fresh("ret")
-            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ)).pos(fn_ty)]
+            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(fn_ty)]
             ret_constrs = constrs
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
     expr.annot(ret_typ)
     return ret_typ.pos(expr), ret_constrs

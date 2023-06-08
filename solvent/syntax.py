@@ -6,7 +6,7 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from solvent.position import Position
 
@@ -132,7 +132,7 @@ class PredicateVar(Predicate):
 class Type(Pos):
     pending_subst: Dict[str, "Expr"] = field(default_factory=dict)
 
-    def subst(self, pairs: List[tuple[str, "Expr"]]):
+    def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
         ret = deepcopy(self)
         for k, v in pairs:
             ret.pending_subst[k] = v
@@ -158,6 +158,8 @@ class Type(Pos):
                 )
             case Bottom():
                 return "False"
+            case ListType(inner_typ=inner_typ):
+                return f"List[{inner_typ}]"
             case x:
                 print(type(x))
                 raise Exception(x)
@@ -169,7 +171,7 @@ class Type(Pos):
             case RType(base=base, pending_subst=ps, position=pos):
                 return RType(base, predicate, pending_subst=ps, position=pos)
             case x:
-                raise Exception(f"`{x}` is not a Type.")
+                raise Exception(f"`{x}` is not an RType.")
 
 
 @dataclass
@@ -220,8 +222,42 @@ class ArrowType(Type):
 
 
 @dataclass
+class ListType(Type):
+    inner_typ: Type
+
+
+@dataclass
 class Bottom(Type):
     pass
+
+
+def base_type_eq(t1: Type, t2: Type) -> bool:
+    """
+    Implements equality between base types.
+    """
+
+    match (t1, t2):
+        case HMType(base=Int()), HMType(base=Int()):
+            return True
+        case HMType(base=Bool()), HMType(base=Bool()):
+            return True
+        case HMType(TypeVar(name=n1)), HMType(TypeVar(name=n2)):
+            return n1 == n2
+        case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
+            args_eq = all(
+                map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
+            )
+            return args_eq and base_type_eq(ret1, ret2)
+        case RType(base=Int()), RType(base=Int()):
+            return True
+        case RType(base=Bool()), RType(base=Bool()):
+            return True
+        case RType(base=TypeVar(name=n1)), RType(base=TypeVar(name=n2)):
+            return n1 == n2
+        case ListType(inner_typ1), ListType(inner_typ2):
+            return base_type_eq(inner_typ1, inner_typ2)
+        case _:
+            return False
 
 
 @dataclass(kw_only=True)
@@ -235,33 +271,39 @@ class TypeAnnotation:
 
 @dataclass
 class Expr(Pos, TypeAnnotation):
-    def to_string(self, include_types=False):
-        e = ""
+    def to_string(self, include_types=False) -> str:
         match self:
             case Variable(name=x):
-                e = f"{x}"
+                return f"{x}"
             case IntLiteral(value=v):
-                e = f"{v}"
+                return f"{v}"
             case BoolLiteral(value=v):
-                e = f"{v}"
-            case ArithBinOp(lhs=l, op=op, rhs=r):
-                e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
-            case BoolOp(lhs=l, op=op, rhs=r):
-                e = f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
+                return f"{v}"
+            case ListLiteral(elts=elts):
+                inner = ", ".join([e.to_string() for e in elts])
+                if include_types:
+                    return f"([{inner}] : {self.typ})"
+                else:
+                    return f"[{inner}]"
+            case Subscript(value=v, idx=e):
+                return f"{v}[{e}]"
             case Neg(expr=e):
-                e = f"-({e.to_string(include_types)})"
+                return f"-({e.to_string(include_types)})"
+            case ArithBinOp(lhs=l, op=op, rhs=r):
+                return f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
+            case BoolOp(lhs=l, op=op, rhs=r):
+                return f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
+            case Not(expr=e):
+                return f"!({e.to_string(include_types)})"
             case V():
-                e = "V"
+                return "V"
             case Star():
-                e = "*"
+                return "*"
             case Call(function_name=fn, arglist=args):
                 args = [a.to_string(include_types) for a in args]
-                e = f"{fn}({', '.join(args)})"
+                return f"{fn}({', '.join(args)})"
             case x:
-                e = f"`{repr(x)}`"
-        if include_types and self.typ != Bottom():
-            return f"({e} : {self.typ})"
-        return e
+                return f"`{repr(x)}`"
 
     def __str__(self):
         return self.to_string()
@@ -292,6 +334,11 @@ class IntLiteral(Expr):
 
 
 @dataclass
+class Neg(Expr):
+    expr: Expr
+
+
+@dataclass
 class ArithBinOp(Expr):
     lhs: Expr
     op: str
@@ -304,6 +351,17 @@ class BoolLiteral(Expr):
 
 
 @dataclass
+class ListLiteral(Expr):
+    elts: List[Expr]
+
+
+@dataclass
+class Subscript(Expr):
+    value: Expr
+    idx: Expr
+
+
+@dataclass
 class BoolOp(Expr):
     lhs: Expr
     op: Any
@@ -311,7 +369,7 @@ class BoolOp(Expr):
 
 
 @dataclass
-class Neg(Expr):
+class Not(Expr):
     expr: Expr
 
 
@@ -377,7 +435,7 @@ class Stmt(Pos, TypeAnnotation):
                 return res
             case Assign(name=name, value=value):
                 typann = f": {self.typ}" if include_types else ""
-                return f"{align}{name}{typann} = {value.to_string(include_types)}"
+                return f"{align}{name}{typann} = {value.to_string(False)}"
             case Return(value):
                 return f"{align}return {value.to_string(include_types)}"
             case x:

@@ -11,10 +11,12 @@ from solvent.syntax import (
     FunctionDef,
     If,
     IntLiteral,
+    ListLiteral,
     Neg,
     Return,
     Star,
     Stmt,
+    Subscript,
     Type,
     V,
     Variable,
@@ -34,7 +36,9 @@ class Visitor:
         match stmt:
             case FunctionDef(name=name, args=args, return_annotation=retann, body=body):
                 self.start_FunctionDef(cast(FunctionDef, stmt))
-                new_stmt = FunctionDef(name, args, retann, self.visit_stmts(body))
+                new_stmt = FunctionDef(
+                    name, args, retann, self.visit_stmts(body), typ=stmt.typ
+                )
                 self.end_FunctionDef(new_stmt)
             case If(test=test, body=body, orelse=orelse):
                 self.start_If(cast(If, stmt))
@@ -42,15 +46,16 @@ class Visitor:
                     self.visit_expr(test),
                     self.visit_stmts(body),
                     self.visit_stmts(orelse),
+                    typ=stmt.typ,
                 )
                 self.end_If(new_stmt)
             case Assign(name=name, value=expr):
                 self.start_Assign(cast(Assign, stmt))
-                new_stmt = Assign(name, self.visit_expr(expr))
+                new_stmt = Assign(name, self.visit_expr(expr), typ=stmt.typ)
                 self.end_Assign(new_stmt)
             case Return(value=expr):
                 self.start_Return(cast(Return, stmt))
-                new_stmt = Return(self.visit_expr(expr))
+                new_stmt = Return(self.visit_expr(expr), typ=stmt.typ)
                 self.end_Return(new_stmt)
             case x:
                 raise errors.Unreachable(x)
@@ -73,21 +78,37 @@ class Visitor:
                 new_expr = self.start_IntLiteral(cast(IntLiteral, expr))
             case ArithBinOp(lhs=lhs, op=op, rhs=rhs):
                 self.start_ArithBinOp(cast(ArithBinOp, expr))
-                new_expr = ArithBinOp(self.visit_expr(lhs), op, self.visit_expr(rhs))
+                new_expr = ArithBinOp(
+                    self.visit_expr(lhs), op, self.visit_expr(rhs), typ=expr.typ
+                )
                 self.end_ArithBinOp(new_expr)
             case BoolLiteral():
                 new_expr = self.start_BoolLiteral(cast(BoolLiteral, expr))
+            case ListLiteral(elts=elts):
+                self.start_ListLiteral(cast(ListLiteral, expr))
+                new_expr = ListLiteral([self.visit_expr(e) for e in elts], typ=expr.typ)
+                self.end_ListLiteral(new_expr)
+            case Subscript(value=v, idx=e):
+                self.start_Subscript(cast(Subscript, expr))
+                new_expr = Subscript(self.visit_expr(v), self.visit_expr(e))
+                self.end_Subscript(new_expr)
             case BoolOp(lhs=lhs, op=op, rhs=rhs):
                 self.start_BoolOp(cast(BoolOp, expr))
-                new_expr = BoolOp(self.visit_expr(lhs), op, self.visit_expr(rhs))
+                new_expr = BoolOp(
+                    self.visit_expr(lhs), op, self.visit_expr(rhs), typ=expr.typ
+                )
                 self.end_BoolOp(new_expr)
             case Neg(expr=expr):
                 self.start_Neg(cast(Neg, expr))
-                new_expr = Neg(self.visit_expr(expr))
+                new_expr = Neg(self.visit_expr(expr), typ=expr.typ)
                 self.end_Neg(new_expr)
             case Call(function_name=fn, arglist=args):
                 self.start_Call(cast(Call, expr))
-                new_expr = Call(self.visit_expr(fn), [self.visit_expr(a) for a in args])
+                new_expr = Call(
+                    self.visit_expr(fn),
+                    [self.visit_expr(a) for a in args],
+                    typ=expr.typ,
+                )
                 self.end_Call(new_expr)
             case x:
                 raise errors.Unreachable(x)
@@ -161,6 +182,18 @@ class Visitor:
         pass
 
     def start_BoolLiteral(self, lit: BoolLiteral):
+        pass
+
+    def start_ListLiteral(self, lit: ListLiteral):
+        pass
+
+    def end_ListLiteral(self, lit: ListLiteral):
+        pass
+
+    def start_Subscript(self, subscript: Subscript):
+        pass
+
+    def end_Subscript(self, subscript: Subscript):
         pass
 
     def start_BoolOp(self, op: BoolOp):

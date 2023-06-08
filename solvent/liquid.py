@@ -7,66 +7,81 @@ from typing import Dict, List, cast
 
 from solvent import constraints as constr
 from solvent import liquid
-from solvent import qualifiers
 from solvent import qualifiers as quals
 from solvent import subtype
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
+from solvent.initial_predicates import InitialPredicatesVisitor
 
 Solution = Dict[str, syn.Conjoin]
 
 
-def initial_predicates(
-    t: syn.Type,
-    ctx: ScopedEnv,
-    quals: List[quals.Qualifier],
-    solution: Solution,
-    calls: set[str],
-) -> Solution:
-    match t:
-        case syn.RType(
-            base=syn.Int(), predicate=syn.PredicateVar(name=n)
-        ):  # if n in calls:
-            solution[n] = qualifiers.predicate(ctx, quals)
-        case syn.ArrowType(args=args, ret=ret):
-            new_ctx = ctx.clone()
-            for x, ty in args:
-                solution = initial_predicates(ty, ctx, quals, solution, calls)
-                new_ctx[x] = ty
+def split(c: constr.SubType) -> List[constr.SubType]:
+    """
+    Split compound constraints into simpler constraints.
 
-            solution = initial_predicates(ret, new_ctx, quals, solution, calls)
+    TODO: Do I need to split constraints in the environment?
+    """
 
-    return solution
+    match c:
+        case constr.SubType(context=ctx, assumes=asms, lhs=lhs, rhs=rhs):
+            match (lhs, rhs):
+                case (syn.ListType(inner_typ=t0), syn.ListType(inner_typ=t1)):
+                    return split(
+                        constr.SubType(
+                            ctx,
+                            asms,
+                            t0.subst(lhs.pending_subst.items()),
+                            t1.subst(rhs.pending_subst.items()),
+                        )
+                    )
+                case (
+                    syn.ArrowType(args=args0, ret=ret0),
+                    syn.ArrowType(args=args1, ret=ret1),
+                ):
+                    split_constrs = [
+                        # arguments are contravariant
+                        *[
+                            constr.SubType(ctx, asms, a1, a0)
+                            for (_, a0), (_, a1) in zip(args0, args1)
+                        ],
+                        # ret type is covariant
+                        # TODO: I don't add arguments to the context like in the algo
+                        # I probably should?
+                        constr.SubType(ctx, asms, ret0, ret1),
+                    ]
+                    return sum([split(x) for x in split_constrs], [])
+                case _:
+                    return [c]
+        case _:
+            return [c]
 
 
 def solve(
-    constrs: List[constr.Constraint],
+    stmts: List[syn.Stmt],
+    constrs: List[constr.SubType],
     quals: List[quals.Qualifier],
     show_work=False,
 ) -> Solution:
     solution: Solution = {}
 
-    call_constrs: List[constr.Call] = cast(
-        List[constr.Call], list(filter(lambda c: isinstance(c, constr.Call), constrs))
-    )
-    calls = set(sum(map(lambda c: get_predicate_vars(c.typ), call_constrs), []))
+    if show_work:
+        print("Raw Constraints:")
+        for c in constrs:
+            print(c)
+        print("======")
 
-    for c in constrs:
-        if isinstance(c, constr.Scope):
-            solution = initial_predicates(c.typ, c.context, quals, solution, calls)
+    # split all the constraints that we have into base constraints
+    constrs = sum([split(c) for c in constrs], [])
+
+    ipv = InitialPredicatesVisitor(quals)
+    ipv.visit_stmts(stmts)
+    solution = ipv.solution
 
     if show_work:
         print("Initial Constraints:")
-        cs = []
         for c in constrs:
-            if isinstance(c, constr.SubType):
-                if isinstance(c.lhs, syn.RType) and not isinstance(
-                    c.lhs.base, syn.TypeVar
-                ):
-                    cs += [(get_predicate_vars(c.rhs), c)]
-
-        for c in sorted(cs, key=lambda x: "" if x[0] is None else x[0]):
-            print(c[1])
+            print(c)
         print("======")
 
         print("Initial Predicates:")
@@ -148,7 +163,7 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
                     print(f"Checking {qual}: ", end="\n")
                     print(f"  ctx: {apply_ctx(ctx, solution)}")
                     print(f"  constr: {apply_constr(c, solution)}")
-                    print(f"  substs: {ps}")
+                    print(f"  substs: {lhs.pending_subst}, {ps}")
                 if subtype.check(
                     apply_ctx(ctx, solution),
                     assumes,
@@ -228,6 +243,8 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
                 ret=apply(ret, solution),
                 pending_subst=ps,
             )
+        case syn.ListType(inner_typ=inner):
+            return syn.ListType(inner_typ=apply(inner, solution))
         case x:
             return x
 

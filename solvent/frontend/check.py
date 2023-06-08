@@ -37,13 +37,17 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
     Run Liquid-type inference and checking.
     """
     stmts = normalize.normalize(stmts)
-    inferred_base_typ = hm.solve(stmts, False)
+    if debug:
+        print("Normalized Program")
+        for s in stmts:
+            print(number(s.to_string()))
+    inferred_base_typ = hm.solve(stmts, debug)
     if debug:
         print("HmType program:")
         for s in stmts:
             print(number(s.to_string(include_types=True)))
         print("======")
-    Templatizer().visit_stmts(stmts)
+    stmts = Templatizer().visit_stmts(stmts)
     if debug:
         print("Template program:")
         for s in stmts:
@@ -55,17 +59,11 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
         print("== Inferred Base Type ==")
         print(f"{inferred_base_typ}")
 
-    if debug:
-        print("Templated program:")
-        for s in stmts:
-            print(number(s.to_string(include_types=True)))
-        print("======")
-
     typ, constrs, context = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
     for c in constrs:
         AssertNoHmTypes().check_constraint(c)
 
-    predvar_solution = liquid.solve(constrs, quals, show_work=debug)
+    predvar_solution = liquid.solve(stmts, constrs, quals, show_work=debug)
 
     if debug:
         print("== Predicate Variable Solution ==")

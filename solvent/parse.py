@@ -153,10 +153,17 @@ def parse_expr(expr) -> syn.Expr:
                 return syn.BoolLiteral(value=val).ast(expr)
             else:
                 raise NotImplementedError
+        case ast.List(elts=elts, ctx=ast.Load()):
+            exprs = [parse_expr(e) for e in elts]
+            return syn.ListLiteral(exprs).ast(expr)
         case ast.Call(func=func, args=args):
             return syn.Call(
                 function_name=parse_expr(func), arglist=[parse_expr(e) for e in args]
             ).ast(expr)
+        case ast.UnaryOp(op=ast.USub(), operand=val):
+            return syn.Neg(parse_expr(val))
+        case ast.Subscript(value=lst, slice=slice_expr):
+            return syn.Subscript(parse_expr(lst), parse_expr(slice_expr)).ast(expr)
         case x:
             if x is not None:
                 print(ast.dump(expr, indent=2))

@@ -46,11 +46,16 @@ def subst_expr(solution: Solution, expr: syn.Expr):
             pass
         case syn.IntLiteral():
             pass
+        case syn.Neg(expr=e):
+            subst_expr(solution, e)
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             subst_expr(solution, lhs)
             subst_expr(solution, rhs)
         case syn.BoolLiteral(_):
             pass
+        case syn.ListLiteral(elts=elts):
+            for e in elts:
+                subst_expr(solution, e)
         case syn.BoolOp(lhs=lhs, rhs=rhs):
             subst_expr(solution, lhs)
             subst_expr(solution, rhs)
@@ -58,6 +63,8 @@ def subst_expr(solution: Solution, expr: syn.Expr):
             subst_expr(solution, fn)
             for e in args:
                 subst_expr(solution, e)
+        case syn.Subscript(value=v, idx=e):
+            subst_expr(solution, v)
+            subst_expr(solution, e)
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)

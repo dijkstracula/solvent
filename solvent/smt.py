@@ -59,6 +59,9 @@ def from_expr(e: syn.Expr, val_name: str = ".v"):
         case syn.IntLiteral(value=v):
             return v
         case syn.Neg(expr=e):
+            return -from_expr(e, val_name)
+        case syn.Not(expr=e):
+            # return z3.Int(0) - from_expr(e, val_name)
             return z3.Not(from_expr(e, val_name))
         case syn.TypeVar(name=n):
             # will need to infer this type eventually.
@@ -83,6 +86,8 @@ def from_type(name: str, t: syn.Type):
         case syn.RType(predicate=syn.Conjoin(conj)):
             return from_exprs(conj, name)
         case syn.ArrowType(args=_, ret=_):
+            return True
+        case syn.ListType():
             return True
         case x:
             raise NotImplementedError(name, type(x))

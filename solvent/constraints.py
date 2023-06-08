@@ -13,23 +13,19 @@ from typing import List
 from solvent import errors
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
-from solvent.syntax import ArrowType, Conjoin, RType, Type, TypeVar
-
-
-class Constraint(syn.Pos):
-    def __str__(self):
-        match self:
-            case SubType(context=ctx, assumes=assumes, lhs=lhs, rhs=rhs):
-                asm_str = ", ".join([str(e) for e in assumes])
-                return f"[{asm_str}] |- {lhs} <: {rhs}"
-            case Scope(context=ctx, typ=typ):
-                return f"{list(ctx.keys())} |- {typ}"
-            case Call(typ=typ):
-                return f"{typ} called"
+from solvent.syntax import (
+    ArrowType,
+    Conjoin,
+    ListType,
+    RType,
+    Type,
+    TypeVar,
+    base_type_eq,
+)
 
 
 @dataclass
-class SubType(Constraint):
+class SubType(syn.Pos):
     """
     Represents a subtype constraint between two types with a context of `assumes'
     """
@@ -39,29 +35,14 @@ class SubType(Constraint):
     lhs: Type
     rhs: Type
 
-
-@dataclass
-class Scope(Constraint):
-    """
-    Represents the context of an expression
-    """
-
-    context: ScopedEnv
-    typ: Type
-
-
-@dataclass
-class Call(Constraint):
-    """
-    Tracks whether a function was ever called.
-    """
-
-    typ: Type
+    def __str__(self):
+        asm_str = ", ".join([str(e) for e in self.assumes])
+        return f"[{asm_str}] |- {self.lhs} <: {self.rhs}"
 
 
 def check_stmts(
     context: ScopedEnv, assums: List[syn.Expr], stmts: List[syn.Stmt]
-) -> tuple[syn.Type, List[Constraint], ScopedEnv]:
+) -> tuple[syn.Type, List[SubType], ScopedEnv]:
     typ = syn.RType.lift(syn.Unit())
     constraints = []
     for stmt in stmts:
@@ -72,11 +53,9 @@ def check_stmts(
 
 def check_stmt(
     context: ScopedEnv, assums: List[syn.Expr], stmt: syn.Stmt
-) -> tuple[syn.Type, List[Constraint], ScopedEnv]:
+) -> tuple[syn.Type, List[SubType], ScopedEnv]:
     match stmt:
         case syn.FunctionDef(name=name, body=body, typ=ArrowType(args=args, ret=ret)):
-            scope_constr = []
-
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
             this_type = syn.ArrowType(args, ret)
@@ -88,9 +67,6 @@ def check_stmt(
                 # scope_constr += [Scope(context, t)]
                 body_context = body_context.add(name, t)
 
-            # scope constraints
-            scope_constr += [Scope(context, this_type)]
-
             # now typecheck the body
             body_type, body_constrs, context = check_stmts(body_context, assums, body)
 
@@ -100,7 +76,7 @@ def check_stmt(
 
             return (
                 this_type,
-                body_constrs + ret_typ_constr + scope_constr,
+                body_constrs + ret_typ_constr,
                 body_context.pop_scope(),
             )
 
@@ -112,16 +88,15 @@ def check_stmt(
                 context, [test] + assums, body
             )
             else_typ, else_constrs, else_ctx = check_stmts(
-                context, [syn.Neg(test)] + assums, orelse
+                context, [syn.Not(test)] + assums, orelse
             )
             cstrs = [
                 # body is a subtype of ret type
                 SubType(body_ctx, [test] + assums, body_typ, if_typ).pos(body_typ),
                 # else is a subtype of ret type
-                SubType(else_ctx, [syn.Neg(test)] + assums, else_typ, if_typ).pos(
+                SubType(else_ctx, [syn.Not(test)] + assums, else_typ, if_typ).pos(
                     else_typ
                 ),
-                Scope(context, if_typ),
             ]
             return (
                 if_typ.pos(stmt),
@@ -130,7 +105,7 @@ def check_stmt(
             )
         case syn.Assign(name=id, value=e):
             e_typ, e_constrs = check_expr(context, assums, e)
-            e_constrs += [Scope(context, e_typ)]
+            # e_constrs += [SubType(context, assums, e.typ, e_typ)]
             return e_typ, e_constrs, context.add(id, e_typ)
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
@@ -142,7 +117,7 @@ def check_stmt(
 
 def check_expr(
     context: ScopedEnv, assums, expr: syn.Expr
-) -> tuple[Type, List[Constraint]]:
+) -> tuple[Type, List[SubType]]:
     match expr:
         case syn.Variable(typ=typ):
             if typ is None:
@@ -162,18 +137,46 @@ def check_expr(
                 expr
             )
             return (typ, [])
-        case syn.ArithBinOp(lhs=lhs, rhs=rhs):
-            _, lhs_constrs = check_expr(context, assums, lhs)
-            _, rhs_constrs = check_expr(context, assums, rhs)
-            ret_ty = RType(syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])).pos(
-                expr
+        case syn.Neg(expr=e):
+            _, e_constrs = check_expr(context, assums, e)
+            return (
+                RType(syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])),
+                e_constrs,
             )
+        case syn.ArithBinOp(lhs=lhs, rhs=rhs):
+            lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
+            rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
+            constrs = []
+
+            if base_type_eq(lhs_ty, rhs_ty) and isinstance(lhs_ty, ListType):
+                constrs += [
+                    SubType(context, assums, lhs_ty, expr.typ),
+                    SubType(context, assums, rhs_ty, expr.typ),
+                ]
+                ret_ty = expr.typ
+            else:
+                ret_ty = RType(
+                    syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])
+                ).pos(expr)
             return (
                 ret_ty,
-                lhs_constrs + rhs_constrs + [Scope(context, ret_ty).pos(ret_ty)],
+                lhs_constrs + rhs_constrs + constrs,
             )
         case syn.BoolLiteral(_):
             return (RType.bool().pos(expr), [])
+        case syn.ListLiteral(elts=elts, typ=ListType(inner_typ)):
+            constrs: List[SubType] = []
+            for e in elts:
+                ty, cs = check_expr(context, assums, e)
+                constrs += cs
+                constrs += [SubType(context, assums, ty, inner_typ).pos(expr)]
+            return (ListType(inner_typ), constrs)
+        case syn.Subscript(value=v, idx=e):
+            v_ty, v_constrs = check_expr(context, assums, v)
+            _, e_constrs = check_expr(context, assums, e)
+
+            assert isinstance(v_ty, ListType)
+            return (v_ty.inner_typ, v_constrs + e_constrs)
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             _, lhs_constrs = check_expr(context, assums, lhs)
             _, rhs_constrs = check_expr(context, assums, rhs)
@@ -200,14 +203,13 @@ def check_expr(
                             SubType(context, assums, expr_ty, arg_ty).pos(expr_ty),
                         ]
                         subst += [(x1, e)]
-                    constrs += [Call(fn_ty)]
-                    ret_type = fn_ret_type
+                    ret_type = fn_ret_type.subst(subst).pos(expr)
                 case x:
                     raise errors.Unreachable(x)
-            return (ret_type.subst(subst).pos(expr), constrs)
+            constrs += [SubType(context, assums, ret_type, expr.typ).pos(expr)]
+            return (ret_type, constrs)
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
 
 
 def shape_typ(typ: Type) -> Type:

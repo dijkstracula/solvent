@@ -6,32 +6,19 @@ from typing import Dict, List, Tuple
 
 from solvent import errors
 from solvent.env import ScopedEnv
-from solvent.syntax import ArrowType, Bool, HMType, Int, RType, Type, TypeVar
+from solvent.syntax import (
+    ArrowType,
+    HMType,
+    ListType,
+    RType,
+    Type,
+    TypeVar,
+    base_type_eq,
+)
 
 from .check import BaseEq
 
 Solution = Dict[str, Type]
-
-
-def base_type_eq(t1: Type, t2: Type) -> bool:
-    """
-    Implements equality between base types.
-    """
-
-    match (t1, t2):
-        case HMType(base=Int()), HMType(base=Int()):
-            return True
-        case HMType(base=Bool()), HMType(base=Bool()):
-            return True
-        case HMType(TypeVar(name=n1)), HMType(TypeVar(name=n2)):
-            return n1 == n2
-        case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
-            args_eq = all(
-                map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
-            )
-            return args_eq and base_type_eq(ret1, ret2)
-        case _:
-            return False
 
 
 def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
@@ -70,6 +57,9 @@ def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
                 )
                 ret_constr = BaseEq(lhs=top.lhs.ret, rhs=top.rhs.ret)
                 return solve(arg_constrs + [ret_constr] + rest, show_work)
+            elif isinstance(top.lhs, ListType) and isinstance(top.rhs, ListType):
+                inner_constr = BaseEq(lhs=top.lhs.inner_typ, rhs=top.rhs.inner_typ)
+                return solve([inner_constr] + rest, show_work)
             else:
                 raise errors.TypeError(top)
         case _:
@@ -99,14 +89,15 @@ def unify(constrs: List[BaseEq], show_work=False) -> Tuple[List[BaseEq], Solutio
         # get an element from the worklist
         name: str = worklist.pop()
         match solution[name]:
-            case ArrowType():
-                solution[name] = apply(solution[name], solution)
             # if this name maps to a variable in the solution,
             # update solution, and add name back to the worklist.
             # it may need to be updated again.
             case HMType(TypeVar(name=n)) if n in solution:
                 solution[name] = solution[n]
                 worklist += [name]
+            # otherwise call apply
+            case x:
+                solution[name] = apply(x, solution)
 
     return (apply_constraints(constrs, solution), solution)
 
@@ -138,6 +129,8 @@ def free_vars(typ: Type) -> list[str]:
             return []
         case ArrowType(args=args, ret=ret):
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
+        case ListType(inner_typ=inner_typ):
+            return free_vars(inner_typ)
         case x:
             raise NotImplementedError(x, type(x))
 
@@ -163,9 +156,10 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
                 args=[(x, subst_one(name, tar, t)) for x, t in args],
                 ret=subst_one(name, tar, ret),
             ).pos(src)
+        case ListType(inner_typ=inner):
+            return ListType(subst_one(name, tar, inner)).pos(src)
         case x:
-            print("subst_one:", x)
-            raise NotImplementedError
+            raise NotImplementedError(f"subst one: {x}")
 
 
 def apply(typ: Type, solution: Solution) -> Type:
@@ -183,6 +177,8 @@ def apply(typ: Type, solution: Solution) -> Type:
                 args=[(name, apply(t, solution)) for name, t in args],
                 ret=apply(ret, solution),
             )
+        case ListType(inner_typ=inner):
+            return ListType(inner_typ=apply(inner, solution))
         case _:
             return typ
 
