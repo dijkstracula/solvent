@@ -171,6 +171,12 @@ def check_expr(
                 constrs += cs
                 constrs += [SubType(context, assums, ty, inner_typ).pos(expr)]
             return (ListType(inner_typ), constrs)
+        case syn.Subscript(value=v, idx=e):
+            v_ty, v_constrs = check_expr(context, assums, v)
+            _, e_constrs = check_expr(context, assums, e)
+
+            assert isinstance(v_ty, ListType)
+            return (v_ty.inner_typ, v_constrs + e_constrs)
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             _, lhs_constrs = check_expr(context, assums, lhs)
             _, rhs_constrs = check_expr(context, assums, rhs)

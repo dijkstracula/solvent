@@ -169,6 +169,20 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 ret_constrs += cstrs
 
             ret_typ = ListType(inner_ty)
+        case syn.Subscript(value=v, idx=e):
+            v_ty, v_constrs = check_expr(context, v)
+            e_ty, e_constrs = check_expr(context, e)
+
+            ret_typ = HMType.fresh("inner")
+            ret_constrs = (
+                v_constrs
+                + e_constrs
+                + [
+                    BaseEq(v_ty, ListType(ret_typ)).pos(v),
+                    BaseEq(e_ty, HMType.int()).pos(e),
+                ]
+            )
+
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)
@@ -206,7 +220,6 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(fn_ty)]
             ret_constrs = constrs
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
     expr.annot(ret_typ)
     return ret_typ.pos(expr), ret_constrs

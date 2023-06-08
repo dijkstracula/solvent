@@ -16,6 +16,7 @@ from solvent.syntax import (
     Return,
     Star,
     Stmt,
+    Subscript,
     Type,
     V,
     Variable,
@@ -87,6 +88,10 @@ class Visitor:
                 self.start_ListLiteral(cast(ListLiteral, expr))
                 new_expr = ListLiteral([self.visit_expr(e) for e in elts], typ=expr.typ)
                 self.end_ListLiteral(new_expr)
+            case Subscript(value=v, idx=e):
+                self.start_Subscript(cast(Subscript, expr))
+                new_expr = Subscript(self.visit_expr(v), self.visit_expr(e))
+                self.end_Subscript(new_expr)
             case BoolOp(lhs=lhs, op=op, rhs=rhs):
                 self.start_BoolOp(cast(BoolOp, expr))
                 new_expr = BoolOp(
@@ -183,6 +188,12 @@ class Visitor:
         pass
 
     def end_ListLiteral(self, lit: ListLiteral):
+        pass
+
+    def start_Subscript(self, subscript: Subscript):
+        pass
+
+    def end_Subscript(self, subscript: Subscript):
         pass
 
     def start_BoolOp(self, op: BoolOp):

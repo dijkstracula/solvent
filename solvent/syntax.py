@@ -271,7 +271,7 @@ class TypeAnnotation:
 
 @dataclass
 class Expr(Pos, TypeAnnotation):
-    def to_string(self, include_types=False):
+    def to_string(self, include_types=False) -> str:
         match self:
             case Variable(name=x):
                 return f"{x}"
@@ -285,6 +285,8 @@ class Expr(Pos, TypeAnnotation):
                     return f"([{inner}] : {self.typ})"
                 else:
                     return f"[{inner}]"
+            case Subscript(value=v, idx=e):
+                return f"{v}[{e}]"
             case Neg(expr=e):
                 return f"-({e.to_string(include_types)})"
             case ArithBinOp(lhs=l, op=op, rhs=r):
@@ -351,6 +353,12 @@ class BoolLiteral(Expr):
 @dataclass
 class ListLiteral(Expr):
     elts: List[Expr]
+
+
+@dataclass
+class Subscript(Expr):
+    value: Expr
+    idx: Expr
 
 
 @dataclass

@@ -63,6 +63,8 @@ def subst_expr(solution: Solution, expr: syn.Expr):
             subst_expr(solution, fn)
             for e in args:
                 subst_expr(solution, e)
+        case syn.Subscript(value=v, idx=e):
+            subst_expr(solution, v)
+            subst_expr(solution, e)
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)

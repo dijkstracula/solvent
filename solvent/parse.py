@@ -162,6 +162,8 @@ def parse_expr(expr) -> syn.Expr:
             ).ast(expr)
         case ast.UnaryOp(op=ast.USub(), operand=val):
             return syn.Neg(parse_expr(val))
+        case ast.Subscript(value=lst, slice=slice_expr):
+            return syn.Subscript(parse_expr(lst), parse_expr(slice_expr)).ast(expr)
         case x:
             if x is not None:
                 print(ast.dump(expr, indent=2))
