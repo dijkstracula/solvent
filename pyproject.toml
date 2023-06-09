@@ -36,6 +36,8 @@ line-length = 88
 
 [tool.pyright]
 include = ["solvent", "tests"]
+reportUnusedImport = "error"
+reportMatchNotExhaustive = "error"
 
 [tool.isort]
 profile = "black"

@@ -110,7 +110,8 @@ def tvar_name(typ: Type):
     match typ:
         case HMType(TypeVar(name=name)):
             return name
-    return None
+        case _:
+            return None
 
 
 def free_vars(typ: Type) -> list[str]:

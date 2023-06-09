@@ -112,6 +112,8 @@ class Predicate:
                     return " and ".join([str(p) for p in preds])
             case PredicateVar(name=n):
                 return f"'{n}"
+            case x:
+                raise NotImplementedError(x)
 
 
 @dataclass

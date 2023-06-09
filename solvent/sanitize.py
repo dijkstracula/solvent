@@ -1,6 +1,6 @@
 from solvent import constraints
 from solvent.env import ScopedEnv
-from solvent.syntax import ArrowType, Expr, HMType, Stmt, Type, TypeAnnotation
+from solvent.syntax import ArrowType, Expr, HMType, ListType, Stmt, Type, TypeAnnotation
 from solvent.visitor import Visitor
 
 
@@ -22,12 +22,14 @@ class AssertNoHmTypes(Visitor):
                 for _, aty in args:
                     self.check_typ(src, aty)
                 self.check_typ(src, ret)
+            case ListType(inner_typ=inner):
+                self.check_typ(src, inner)
             case HMType():
                 if isinstance(src, TypeAnnotation):
                     raise HmExists.node(src)
                 else:
                     raise HmExists(src)
-            case None:
+            case _:
                 raise Exception(f"No type annotation: {src}")
 
     def start_Stmt(self, stmt: Stmt):

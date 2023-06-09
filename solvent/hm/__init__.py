@@ -5,7 +5,7 @@ from solvent.env import ScopedEnv
 
 from .check import check_stmts
 from .subst import subst_stmts
-from .unification import apply, free_vars, unify
+from .unification import apply, free_vars, unify  # type: ignore
 
 
 def solve(stmts: List[syn.Stmt], debug=False) -> syn.Type:

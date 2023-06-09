@@ -40,6 +40,8 @@ def subst_expr(solution: Solution, expr: syn.Expr):
     match expr.typ:
         case HMType(TypeVar(name=n)) if n in solution:
             expr.annot(solution[n])
+        case _:
+            pass
 
     match expr:
         case syn.Variable():
