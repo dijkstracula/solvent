@@ -33,7 +33,7 @@ def split(c: constr.SubType) -> List[constr.SubType]:
                             asms,
                             t0.subst(lhs.pending_subst.items()),
                             t1.subst(rhs.pending_subst.items()),
-                        )
+                        ).pos(c)
                     )
                 case (
                     syn.ArrowType(args=args0, ret=ret0),
@@ -42,13 +42,13 @@ def split(c: constr.SubType) -> List[constr.SubType]:
                     split_constrs = [
                         # arguments are contravariant
                         *[
-                            constr.SubType(ctx, asms, a1, a0)
+                            constr.SubType(ctx, asms, a1, a0).pos(c)
                             for (_, a0), (_, a1) in zip(args0, args1)
                         ],
                         # ret type is covariant
                         # TODO: I don't add arguments to the context like in the algo
                         # I probably should?
-                        constr.SubType(ctx, asms, ret0, ret1),
+                        constr.SubType(ctx, asms, ret0, ret1).pos(c),
                     ]
                     return sum([split(x) for x in split_constrs], [])
                 case _:
@@ -68,7 +68,7 @@ def solve(
     if show_work:
         print("Raw Constraints:")
         for c in constrs:
-            print(c)
+            print(f"{c} ({c.position})")
         print("======")
 
     # split all the constraints that we have into base constraints
@@ -81,7 +81,7 @@ def solve(
     if show_work:
         print("Initial Constraints:")
         for c in constrs:
-            print(c)
+            print(f"{c} ({c.position})")
         print("======")
 
         print("Initial Predicates:")

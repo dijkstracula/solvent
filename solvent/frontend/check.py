@@ -3,7 +3,7 @@ from typing import List
 from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
-from solvent.sanitize import AssertNoHmTypes
+from solvent.sanitize import AssertHavePosition, AssertNoHmTypes
 from solvent.syntax import Type
 from solvent.template import Templatizer
 
@@ -48,6 +48,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
             print(number(s.to_string(include_types=True)))
         print("======")
     stmts = Templatizer().visit_stmts(stmts)
+    AssertHavePosition().visit_stmts(stmts)
     if debug:
         print("Template program:")
         for s in stmts:

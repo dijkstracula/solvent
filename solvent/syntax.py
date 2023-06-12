@@ -29,8 +29,6 @@ class Pos:
         return self
 
     def pos(self, p: "Pos"):
-        # if p.position is None:
-        #     raise Exception(f"`{p}` had no position.")
         self.position = p.position
         return self
 

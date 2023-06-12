@@ -161,7 +161,7 @@ def parse_expr(expr) -> syn.Expr:
                 function_name=parse_expr(func), arglist=[parse_expr(e) for e in args]
             ).ast(expr)
         case ast.UnaryOp(op=ast.USub(), operand=val):
-            return syn.Neg(parse_expr(val))
+            return syn.Neg(parse_expr(val)).ast(expr)
         case ast.Subscript(value=lst, slice=slice_expr):
             return syn.Subscript(parse_expr(lst), parse_expr(slice_expr)).ast(expr)
         case x:

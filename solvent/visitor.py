@@ -61,9 +61,9 @@ class Visitor:
                 raise errors.Unreachable(x)
         ret_stmt = self.end_Stmt(new_stmt)
         if ret_stmt is None:
-            return new_stmt
+            return new_stmt.pos(stmt)
         else:
-            return ret_stmt
+            return ret_stmt.pos(stmt)
 
     def visit_expr(self, expr: Expr) -> Expr:
         self.start_Expr(expr)
@@ -117,9 +117,9 @@ class Visitor:
 
         end_expr = self.end_Expr(new_expr)
         if end_expr is None:
-            return new_expr
+            return new_expr.pos(expr)
         else:
-            return end_expr
+            return end_expr.pos(expr)
 
     def visit_typ(self, typ: Type) -> Type:
         return typ

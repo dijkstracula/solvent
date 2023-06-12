@@ -30,7 +30,8 @@ class AssertNoHmTypes(Visitor):
                 else:
                     raise HmExists(src)
             case _:
-                raise Exception(f"No type annotation: {src}")
+                pass
+                # raise Exception(f"No type annotation: {src}")
 
     def start_Stmt(self, stmt: Stmt):
         super().start_Stmt(stmt)
@@ -51,3 +52,17 @@ class AssertNoHmTypes(Visitor):
         match constr:
             case constraints.SubType(context=ctx):
                 self.check_context(ctx)
+
+
+class AssertHavePosition(Visitor):
+    def start_Stmt(self, stmt: Stmt):
+        super().start_Stmt(stmt)
+
+        if stmt.position is None:
+            raise Exception(stmt)
+
+    def start_Expr(self, expr: Expr):
+        super().start_Expr(expr)
+
+        if expr.position is None:
+            raise Exception(expr)

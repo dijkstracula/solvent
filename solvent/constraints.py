@@ -150,8 +150,8 @@ def check_expr(
 
             if base_type_eq(lhs_ty, rhs_ty) and isinstance(lhs_ty, ListType):
                 constrs += [
-                    SubType(context, assums, lhs_ty, expr.typ),
-                    SubType(context, assums, rhs_ty, expr.typ),
+                    SubType(context, assums, lhs_ty, expr.typ).pos(expr),
+                    SubType(context, assums, rhs_ty, expr.typ).pos(expr),
                 ]
                 ret_ty = expr.typ
             else:
