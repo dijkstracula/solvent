@@ -120,3 +120,9 @@ def test_foldn(n: Refine[int, True], b, f):
             return c
 
     return loop(0, b)
+
+
+@assert_type([Q[0] <= V, V <= Q[0], _ <= V, V <= _], "() -> {int | 0 <= V and V <= 0}")
+def test_assign_constant():
+    v = 0
+    return v

@@ -71,7 +71,7 @@ def check_stmt(
             body_type, body_constrs, context = check_stmts(body_context, assums, body)
 
             ret_typ_constr = [
-                SubType(body_context, assums, body_type, ret).pos(body_type),
+                SubType(body_context, assums, body_type, ret).pos(stmt),
             ]
 
             return (
@@ -109,7 +109,8 @@ def check_stmt(
             return e_typ, e_constrs, context.add(id, e_typ)
         case syn.Return(value=value):
             ty, constrs = check_expr(context, assums, value)
-            return ty.pos(stmt), constrs, context
+            constrs += [SubType(context, assums, ty, stmt.typ).pos(stmt)]
+            return stmt.typ.pos(stmt), constrs, context
         case x:
             print(x)
             raise NotImplementedError
@@ -120,9 +121,8 @@ def check_expr(
 ) -> tuple[Type, List[SubType]]:
     match expr:
         case syn.Variable(typ=typ):
-            if typ is None:
-                print(expr, typ)
             assert typ is not None
+
             if isinstance(typ, RType) and not isinstance(typ.base, TypeVar):
                 return (
                     typ.pos(expr).set_predicate(
