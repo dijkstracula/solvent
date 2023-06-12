@@ -8,6 +8,8 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
 z3-solver = "4.12.1.0"
+eff = "^1.0.0"
+termcolor = "^2.3.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"
@@ -44,6 +46,7 @@ profile = "black"
 
 [tool.flake8]
 max-line-length = 88
+extend-ignore = 'E203'
 per-file-ignores = [
     '__init__.py:F401',
 ]

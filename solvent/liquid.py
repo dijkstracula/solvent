@@ -12,6 +12,7 @@ from solvent import subtype
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
 from solvent.initial_predicates import InitialPredicatesVisitor
+from solvent.position import Context
 
 Solution = Dict[str, syn.Conjoin]
 
@@ -68,7 +69,7 @@ def solve(
     if show_work:
         print("Raw Constraints:")
         for c in constrs:
-            print(f"{c} ({c.position})")
+            Context.show(c, at=c.position)
         print("======")
 
     # split all the constraints that we have into base constraints
@@ -81,7 +82,7 @@ def solve(
     if show_work:
         print("Initial Constraints:")
         for c in constrs:
-            print(f"{c} ({c.position})")
+            Context.show(c, at=c.position)
         print("======")
 
         print("Initial Predicates:")
@@ -118,7 +119,7 @@ def constraints_valid(
     for c in constrs:
         sc = apply_constr(c, solution)
         if show_work:
-            print(f"G |- {c.lhs} <: {c.rhs} ({c.position})")
+            Context.show(f"G |- {c.lhs} <: {c.rhs}", at=c.position)
         try:
             valid = subtype.check_constr(sc, show_work)
         except NotImplementedError:

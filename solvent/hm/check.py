@@ -4,6 +4,7 @@ from typing import List
 from solvent import syntax as syn
 from solvent import utils
 from solvent.env import ScopedEnv
+from solvent.position import Context
 from solvent.syntax import ArrowType, HMType, ListType, Type, TypeVar, base_type_eq
 
 
@@ -20,7 +21,9 @@ class BaseEq(syn.Pos):
         self.call_site = utils.debuginfo()
 
     def __str__(self):
-        return f"{self.lhs} == {self.rhs} ({self.position})"
+        return (
+            f"{self.lhs} == {self.rhs} ({Context.single(at=self.position, color=True)})"
+        )
 
 
 def check_stmts(
