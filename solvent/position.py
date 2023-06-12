@@ -45,16 +45,18 @@ class Context(eff.ects):
         if at is not None:
             assert at.lineno is not None
             assert at.end_lineno is not None
-            assert at.lineno == at.end_lineno
 
             line = cls.lines[at.lineno - 1]
-            restricted = line[at.col_offset : at.end_col_offset]
-            res = restricted
+            if at.lineno == at.end_lineno:
+                res = line[at.col_offset : at.end_col_offset]
+            else:
+                end_line = cls.lines[at.end_lineno - 1].strip()
+                res = f"{line[at.col_offset :]} ... {end_line}"
         else:
             res = "<none>"
 
         if color:
-            return colored(res, "light_green", attrs=["underline"])
+            return colored(res, "light_green", attrs=[])
         else:
             return res
 
