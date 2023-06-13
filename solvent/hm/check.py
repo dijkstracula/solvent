@@ -6,7 +6,16 @@ from solvent import syntax as syn
 from solvent import utils
 from solvent.env import ScopedEnv
 from solvent.position import Context
-from solvent.syntax import ArrowType, HMType, ListType, Type, TypeVar, base_type_eq
+from solvent.syntax import (
+    ArrowType,
+    DataFrameType,
+    DictType,
+    HMType,
+    ListType,
+    Type,
+    TypeVar,
+    base_type_eq,
+)
 
 
 @dataclass
@@ -173,6 +182,10 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 ret_constrs += cstrs
 
             ret_typ = ListType(inner_ty)
+        case syn.DictLit():
+            ret_typ = DictType()
+        case syn.DataFrameLit():
+            ret_typ = DataFrameType(columns={})
         case syn.Subscript(value=v, idx=e):
             v_ty, v_constrs = check_expr(context, v)
             e_ty, e_constrs = check_expr(context, e)
