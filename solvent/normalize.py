@@ -9,10 +9,17 @@ from typing import List
 
 from solvent import syntax as syn
 
+# from solvent.env import ScopedEnvVisitor
+
 
 def normalize(stmts: List[syn.Stmt]) -> List[syn.Stmt]:
     res = sum([normalize_stmt(s) for s in stmts], [])
     return res
+
+
+# class Normalize(ScopedEnvVisitor):
+#     def start_ArithBinOp(self, arith: syn.ArithBinOp):
+#         super().start_ArithBinOp(arith)
 
 
 def normalize_stmt(stmt: syn.Stmt) -> List[syn.Stmt]:

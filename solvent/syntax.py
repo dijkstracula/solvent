@@ -274,7 +274,10 @@ class Expr(Pos, TypeAnnotation):
     def to_string(self, include_types=False) -> str:
         match self:
             case Variable(name=x):
-                return f"{x}"
+                if include_types:
+                    return f"({x} : {self.typ})"
+                else:
+                    return f"{x}"
             case IntLiteral(value=v):
                 return f"{v}"
             case BoolLiteral(value=v):
@@ -435,7 +438,7 @@ class Stmt(Pos, TypeAnnotation):
                 return res
             case Assign(name=name, value=value):
                 typann = f": {self.typ}" if include_types else ""
-                return f"{align}{name}{typann} = {value.to_string(False)}"
+                return f"{align}{name}{typann} = {value.to_string(include_types)}"
             case Return(value):
                 return f"{align}return {value.to_string(include_types)}"
             case x:

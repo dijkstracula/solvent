@@ -1,9 +1,10 @@
 import ast
 import inspect
-from typing import get_type_hints
+from typing import get_type_hints, List
 
 from solvent import parse, frontend
 from solvent import syntax as syn
+from solvent.visitor import Visitor
 
 
 def assert_type(quals, expected):
@@ -25,3 +26,33 @@ def assert_type(quals, expected):
         return repl
 
     return inner
+
+
+class RemovePosition(Visitor):
+    def start_Stmt(self, stmt: syn.Stmt):
+        super().start_Stmt(stmt)
+
+        stmt.position = None
+
+    def start_Expr(self, expr: syn.Expr):
+        super().start_Expr(expr)
+
+        expr.position = None
+
+    def end_FunctionDef(self, fd: syn.FunctionDef):
+        super().end_FunctionDef(fd)
+
+        fd.name = "fut"
+        return fd
+
+
+def parse_stmts(func) -> List[syn.Stmt]:
+    lines = inspect.getsource(func).split("\n")
+    indent = len(lines[0]) - len(lines[0].lstrip())
+    source = "\n".join([l[indent:] for l in lines])
+
+    syn.NameGenerator.reset()
+    pyast = ast.parse(source)
+    res = parse.parse(pyast, get_type_hints(func, include_extras=True))
+
+    return RemovePosition().visit_stmts(res)
