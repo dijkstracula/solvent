@@ -90,14 +90,14 @@ class ScopedEnvVisitor(Visitor):
         assert isinstance(fd.typ, syn.ArrowType)
 
         # add function name to current scope
-        self.env.add_mut(fd.name, fd.typ)
+        self.env[fd.name] = fd.typ
 
         self.env.push_scope_mut()
         for name, t in fd.typ.args:
-            self.env.add_mut(name, t)
+            self.env[name] = t
 
     def end_FunctionDef(self, _: syn.FunctionDef):
         self.env.pop_scope_mut()
 
-    def start_Assign(self, stmt: syn.Assign):
-        self.env.add_mut(stmt.name, stmt.typ)
+    def end_Assign(self, stmt: syn.Assign):
+        self.env[stmt.name] = stmt.typ
