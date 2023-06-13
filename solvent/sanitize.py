@@ -1,17 +1,17 @@
 from solvent import constraints
 from solvent.env import ScopedEnv
+from solvent.position import Context
 from solvent.syntax import ArrowType, Expr, HMType, ListType, Stmt, Type, TypeAnnotation
 from solvent.visitor import Visitor
 
 
 class HmExists(Exception):
     def __init__(self, msg):
-        # msg = f"{node.typ}\n{node}\n{node.position}"
         super().__init__(msg)
 
     @staticmethod
     def node(node) -> "HmExists":
-        msg = f"{node.typ}\n{node}\n{node.position}"
+        msg = f"{node}: {node.typ} ({Context.single(at=node.position, color=True)})"
         return HmExists(msg)
 
 
