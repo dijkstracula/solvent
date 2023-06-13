@@ -160,6 +160,11 @@ class Type(Pos):
                 return "False"
             case ListType(inner_typ=inner_typ):
                 return f"List[{inner_typ}]"
+            case DictType():
+                return "dict()"
+            case DataFrameType(columns=c):
+                tmp = [f"{k}: {v}" for k, v in c.items()]
+                return f"DataFrame({tmp})"
             case x:
                 print(type(x))
                 raise Exception(x)
@@ -227,6 +232,18 @@ class ListType(Type):
 
 
 @dataclass
+class DictType(Type):
+    # TODO: actually represent dictionary types
+    # items: Dict[str, Type]
+    pass
+
+
+@dataclass
+class DataFrameType(Type):
+    columns: Dict[str, Type]
+
+
+@dataclass
 class Bottom(Type):
     pass
 
@@ -256,6 +273,12 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
             return n1 == n2
         case ListType(inner_typ1), ListType(inner_typ2):
             return base_type_eq(inner_typ1, inner_typ2)
+        case DataFrameType(columns=c0), DataFrameType(columns=c1):
+            # two dataframes are `base_type_eq` if they have the same
+            # keys and all their values are `base_type_eq`.
+            return list(c0.keys()) == list(c1.keys()) and all(
+                [base_type_eq(v, c1[k]) for k, v in c0.items()]
+            )
         case _:
             return False
 
@@ -285,6 +308,10 @@ class Expr(Pos, TypeAnnotation):
                     return f"([{inner}] : {self.typ})"
                 else:
                     return f"[{inner}]"
+            case DictLit():
+                return "{<opaque>}"
+            case DataFrameLit():
+                return "DataFrame(<opaque>)"
             case Subscript(value=v, idx=e):
                 return f"{v}[{e}]"
             case Neg(expr=e):
@@ -331,6 +358,18 @@ class Variable(Expr):
 @dataclass
 class IntLiteral(Expr):
     value: int
+
+
+@dataclass
+class DataFrameLit(Expr):
+    pass
+
+
+@dataclass
+class DictLit(Expr):
+    """TODO: add real information to dictionaries."""
+
+    pass
 
 
 @dataclass

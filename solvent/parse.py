@@ -223,6 +223,10 @@ class Parser:
                 return syn.Subscript(
                     self.parse_expr(lst), self.parse_expr(slice_expr)
                 ).ast(expr)
+            case ast.Dict():
+                return syn.DictLit().ast(expr)
+            # case ast.Attribute(value=value, attr=attr, ctx=ast.Load()):
+            #     return syn.GetAttr(self.parse_expr(value), attr).ast(expr)
             case x:
                 if x is not None:
                     print(ast.dump(expr, indent=2))
