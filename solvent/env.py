@@ -61,7 +61,7 @@ class ScopedEnv:
         for k, v in self.items():
             if k == name:
                 return v
-        raise IndexError(f"{name} not bound in context.")
+        raise IndexError(f"{name} not bound in context.\n{self}")
 
     def __setitem__(self, name, value):
         self.add_mut(name, value)

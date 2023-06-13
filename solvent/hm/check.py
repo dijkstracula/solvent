@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
+from solvent import errors
 from solvent import syntax as syn
 from solvent import utils
 from solvent.env import ScopedEnv
@@ -122,7 +123,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             if name in context:
                 ret_typ = context[name]
             else:
-                raise Exception(f"Variable {name} not bound in context.")
+                raise errors.UnboundVariable(expr)
         case syn.IntLiteral():
             ret_typ = HMType.int()
         case syn.Neg(expr=e):

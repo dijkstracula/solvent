@@ -1,5 +1,8 @@
 from typing import List
 
+from solvent import syntax
+from solvent.position import Context
+
 
 class TypeError(Exception):
     def __init__(self, c):
@@ -23,6 +26,17 @@ class TypeError(Exception):
             res += " " * (pos.col_offset + lineno_width)
             res += "^" * (pos.end_col_offset - pos.col_offset)
         return res
+
+
+class UnboundVariable(Exception):
+    def __init__(self, var: syntax.Variable):
+        self.var = var
+        assert var.position is not None
+        super().__init__(
+            Context.to_string(
+                f"Variable {var.name} as not bound in context.", at=var.position
+            )
+        )
 
 
 class Unreachable(Exception):
