@@ -156,6 +156,14 @@ def parse_expr(expr) -> syn.Expr:
         case ast.List(elts=elts, ctx=ast.Load()):
             exprs = [parse_expr(e) for e in elts]
             return syn.ListLiteral(exprs).ast(expr)
+        case ast.Call(
+            func=ast.Attribute(
+                value=ast.Attribute(value=ast.Name(id="pd"), attr="DataFrame"),
+                attr="from_dict",
+            ),
+            args=args,
+        ):
+            return syn.DataFrameLit().ast(expr)
         case ast.Call(func=func, args=args):
             return syn.Call(
                 function_name=parse_expr(func), arglist=[parse_expr(e) for e in args]
@@ -164,11 +172,6 @@ def parse_expr(expr) -> syn.Expr:
             return syn.Neg(parse_expr(val)).ast(expr)
         case ast.Subscript(value=lst, slice=slice_expr):
             return syn.Subscript(parse_expr(lst), parse_expr(slice_expr)).ast(expr)
-        case ast.Attribute(
-            value=ast.Attribute(value=ast.Name(id="pd"), attr="DataFrame"),
-            attr="from_dict",
-        ):
-            return syn.DataFrameLit().ast(expr)
         case ast.Dict():
             return syn.DictLit().ast(expr)
         case x:

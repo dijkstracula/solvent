@@ -7,6 +7,7 @@ from solvent.syntax import (
     BoolLiteral,
     BoolOp,
     Call,
+    DataFrameLit,
     Expr,
     FunctionDef,
     If,
@@ -88,6 +89,9 @@ class Visitor:
                 self.start_ListLiteral(cast(ListLiteral, expr))
                 new_expr = ListLiteral([self.visit_expr(e) for e in elts], typ=expr.typ)
                 self.end_ListLiteral(new_expr)
+            case DataFrameLit():
+                self.start_DataFrameLit(cast(DataFrameLit, expr))
+                new_expr = expr
             case Subscript(value=v, idx=e):
                 self.start_Subscript(cast(Subscript, expr))
                 new_expr = Subscript(self.visit_expr(v), self.visit_expr(e))
@@ -188,6 +192,9 @@ class Visitor:
         pass
 
     def end_ListLiteral(self, lit: ListLiteral):
+        pass
+
+    def start_DataFrameLit(self, lit: DataFrameLit):
         pass
 
     def start_Subscript(self, subscript: Subscript):
