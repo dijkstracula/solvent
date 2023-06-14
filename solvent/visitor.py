@@ -10,6 +10,7 @@ from solvent.syntax import (
     DataFrameLit,
     Expr,
     FunctionDef,
+    GetAttr,
     If,
     IntLiteral,
     ListLiteral,
@@ -92,6 +93,10 @@ class Visitor:
             case DataFrameLit():
                 self.start_DataFrameLit(cast(DataFrameLit, expr))
                 new_expr = expr
+            case GetAttr(name=name, attr=attr):
+                self.start_GetAttr(cast(GetAttr, expr))
+                new_expr = GetAttr(name=self.visit_expr(name), attr=attr, typ=expr.typ)
+                self.end_GetAttr(new_expr)
             case Subscript(value=v, idx=e):
                 self.start_Subscript(cast(Subscript, expr))
                 new_expr = Subscript(self.visit_expr(v), self.visit_expr(e))
@@ -192,6 +197,12 @@ class Visitor:
         pass
 
     def end_ListLiteral(self, lit: ListLiteral):
+        pass
+
+    def start_GetAttr(self, lit: GetAttr):
+        pass
+
+    def end_GetAttr(self, lit: GetAttr):
         pass
 
     def start_DataFrameLit(self, lit: DataFrameLit):

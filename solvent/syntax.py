@@ -168,6 +168,12 @@ class Type(Pos):
                     return f"DataFrame({tmp}, ..)"
                 else:
                     return "DataFrame(..?)"
+            case ObjectType(fields=fields):
+                tmp = [f"{k}: {v}" for k, v in fields.items()]
+                if len(tmp) > 0:
+                    return f"Object{{ {tmp} }}"
+                else:
+                    return "Object"
             case x:
                 print(type(x))
                 raise Exception(x)
@@ -244,6 +250,15 @@ class DictType(Type):
 @dataclass
 class DataFrameType(Type):
     columns: Dict[str, Type]
+
+
+@dataclass
+class ObjectType(Type):
+    fields: Dict[str, Type]
+
+    @staticmethod
+    def series(inner_typ: Type):
+        return ObjectType({"max": ArrowType([], inner_typ)})
 
 
 @dataclass
@@ -332,6 +347,8 @@ class Expr(Pos, TypeAnnotation):
             case Call(function_name=fn, arglist=args):
                 args = [a.to_string(include_types) for a in args]
                 return f"{fn}({', '.join(args)})"
+            case GetAttr(name=obj, attr=attr):
+                return f"{obj.to_string(include_types)}.{attr}"
             case x:
                 return f"`{repr(x)}`"
 
@@ -419,6 +436,12 @@ class Not(Expr):
 class Call(Expr):
     function_name: Expr
     arglist: List[Expr]
+
+
+@dataclass
+class GetAttr(Expr):
+    name: Expr
+    attr: str
 
 
 @dataclass

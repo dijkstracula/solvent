@@ -70,5 +70,7 @@ def subst_expr(solution: Solution, expr: syn.Expr):
             subst_expr(solution, e)
         case syn.DataFrameLit():
             pass
+        case syn.GetAttr(name=name):
+            subst_expr(solution, name)
         case x:
             raise NotImplementedError(x)

@@ -44,6 +44,9 @@ def check_stmts(
     for stmt in stmts:
         typ, cs, context = check_stmt(context, stmt)
         constraints += cs
+        print("adding constraints:")
+        for c in cs:
+            print(c)
     return typ, constraints, context
 
 
@@ -153,6 +156,19 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                     BaseEq(rhs_ty, ret_typ).pos(rhs_ty),
                 ]
             )
+        case syn.ArithBinOp(lhs=lhs, rhs=rhs, op="/"):
+            # give `/` the type `'a -> int -> 'a`
+            lhs_ty, lhs_constrs = check_expr(context, lhs)
+            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            ret_typ = HMType.fresh()
+            ret_constrs = (
+                lhs_constrs
+                + rhs_constrs
+                + [
+                    BaseEq(lhs_ty, ret_typ).pos(lhs_ty),
+                    BaseEq(rhs_ty, HMType.int()).pos(rhs_ty),
+                ]
+            )
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)
@@ -239,6 +255,24 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             ret_typ = HMType.fresh("ret")
             constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(fn_ty)]
             ret_constrs = constrs
+        case syn.GetAttr(name=name, attr=attr):
+            (nametyp, namecstrs) = check_expr(context, name)
+            match nametyp:
+                case syn.ObjectType(fields=fields) if attr in fields:
+                    ret_typ = fields[attr].pos(expr)
+                    ret_constrs = namecstrs
+                case syn.HMType(base=TypeVar(name=name)):
+                    ret_typ = HMType.fresh("attr").pos(expr)
+
+                case t:
+                    print(f"{t!r}")
+                    print("NBT")
+                    print(nametyp)
+                    for c in namecstrs:
+                        print(c)
+                    raise errors.TypeError(
+                        BaseEq(t, syn.ObjectType({attr: syn.Bottom()}))
+                    )
         case x:
             raise NotImplementedError(x)
     expr.annot(ret_typ)

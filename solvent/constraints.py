@@ -17,6 +17,7 @@ from solvent.syntax import (
     ArrowType,
     Conjoin,
     ListType,
+    ObjectType,
     RType,
     Type,
     TypeVar,
@@ -208,6 +209,10 @@ def check_expr(
                     raise errors.Unreachable(x)
             constrs += [SubType(context, assums, ret_type, expr.typ).pos(expr)]
             return (ret_type, constrs)
+        case syn.GetAttr(name=name, attr=attr):
+            name_ty, name_constrs = check_expr(context, assums, name)
+            assert isinstance(name_ty, ObjectType)
+            return (name_ty.fields[attr], name_constrs)
         case x:
             raise NotImplementedError(x)
 
