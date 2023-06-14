@@ -12,6 +12,7 @@ from solvent.syntax import (
     HMType,
     IntLiteral,
     ListType,
+    ObjectType,
     RType,
     Stmt,
     Type,
@@ -41,6 +42,10 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             return ListType(template_type(inner_typ, env))
         case DataFrameType(columns=c):
             return DataFrameType({name: template_type(t, env) for name, t in c.items()})
+        case ObjectType(fields=fields):
+            return ObjectType(
+                {name: template_type(t, env) for name, t in fields.items()}
+            )
         case x:
             raise errors.Unreachable(x)
 

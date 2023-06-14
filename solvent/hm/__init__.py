@@ -9,7 +9,7 @@ from .unification import apply, free_vars, unify  # type: ignore
 
 
 def solve(stmts: List[syn.Stmt], debug=False) -> syn.Type:
-    typ, constrs, context = check_stmts(ScopedEnv.empty(), stmts)
+    typ, constrs, context = check_stmts(ScopedEnv.default(), stmts)
 
     if debug:
         print(f"Initial type: {typ}")

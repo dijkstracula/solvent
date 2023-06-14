@@ -60,7 +60,7 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False)
         print("== Inferred Base Type ==")
         print(f"{inferred_base_typ}")
 
-    typ, constrs, context = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
+    typ, constrs, context = constraints.check_stmts(ScopedEnv.default(), [], stmts)
     for c in constrs:
         AssertNoHmTypes().check_constraint(c)
 

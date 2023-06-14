@@ -52,6 +52,11 @@ def split(c: constr.SubType) -> List[constr.SubType]:
                         constr.SubType(ctx, asms, ret0, ret1).pos(c),
                     ]
                     return sum([split(x) for x in split_constrs], [])
+                # case (
+                #    syn.ObjectType(fields=f1),
+                #    syn.ObjectType(fields=f2)
+                # ):
+
                 case _:
                     return [c]
         case _:

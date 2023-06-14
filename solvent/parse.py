@@ -174,6 +174,8 @@ def parse_expr(expr) -> syn.Expr:
             return syn.Subscript(parse_expr(lst), parse_expr(slice_expr)).ast(expr)
         case ast.Dict():
             return syn.DictLit().ast(expr)
+        case ast.Attribute(value=value, attr=attr, ctx=ast.Load()):
+            return syn.GetAttr(parse_expr(value), attr).ast(expr)
         case x:
             if x is not None:
                 print(ast.dump(expr, indent=2))

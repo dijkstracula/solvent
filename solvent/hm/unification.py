@@ -11,6 +11,7 @@ from solvent.syntax import (
     DataFrameType,
     HMType,
     ListType,
+    ObjectType,
     RType,
     Type,
     TypeVar,
@@ -135,6 +136,8 @@ def free_vars(typ: Type) -> list[str]:
             return free_vars(inner_typ)
         case DataFrameType(columns=cols):
             return sum([free_vars(t) for _, t in cols.items()], [])
+        case ObjectType(fields=fields):
+            return sum([free_vars(t) for _, t in fields.items()], [])
         case x:
             raise NotImplementedError(x, type(x))
 
@@ -162,6 +165,10 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_one(name, tar, inner)).pos(src)
+        case ObjectType(fields=fields):
+            return ObjectType(
+                {x: subst_one(name, tar, t) for x, t in fields.items()}
+            ).pos(src)
         case x:
             raise NotImplementedError(f"subst one: {x}")
 

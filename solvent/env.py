@@ -17,8 +17,26 @@ class ScopedEnv:
     scopes: List[Dict[str, Any]]
 
     @staticmethod
+    def default():
+        return (
+            ScopedEnv.empty()
+            .push_scope()
+            .add(
+                "pd",
+                syn.ObjectType(
+                    {
+                        "Series": syn.ArrowType(
+                            args=[("l", syn.ListType(syn.HMType.int()))],
+                            ret=syn.ObjectType.series(syn.HMType.int()),
+                        )
+                    }
+                ),
+            )
+        )
+
+    @staticmethod
     def empty():
-        return ScopedEnv([{}])
+        return ScopedEnv([])
 
     def add(self, name: str, data: Any) -> "ScopedEnv":
         new = deepcopy(self)
@@ -84,7 +102,7 @@ class ScopedEnv:
 
 class ScopedEnvVisitor(Visitor):
     def start(self):
-        self.env = ScopedEnv.empty()
+        self.env = ScopedEnv.default()
 
     def start_FunctionDef(self, fd: syn.FunctionDef):
         assert isinstance(fd.typ, syn.ArrowType)
