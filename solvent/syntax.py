@@ -164,7 +164,10 @@ class Type(Pos):
                 return "dict()"
             case DataFrameType(columns=c):
                 tmp = [f"{k}: {v}" for k, v in c.items()]
-                return f"DataFrame({tmp})"
+                if len(tmp) > 0:
+                    return f"DataFrame({tmp}, ..)"
+                else:
+                    return "DataFrame(..?)"
             case x:
                 print(type(x))
                 raise Exception(x)

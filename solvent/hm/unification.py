@@ -8,6 +8,7 @@ from solvent import errors
 from solvent.env import ScopedEnv
 from solvent.syntax import (
     ArrowType,
+    DataFrameType,
     HMType,
     ListType,
     RType,
@@ -132,6 +133,8 @@ def free_vars(typ: Type) -> list[str]:
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
         case ListType(inner_typ=inner_typ):
             return free_vars(inner_typ)
+        case DataFrameType(columns=cols):
+            return sum([free_vars(t) for _, t in cols.items()], [])
         case x:
             raise NotImplementedError(x, type(x))
 

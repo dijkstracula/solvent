@@ -6,6 +6,7 @@ from solvent.syntax import (
     Assign,
     BoolOp,
     Conjoin,
+    DataFrameType,
     Expr,
     FunctionDef,
     HMType,
@@ -38,6 +39,8 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             )
         case ListType(inner_typ):
             return ListType(template_type(inner_typ, env))
+        case DataFrameType(columns=c):
+            return DataFrameType({name: template_type(t, env) for name, t in c.items()})
         case x:
             raise errors.Unreachable(x)
 
