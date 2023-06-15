@@ -44,9 +44,6 @@ def check_stmts(
     for stmt in stmts:
         typ, cs, context = check_stmt(context, stmt)
         constraints += cs
-        print("adding constraints:")
-        for c in cs:
-            print(c)
     return typ, constraints, context
 
 
@@ -132,7 +129,6 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
     ret_constrs: List[BaseEq] = []
     match expr:
         case syn.Variable(name=name):
-            print(f"var: {name}, context: {context}")
             if name in context:
                 ret_typ = context[name]
             else:
@@ -244,8 +240,6 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
         case syn.Call(function_name=fn, arglist=args):
             fn_ty, constrs = check_expr(context, fn)
             types = []
-
-            print(f"call: {fn} {args}")
 
             for e in args:
                 ty, cs = check_expr(context, e)
