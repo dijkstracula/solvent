@@ -19,9 +19,8 @@ class ScopedEnv:
 
     @staticmethod
     def default():
-        series_innerty = syn.RType(
-            base=syn.Int(), predicate=syn.PredicateVar.fresh("xs")
-        )
+        # HACK
+        series_innerty = syn.RType(base=syn.Int(), predicate=syn.PredicateVar("xs0"))
         return (
             ScopedEnv.empty()
             .push_scope()
@@ -40,7 +39,7 @@ class ScopedEnv:
 
     @staticmethod
     def empty():
-        return ScopedEnv([])
+        return ScopedEnv([{}])
 
     def add(self, name: str, data: Any) -> "ScopedEnv":
         new = deepcopy(self)

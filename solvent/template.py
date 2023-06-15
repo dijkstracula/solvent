@@ -12,6 +12,7 @@ from solvent.syntax import (
     HMType,
     IntLiteral,
     ListType,
+    Neg,
     ObjectType,
     RType,
     Stmt,
@@ -97,7 +98,11 @@ class Templatizer(ScopedEnvVisitor):
     def start_Expr(self, expr: Expr):
         super().start_Expr(expr)
 
-        if isinstance(expr, Variable) or isinstance(expr, IntLiteral):
+        if (
+            isinstance(expr, Variable)
+            or isinstance(expr, Neg)
+            or isinstance(expr, IntLiteral)
+        ):
             return
 
         tt = template_type(expr.typ, self.env)
@@ -115,3 +120,8 @@ class Templatizer(ScopedEnvVisitor):
         super().start_IntLiteral(lit)
 
         lit.annot(RType(syn.Int(), Conjoin([BoolOp(syn.V(), "==", lit)])))
+
+    def start_Neg(self, expr: Neg):
+        super().start_Neg(expr)
+
+        expr.annot(RType(syn.Int(), Conjoin([BoolOp(syn.V(), "==", expr)])))
