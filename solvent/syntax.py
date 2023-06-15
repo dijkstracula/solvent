@@ -6,7 +6,7 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Self
 
 from solvent.position import Position
 
@@ -138,6 +138,30 @@ class Type(Pos):
             ret.pending_subst[k] = v
         return ret
 
+    def shape(self) -> Self:
+        """
+        Implementation of the shape function from the paper.
+        Removes a predicate from a RType.
+        """
+
+        match self:
+            case ArrowType(args=args, ret=ret, pending_subst=ps):
+                return ArrowType(
+                    args=[(name, a.shape()) for name, a in args],
+                    ret=ret.shape(),
+                    pending_subst=ps,
+                ).pos(self)
+            case RType(base=base):
+                return HMType(base).pos(self)
+            case HMType():
+                return self
+            case ListType(inner_typ):
+                return ListType(inner_typ.shape())
+            case ObjectType(fields):
+                return ObjectType({name: typ.shape() for name, typ in fields.items()})
+            case x:
+                raise Exception(f"`{x}` is not a Type.")
+
     def __str__(self):
         match self:
             case HMType(base=base):
@@ -169,7 +193,7 @@ class Type(Pos):
                 else:
                     return "DataFrame(..?)"
             case ObjectType(fields=fields):
-                tmp = [f"{k}: {v}" for k, v in fields.items()]
+                tmp = ", ".join([f"{k}: {v}" for k, v in fields.items()])
                 if len(tmp) > 0:
                     return f"Object{{ {tmp} }}"
                 else:
@@ -273,7 +297,7 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
     Implements equality between base types.
     """
 
-    match (t1, t2):
+    match (t1.shape(), t2.shape()):
         case HMType(base=Int()), HMType(base=Int()):
             return True
         case HMType(base=Bool()), HMType(base=Bool()):
@@ -285,20 +309,8 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
                 map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
             )
             return args_eq and base_type_eq(ret1, ret2)
-        case RType(base=Int()), RType(base=Int()):
-            return True
-        case RType(base=Bool()), RType(base=Bool()):
-            return True
-        case RType(base=TypeVar(name=n1)), RType(base=TypeVar(name=n2)):
-            return n1 == n2
         case ListType(inner_typ1), ListType(inner_typ2):
             return base_type_eq(inner_typ1, inner_typ2)
-        case DataFrameType(columns=c0), DataFrameType(columns=c1):
-            # two dataframes are `base_type_eq` if they have the same
-            # keys and all their values are `base_type_eq`.
-            return list(c0.keys()) == list(c1.keys()) and all(
-                [base_type_eq(v, c1[k]) for k, v in c0.items()]
-            )
         case ObjectType(fields=f0), ObjectType(fields=f1):
             return sorted(f0.keys()) == sorted(f1.keys()) and all(
                 [base_type_eq(v, f1[k]) for k, v in f0.items()]

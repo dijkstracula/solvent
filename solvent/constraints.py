@@ -223,29 +223,6 @@ def check_expr(
             raise NotImplementedError(x)
 
 
-def shape_typ(typ: Type) -> Type:
-    """
-    Implementation of the shape function from the paper.
-    Removes a predicate from a RType.
-    """
-
-    match typ:
-        case ArrowType(args=args, ret=ret, pending_subst=ps):
-            return ArrowType(
-                args=[(name, shape_typ(a)) for name, a in args],
-                ret=shape_typ(ret),
-                pending_subst=ps,
-            ).pos(typ)
-        case RType(base=base):
-            return RType.lift(base).pos(typ)
-        case x:
-            raise Exception(f"`{x}` is not a Type.")
-
-
-def shape_env(env: ScopedEnv) -> ScopedEnv:
-    return env.map(shape_typ)
-
-
 # don't actually need this
 def shrink(solution):
     """

@@ -1,8 +1,9 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Self
 
 from solvent import syntax as syn
+from solvent.syntax import Type
 from solvent.visitor import Visitor
 
 
@@ -18,6 +19,9 @@ class ScopedEnv:
 
     @staticmethod
     def default():
+        series_innerty = syn.RType(
+            base=syn.Int(), predicate=syn.PredicateVar.fresh("xs")
+        )
         return (
             ScopedEnv.empty()
             .push_scope()
@@ -26,8 +30,8 @@ class ScopedEnv:
                 syn.ObjectType(
                     {
                         "Series": syn.ArrowType(
-                            args=[("l", syn.ListType(syn.HMType.int()))],
-                            ret=syn.ObjectType.series(syn.HMType.int()),
+                            args=[("l", syn.ListType(series_innerty))],
+                            ret=syn.ObjectType.series(series_innerty),
                         )
                     }
                 ),
@@ -98,6 +102,9 @@ class ScopedEnv:
             )
             + "}"
         )
+
+    def shape(self) -> Self:
+        return self.map(Type.shape)
 
 
 class ScopedEnvVisitor(Visitor):
