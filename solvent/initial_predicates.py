@@ -24,6 +24,8 @@ def predicate_variables(t: syn.Type) -> List[str]:
             ) + predicate_variables(ret)
         case syn.ListType(inner_typ=inner):
             return predicate_variables(inner)
+        case syn.ObjectType(fields=fields):
+            return sum([predicate_variables(t) for _, t in fields.items()], [])
         case _:
             return []
 

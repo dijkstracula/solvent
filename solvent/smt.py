@@ -89,5 +89,7 @@ def from_type(name: str, t: syn.Type):
             return True
         case syn.ListType():
             return True
+        case syn.ObjectType():
+            return True
         case x:
             raise NotImplementedError(name, type(x))

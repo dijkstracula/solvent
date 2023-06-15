@@ -52,10 +52,20 @@ def split(c: constr.SubType) -> List[constr.SubType]:
                         constr.SubType(ctx, asms, ret0, ret1).pos(c),
                     ]
                     return sum([split(x) for x in split_constrs], [])
-                # case (
-                #    syn.ObjectType(fields=f1),
-                #    syn.ObjectType(fields=f2)
-                # ):
+                case (syn.ObjectType(fields=f1), syn.ObjectType(fields=f2)):
+                    split_constrs = [
+                        # TODO: Variance for field constraints???
+                        constr.SubType(
+                            ctx,
+                            asms,
+                            t0.subst(lhs.pending_subst.items()),
+                            t1.subst(rhs.pending_subst.items()),
+                        ).pos(c)
+                        for (_, t0), (_, t1) in zip(
+                            sorted(f1.items()), sorted(f2.items())
+                        )
+                    ]
+                    return sum([split(x) for x in split_constrs], [])
 
                 case _:
                     return [c]
@@ -69,8 +79,6 @@ def solve(
     quals: List[quals.Qualifier],
     show_work=False,
 ) -> Solution:
-    solution: Solution = {}
-
     if show_work:
         print("Raw Constraints:")
         for c in constrs:
@@ -127,12 +135,12 @@ def constraints_valid(
             Context.show(f"G |- {c.lhs} <: {c.rhs}", at=c.position)
         try:
             valid = subtype.check_constr(sc, show_work)
-        except NotImplementedError:
+        except NotImplementedError as e:
             print("culprit", sc)
             ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
             assums = "\n    ".join([str(a) for a in c.assumes])
             print(f"  Valid? w/ context:\n    {ctx}\n    {assums}")
-            raise Exception()
+            raise e
 
         if show_work:
             ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
@@ -251,6 +259,10 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
             )
         case syn.ListType(inner_typ=inner):
             return syn.ListType(inner_typ=apply(inner, solution))
+        case syn.ObjectType(fields=fields):
+            return syn.ObjectType(
+                {name: apply(typ, solution) for name, typ in fields.items()}
+            )
         case x:
             return x
 
