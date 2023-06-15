@@ -50,6 +50,9 @@ def check(context: env.ScopedEnv, assumes, typ1, typ2, show_work=False) -> bool:
             print(typ1, typ2)
             raise NotImplementedError
         case _:
+            import pdb
+
+            pdb.set_trace()
             return False
 
 
