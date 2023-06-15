@@ -156,7 +156,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             # give `/` the type `'a -> int -> 'a`
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)
-            ret_typ = HMType.fresh()
+            ret_typ = HMType.fresh("div")
             ret_constrs = (
                 lhs_constrs
                 + rhs_constrs
@@ -246,19 +246,25 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 types += [(syn.NameGenerator.fresh("arg"), ty)]
                 constrs += cs
 
-            ret_typ = HMType.fresh("ret")
+            match fn_ty:
+                case ArrowType(ret=ret):
+                    ret_typ = ret
+                case syn.HMType(base=TypeVar(name=name)):
+                    ret_typ = HMType.fresh("ret")
+                case t:
+                    raise Exception("blah")
+
             constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(expr)]
             ret_constrs = constrs
+
         case syn.GetAttr(name=name, attr=attr):
             (nametyp, namecstrs) = check_expr(context, name)
-            print(f"NBT:{nametyp}")
             match nametyp:
                 case syn.ObjectType(fields=fields) if attr in fields:
                     ret_typ = fields[attr].pos(expr)
                     ret_constrs = namecstrs
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("attr").pos(expr)
-
                 case t:
                     raise errors.TypeError(
                         BaseEq(t, syn.ObjectType({attr: syn.Bottom()}))

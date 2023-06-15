@@ -107,9 +107,9 @@ class Visitor:
                     self.visit_expr(lhs), op, self.visit_expr(rhs), typ=expr.typ
                 )
                 self.end_BoolOp(new_expr)
-            case Neg(expr=expr):
+            case Neg(expr=e):
                 self.start_Neg(cast(Neg, expr))
-                new_expr = Neg(self.visit_expr(expr), typ=expr.typ)
+                new_expr = Neg(self.visit_expr(e), typ=expr.typ)
                 self.end_Neg(new_expr)
             case Call(function_name=fn, arglist=args):
                 self.start_Call(cast(Call, expr))
