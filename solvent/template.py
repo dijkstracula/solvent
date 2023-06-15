@@ -51,6 +51,13 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
 
 
 class Templatizer(ScopedEnvVisitor):
+    def start(self):
+        super().start()
+        # TODO: template_type for whatever is in the env
+        for name, typ in list(self.env.items()):
+            self.env[name] = template_type(typ, self.env)
+            print(self.env[name])
+
     def start_Stmt(self, stmt: Stmt):
         super().start_Stmt(stmt)
 

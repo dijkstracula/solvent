@@ -265,11 +265,6 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                     ret_typ = HMType.fresh("attr").pos(expr)
 
                 case t:
-                    print(f"{t!r}")
-                    print("NBT")
-                    print(nametyp)
-                    for c in namecstrs:
-                        print(c)
                     raise errors.TypeError(
                         BaseEq(t, syn.ObjectType({attr: syn.Bottom()}))
                     )

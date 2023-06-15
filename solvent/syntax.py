@@ -258,7 +258,9 @@ class ObjectType(Type):
 
     @staticmethod
     def series(inner_typ: Type):
-        return ObjectType({"max": ArrowType([], inner_typ)})
+        return ObjectType(
+            {"max": ArrowType([], inner_typ), "data": ListType(inner_typ)}
+        )
 
 
 @dataclass
@@ -296,6 +298,10 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
             # keys and all their values are `base_type_eq`.
             return list(c0.keys()) == list(c1.keys()) and all(
                 [base_type_eq(v, c1[k]) for k, v in c0.items()]
+            )
+        case ObjectType(fields=f0), ObjectType(fields=f1):
+            return sorted(f0.keys()) == sorted(f1.keys()) and all(
+                [base_type_eq(v, f1[k]) for k, v in f0.items()]
             )
         case _:
             return False
