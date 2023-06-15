@@ -74,7 +74,7 @@ def check_stmt(
             if ret is not None:
                 ret_typ = ret
             else:
-                ret_typ = HMType.fresh(name="ret").pos(stmt)
+                ret_typ = HMType.fresh(name="t").pos(stmt)
 
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
@@ -247,10 +247,11 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 constrs += cs
 
             ret_typ = HMType.fresh("ret")
-            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(fn_ty)]
+            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(expr)]
             ret_constrs = constrs
         case syn.GetAttr(name=name, attr=attr):
             (nametyp, namecstrs) = check_expr(context, name)
+            print(f"NBT:{nametyp}")
             match nametyp:
                 case syn.ObjectType(fields=fields) if attr in fields:
                     ret_typ = fields[attr].pos(expr)
