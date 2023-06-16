@@ -399,6 +399,7 @@ class Stmt(Pos, TypeAnnotation):
             case FunctionDef(
                 name=name, body=stmts, typ=ArrowType(args=args, ret=retann)
             ) if include_types:
+                print("blah")
                 argstr = ", ".join([f"{x}:{t}" for x, t in args])
                 retstr = f" -> {retann}:" if retann is not None else ":"
                 bodystr = "\n".join(

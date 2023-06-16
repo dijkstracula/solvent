@@ -14,7 +14,7 @@ def infer(quals=None, debug=False):
     def inner(func):
         source, startline = inspect.getsourcelines(func)
         pyast = ast.parse("".join(source))
-        res = parse.parse(pyast, get_type_hints(func, include_extras=True))
+        res = parse.Parser(get_type_hints(func, include_extras=True)).parse(pyast)
         lines = "".join(source).split("\n")
 
         syn.NameGenerator.reset()

@@ -2,9 +2,8 @@ import ast
 import inspect
 from typing import get_type_hints
 
-from solvent import parse, frontend
+from solvent import Refine, V, _, frontend, parse
 from solvent import syntax as syn
-from solvent import V, _, Refine
 
 
 def assert_hm(expected):
@@ -16,7 +15,7 @@ def assert_hm(expected):
     def inner(func):
         def repl():
             pyast = ast.parse(inspect.getsource(func))
-            res = parse.parse(pyast, get_type_hints(func, include_extras=True))
+            res = parse.Parser(get_type_hints(func, include_extras=True)).parse(pyast)
 
             syn.NameGenerator.reset()
             assert str(frontend.infer_base(res, False)) == expected

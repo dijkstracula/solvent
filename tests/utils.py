@@ -15,7 +15,7 @@ def assert_type(quals, expected):
     def inner(func):
         def repl():
             pyast = ast.parse(inspect.getsource(func))
-            res = parse.parse(pyast, get_type_hints(func, include_extras=True))
+            res = parse.Parser(get_type_hints(func, include_extras=True)).parse(pyast)
 
             syn.NameGenerator.reset()
             assert str(frontend.check(res, quals)) == expected
