@@ -31,7 +31,9 @@ class Parser:
         match tree:
             case ast.Module(body=body):
                 return sum([self.parse(b) for b in body], [])
-            case ast.Import() if not self.strict:
+            case ast.Import(names=names) if not self.strict:
+                for n in names:
+                    print(n.name, n.asname)
                 return []
             case ast.ImportFrom() if not self.strict:
                 return []
@@ -63,6 +65,8 @@ class Parser:
                 return [syn.Return(value=self.parse_expr(value)).ast(tree)]
             case ast.Expr(value=value) if not self.strict:
                 return [syn.Assign("_", self.parse_expr(value)).ast(tree)]
+            case ast.Pass():
+                return []
             case _:
                 print(ast.dump(tree, indent=2))
                 raise NotImplementedError
