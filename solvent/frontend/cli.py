@@ -48,6 +48,6 @@ def cli(files, not_strict, debug):
             dbg(s.to_string(include_types=True))
 
         syn.NameGenerator.reset()
-        with Context(lines=lines):
+        with Context(lines=lines.split("\n")):
             typ = frontend.check(stmts, QUALS)
             info(typ)
