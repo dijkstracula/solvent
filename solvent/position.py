@@ -8,7 +8,6 @@ from typing import Any, List
 
 import eff
 from ansi.color import fg, fx
-from termcolor import colored
 
 
 @dataclass
@@ -85,7 +84,7 @@ class Context(eff.ects):
             res = "<none>"
 
         if color:
-            return colored(res, "light_green", attrs=[])
+            return f"{fx.italic}{fg.magenta}{res}{fx.reset}"
         else:
             return res
 

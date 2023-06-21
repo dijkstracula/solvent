@@ -1,5 +1,4 @@
 import ast
-from logging import debug as dbg
 from logging import info
 
 import click
@@ -41,11 +40,8 @@ def cli(files, not_strict, debug):
     for f in files:
         lines = f.read()
         pyast = ast.parse(lines)
-        # type_hints = get_type_hints(pyast, include_extras=True)
-        # print(type_hints)
-        stmts = parse.Parser({}, strict=not not_strict).parse(pyast)
-        for s in stmts:
-            dbg(s.to_string(include_types=True))
+        p = parse.Parser({}, strict=not not_strict)
+        stmts = p.parse(pyast)
 
         syn.NameGenerator.reset()
         with Context(lines=lines.split("\n")):

@@ -9,8 +9,11 @@ from .subst import subst_stmts
 from .unification import apply, free_vars, unify  # type: ignore
 
 
-def solve(stmts: List[syn.Stmt]) -> syn.Type:
-    typ, constrs, context = check_stmts(ScopedEnv.default(), stmts)
+def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> syn.Type:
+    if env is None:
+        env = ScopedEnv.default()
+
+    typ, constrs, context = check_stmts(env, stmts)
 
     debug(f"Initial type: {typ}")
     debug("== Constraints ==")
@@ -26,11 +29,6 @@ def solve(stmts: List[syn.Stmt]) -> syn.Type:
     debug("== Solution ==")
     for k, v in solution.items():
         debug(f"{k} := {v}")
-
-    debug("Normalized Program:")
-    for s in stmts:
-        debug(s.to_string(include_types=True))
-    debug("======")
 
     solved_type = apply(typ, solution)
     subst_stmts(solution, stmts)

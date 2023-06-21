@@ -1,4 +1,3 @@
-from logging import debug
 from typing import List
 
 from ansi.color import fg, fx
@@ -35,7 +34,6 @@ class UnboundVariable(Exception):
     def __init__(self, var: syntax.Variable):
         self.var = var
         assert var.position is not None
-        debug(var.position)
         super().__init__(
             Context.to_string(
                 f"Variable {fg.boldred}{var.name}{fx.reset} is not bound in context.",

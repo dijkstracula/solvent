@@ -1,6 +1,8 @@
 from logging import debug
 from typing import List
 
+from ansi.color import fg, fx
+
 from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
 from solvent.env import ScopedEnv
@@ -28,8 +30,13 @@ def number(blob: str) -> str:
     width = len(str(total))
     for lineno, l in enumerate(lines, 1):
         padding = " " * (width - len(str(lineno)))
-        ret += [f"{lineno}{padding}|{l}"]
+        ret += [f"{fg.darkgray}{lineno}{fx.reset}{padding} {l}"]
     return "\n".join(ret)
+
+
+def debug_stmts(stmts: List[syn.Stmt], include_types=False):
+    gather = "\n\n".join([number(s.to_string(include_types)) for s in stmts])
+    debug(gather)
 
 
 def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]):
@@ -38,22 +45,17 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]):
     """
 
     stmts = normalize.normalize(stmts)
-    debug("Normalized Program")
-    for s in stmts:
-        debug(number(s.to_string()))
+    debug("Normalized Program:")
+    debug_stmts(stmts, True)
 
     inferred_base_typ = hm.solve(stmts)
     debug("HmType program:")
-    for s in stmts:
-        debug(number(s.to_string(include_types=True)))
-    debug("======")
+    debug_stmts(stmts, True)
 
     stmts = Templatizer().visit_stmts(stmts)
     AssertHavePosition().visit_stmts(stmts)
     debug("Template program:")
-    for s in stmts:
-        debug(number(s.to_string(include_types=True)))
-    debug("======")
+    debug_stmts(stmts, True)
     AssertNoHmTypes().visit_stmts(stmts)
 
     debug("== Inferred Base Type ==")

@@ -2,6 +2,7 @@ import ast
 from logging import debug
 from typing import Annotated, Any, Dict, List, get_args, get_origin
 
+import solvent
 from solvent import syntax as syn
 from solvent.qualifiers import Qualifier
 
@@ -93,10 +94,11 @@ class Parser:
     def parse_argument(self, arg: ast.arg) -> syn.Argument:
         if arg.arg in self.typing_hints:
             ann = self.parse_hint(self.typing_hints[arg.arg]).ast(arg)
+        elif isinstance(arg.annotation, ast.Subscript):
+            ann = self.parse_annotation(arg.annotation)
         else:
-            assert isinstance(arg.annotation, ast.Subscript)
-            debug(self.parse_annotation(arg.annotation))
             ann = None
+
         return syn.Argument(name=arg.arg, annotation=ann)
 
     def parse_hint(self, hint: type) -> syn.Type:
@@ -143,9 +145,57 @@ class Parser:
                 value=ast.Name(id=id), slice=ast.Tuple(elts=[base_ty, predicate])
             ) if id in self.modules and self.modules[id] == "solvent.Refine":
                 rtype = self.parse_annotation(base_ty)
-                # TODO: handle that case where predicates have `and` in them already
-                ret = rtype.set_predicate(syn.Conjoin([self.parse_expr(predicate)]))
-                return ret
+                # OK are you ready
+                # We are doing some crazy magic so that we can write out
+                # refinement types in base python without having to do things
+                # like parsing comments etc.
+                #
+                # For example, we can write `Refine[int, Q[0] <= V]` which is the
+                # type of ints that are greater than or equal to 0. We implement this
+                # by having Q be a magic object that has subscript and <= overridden
+                # so that they create a Qualifier object.
+                #
+                # When we are parsing this from an annotation, we have access to the
+                # function object and we can get at this Qualifier object directly.
+                # However, when are are parsing the whole file, we haven't executed
+                # any python yet. And so we just have the syntax objects. The following
+                # code wraps the Qualifier syntax like so:
+                # ```
+                # pred = <qualifier ast>
+                # ```
+                # Then compiles and executes it. At the moment, I am hardcoding
+                # the names `Q`, `V`, and `_`. I will later make this more robust.
+                locals = {}
+                exec(
+                    compile(
+                        ast.fix_missing_locations(
+                            ast.Interactive(
+                                [
+                                    ast.Assign(
+                                        targets=[ast.Name(id="pred", ctx=ast.Store())],
+                                        value=predicate,
+                                    )
+                                ]
+                            )
+                        ),
+                        "play.py",
+                        "single",
+                    ),
+                    {"Q": solvent.Q, "V": solvent.V, "_": solvent._},
+                    locals,
+                )
+
+                match locals["pred"]:
+                    case Qualifier():
+                        return rtype.set_predicate(
+                            syn.Conjoin([locals["pred"].template])
+                        )
+                    case bool():
+                        return rtype.set_predicate(
+                            syn.Conjoin([syn.BoolLiteral(locals["pred"])])
+                        )
+                    case x:
+                        raise NotImplementedError(x)
             case ast.Subscript(
                 value=ast.Name(id="Callable"),
                 slice=ast.Tuple(elts=[*arg_types, ret_type]),

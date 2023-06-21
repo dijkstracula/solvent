@@ -41,7 +41,7 @@ class ScopedEnv:
     def empty():
         return ScopedEnv([{}])
 
-    def add(self, name: str, data: Any) -> "ScopedEnv":
+    def add(self, name: str, data: Any) -> Self:
         new = deepcopy(self)
         new.scopes[0][name] = data
         return new
@@ -49,19 +49,19 @@ class ScopedEnv:
     def add_mut(self, name: str, data: Any):
         self.scopes[0][name] = data
 
-    def push_scope(self) -> "ScopedEnv":
+    def push_scope(self) -> Self:
         return ScopedEnv([{}] + self.scopes)
 
     def push_scope_mut(self):
         self.scopes.insert(0, {})
 
-    def pop_scope(self) -> "ScopedEnv":
+    def pop_scope(self) -> Self:
         return ScopedEnv(self.scopes[1:])
 
     def pop_scope_mut(self):
         self.scopes.pop(0)
 
-    def clone(self) -> "ScopedEnv":
+    def clone(self) -> Self:
         return deepcopy(self)
 
     def map(self, fn):
