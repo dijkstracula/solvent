@@ -1,5 +1,5 @@
 from logging import debug
-from typing import List
+from typing import Dict, List
 
 from ansi.color import fg, fx
 
@@ -11,7 +11,7 @@ from solvent.syntax import Type
 from solvent.template import Templatizer
 
 
-def infer_base(stmts: List[syn.Stmt]) -> Type:
+def infer_base(stmts: List[syn.Stmt]) -> Dict[str, Type]:
     norm_stmts = normalize.normalize(stmts)
     solved_type = hm.solve(norm_stmts)
 
@@ -20,7 +20,7 @@ def infer_base(stmts: List[syn.Stmt]) -> Type:
         debug(s)
     debug("======")
 
-    return alpha_rename(solved_type)
+    return {k: alpha_rename(v) for k, v in solved_type.items()}
 
 
 def number(blob: str) -> str:
@@ -48,18 +48,19 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]):
     debug("Normalized Program:")
     debug_stmts(stmts, True)
 
-    inferred_base_typ = hm.solve(stmts)
+    base_types = hm.solve(stmts)
     debug("HmType program:")
     debug_stmts(stmts, True)
+
+    debug("== Inferred Base Types ==")
+    for fn_name, typ in base_types.items():
+        debug(f"{fn_name}: {typ}")
 
     stmts = Templatizer().visit_stmts(stmts)
     AssertHavePosition().visit_stmts(stmts)
     debug("Template program:")
     debug_stmts(stmts, True)
     AssertNoHmTypes().visit_stmts(stmts)
-
-    debug("== Inferred Base Type ==")
-    debug(f"{inferred_base_typ}")
 
     typ, constrs, _ = constraints.check_stmts(ScopedEnv.default(), [], stmts)
     for c in constrs:

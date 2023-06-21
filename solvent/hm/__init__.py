@@ -1,5 +1,5 @@
 from logging import debug
-from typing import List
+from typing import Dict, List
 
 import solvent.syntax as syn
 from solvent.env import ScopedEnv
@@ -9,7 +9,7 @@ from .subst import subst_stmts
 from .unification import apply, free_vars, unify  # type: ignore
 
 
-def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> syn.Type:
+def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> Dict[str, syn.Type]:
     if env is None:
         env = ScopedEnv.default()
 
@@ -30,6 +30,12 @@ def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> syn.Type:
     for k, v in solution.items():
         debug(f"{k} := {v}")
 
-    solved_type = apply(typ, solution)
+    _ = apply(typ, solution)
     subst_stmts(solution, stmts)
-    return solved_type
+
+    function_types = {}
+    for s in stmts:
+        if isinstance(s, syn.FunctionDef):
+            function_types[s.name] = s.typ
+
+    return function_types
