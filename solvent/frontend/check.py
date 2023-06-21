@@ -1,3 +1,4 @@
+from logging import debug
 from typing import List
 
 from solvent import constraints, hm, liquid, normalize, qualifiers
@@ -8,15 +9,14 @@ from solvent.syntax import Type
 from solvent.template import Templatizer
 
 
-def infer_base(stmts: List[syn.Stmt], debug=False) -> Type:
+def infer_base(stmts: List[syn.Stmt]) -> Type:
     norm_stmts = normalize.normalize(stmts)
-    solved_type = hm.solve(norm_stmts, debug)
+    solved_type = hm.solve(norm_stmts)
 
-    if debug:
-        print("Normalized Program:")
-        for s in norm_stmts:
-            print(s)
-        print("======")
+    debug("Normalized Program:")
+    for s in norm_stmts:
+        debug(s)
+    debug("======")
 
     return alpha_rename(solved_type)
 
@@ -32,44 +32,42 @@ def number(blob: str) -> str:
     return "\n".join(ret)
 
 
-def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False):
+def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]):
     """
     Run Liquid-type inference and checking.
     """
+
     stmts = normalize.normalize(stmts)
-    if debug:
-        print("Normalized Program")
-        for s in stmts:
-            print(number(s.to_string()))
-    inferred_base_typ = hm.solve(stmts, debug)
-    if debug:
-        print("HmType program:")
-        for s in stmts:
-            print(number(s.to_string(include_types=True)))
-        print("======")
+    debug("Normalized Program")
+    for s in stmts:
+        debug(number(s.to_string()))
+
+    inferred_base_typ = hm.solve(stmts)
+    debug("HmType program:")
+    for s in stmts:
+        debug(number(s.to_string(include_types=True)))
+    debug("======")
+
     stmts = Templatizer().visit_stmts(stmts)
     AssertHavePosition().visit_stmts(stmts)
-    if debug:
-        print("Template program:")
-        for s in stmts:
-            print(number(s.to_string(include_types=True)))
-        print("======")
+    debug("Template program:")
+    for s in stmts:
+        debug(number(s.to_string(include_types=True)))
+    debug("======")
     AssertNoHmTypes().visit_stmts(stmts)
 
-    if debug:
-        print("== Inferred Base Type ==")
-        print(f"{inferred_base_typ}")
+    debug("== Inferred Base Type ==")
+    debug(f"{inferred_base_typ}")
 
-    typ, constrs, context = constraints.check_stmts(ScopedEnv.default(), [], stmts)
+    typ, constrs, _ = constraints.check_stmts(ScopedEnv.default(), [], stmts)
     for c in constrs:
         AssertNoHmTypes().check_constraint(c)
 
-    predvar_solution = liquid.solve(stmts, constrs, quals, show_work=debug)
+    predvar_solution = liquid.solve(stmts, constrs, quals)
 
-    if debug:
-        print("== Predicate Variable Solution ==")
-        for k, v in predvar_solution.items():
-            print(f"{k} := {v}")
+    debug("== Predicate Variable Solution ==")
+    for k, v in predvar_solution.items():
+        debug(f"{k} := {v}")
 
     return alpha_rename(liquid.apply(typ, predvar_solution))
 

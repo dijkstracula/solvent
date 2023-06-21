@@ -18,7 +18,7 @@ def assert_hm(expected):
             res = parse.Parser(get_type_hints(func, include_extras=True)).parse(pyast)
 
             syn.NameGenerator.reset()
-            assert str(frontend.infer_base(res, False)) == expected
+            assert str(frontend.infer_base(res)) == expected
 
         repl.__name__ = func.__name__
 

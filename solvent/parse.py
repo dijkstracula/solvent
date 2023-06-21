@@ -1,4 +1,5 @@
 import ast
+from logging import debug
 from typing import Annotated, Any, Dict, List, get_args, get_origin
 
 from solvent import syntax as syn
@@ -18,6 +19,10 @@ class Parser:
         self.typing_hints = typing_hints
         self.strict = strict
 
+        # a map from the alias names of imports to
+        # their resolved "cannonical" names
+        self.modules: Dict[str, str] = {}
+
     def parse(self, tree: ast.AST) -> List[syn.Stmt]:
         """
         Parse a python AST into our internal AST representation.
@@ -31,11 +36,23 @@ class Parser:
         match tree:
             case ast.Module(body=body):
                 return sum([self.parse(b) for b in body], [])
-            case ast.Import(names=names) if not self.strict:
+            case ast.Import(names=names):
                 for n in names:
-                    print(n.name, n.asname)
+                    if n.asname is None:
+                        used_name = n.name
+                    else:
+                        used_name = n.asname
+                    self.modules[used_name] = n.name
+
                 return []
-            case ast.ImportFrom() if not self.strict:
+            case ast.ImportFrom(module=module, names=names):
+                for n in names:
+                    if n.asname is None:
+                        used_name = n.name
+                    else:
+                        used_name = n.asname
+                    self.modules[f"{used_name}"] = f"{module}.{n.name}"
+
                 return []
             case ast.FunctionDef(name=name, args=args, body=body, returns=returns):
                 if returns is not None and "return" in self.typing_hints:
@@ -67,52 +84,18 @@ class Parser:
                 return [syn.Assign("_", self.parse_expr(value)).ast(tree)]
             case ast.Pass():
                 return []
+            case _ if not self.strict:
+                debug(ast.dump(tree, indent=2))
+                return []
             case _:
-                print(ast.dump(tree, indent=2))
-                raise NotImplementedError
-
-    # def parse(tree: ast.AST, typing_hints: Dict[str, Any], strict=True) ->
-    # List[syn.Stmt]:
-    #     match tree:
-    #         case ast.Module(body=body):
-    #             return sum([parse(b, typing_hints) for b in body], [])
-    #         case ast.Import() if not strict:
-    #             return []
-    #         case ast.FunctionDef(name=name, args=args, body=body, returns=returns):
-    #             if returns is not None and "return" in typing_hints:
-    #                 ret_ann = parse_hint(typing_hints["return"]).ast(returns)
-    #             else:
-    #                 ret_ann = None
-
-    #             return [
-    #                 syn.FunctionDef(
-    #                     name=name,
-    #                     args=[parse_argument(a, typing_hints) for a in args.args],
-    #                     body=sum([parse(b, typing_hints) for b in body], []),
-    #                     return_annotation=ret_ann,
-    #                 ).ast(tree)
-    #             ]
-    #         case ast.If(test=test, body=body, orelse=orelse):
-    #             return [
-    #                 syn.If(
-    #                     test=parse_expr(test),
-    #                     body=sum([parse(b, typing_hints) for b in body], []),
-    #                     orelse=sum([parse(b, typing_hints) for b in orelse], []),
-    #                 ).ast(tree)
-    #             ]
-    #         case ast.Assign(targets=[ast.Name(id=id)], value=e):
-    #             return [syn.Assign(id, parse_expr(e)).ast(tree)]
-    #         case ast.Return(value=value):
-    #             return [syn.Return(value=parse_expr(value)).ast(tree)]
-    #         case _:
-    #             print(ast.dump(tree, indent=2))
-    #             raise NotImplementedError
+                raise NotImplementedError(ast.dump(tree, indent=2))
 
     def parse_argument(self, arg: ast.arg) -> syn.Argument:
-        print(arg.annotation)
         if arg.arg in self.typing_hints:
             ann = self.parse_hint(self.typing_hints[arg.arg]).ast(arg)
         else:
+            assert isinstance(arg.annotation, ast.Subscript)
+            debug(self.parse_annotation(arg.annotation))
             ann = None
         return syn.Argument(name=arg.arg, annotation=ann)
 
@@ -156,8 +139,13 @@ class Parser:
                 if isinstance(base_type, syn.RType):
                     base_type.predicate = syn.Conjoin([self.parse_expr(refinement)])
                 return base_type
-            case ast.Subscript(value=ast.Name(id="Refine")):
-                raise NotImplementedError(ast.dump(ann, indent=2))
+            case ast.Subscript(
+                value=ast.Name(id=id), slice=ast.Tuple(elts=[base_ty, predicate])
+            ) if id in self.modules and self.modules[id] == "solvent.Refine":
+                rtype = self.parse_annotation(base_ty)
+                # TODO: handle that case where predicates have `and` in them already
+                ret = rtype.set_predicate(syn.Conjoin([self.parse_expr(predicate)]))
+                return ret
             case ast.Subscript(
                 value=ast.Name(id="Callable"),
                 slice=ast.Tuple(elts=[*arg_types, ret_type]),
@@ -176,7 +164,7 @@ class Parser:
                 )
             case x:
                 if x is not None and isinstance(x, ast.AST):
-                    print(ast.dump(ann, indent=2))
+                    debug(ast.dump(ann, indent=2))
                 raise NotImplementedError(x)
 
     def parse_expr(self, expr) -> syn.Expr:
@@ -211,8 +199,10 @@ class Parser:
                     return syn.IntLiteral(value=val).ast(expr)
                 elif type(val) == bool:
                     return syn.BoolLiteral(value=val).ast(expr)
+                elif type(val) == str and not self.strict:
+                    return syn.StrLiteral(value=val).ast(expr)
                 else:
-                    raise NotImplementedError
+                    raise NotImplementedError(val)
             case ast.List(elts=elts, ctx=ast.Load()):
                 exprs = [self.parse_expr(e) for e in elts]
                 return syn.ListLiteral(exprs).ast(expr)
@@ -233,8 +223,9 @@ class Parser:
                 return syn.GetAttr(self.parse_expr(value), attr).ast(expr)
             case x:
                 if x is not None:
-                    print(ast.dump(expr, indent=2))
-                raise NotImplementedError
+                    raise NotImplementedError(ast.dump(expr, indent=2))
+                else:
+                    raise NotImplementedError(x)
 
     def parse_refinement(self, input: str) -> syn.RType:
         stripped = input[1:-1]

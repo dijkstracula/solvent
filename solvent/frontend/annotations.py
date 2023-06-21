@@ -1,5 +1,6 @@
 import ast
 import inspect
+from logging import error, info
 from typing import get_type_hints
 
 from solvent import errors, frontend, parse
@@ -20,13 +21,13 @@ def infer(quals=None, debug=False):
         syn.NameGenerator.reset()
         try:
             with Context(lines=lines):  # type: ignore
-                typ = frontend.check(res, quals, debug)
-                print(f"{func.__name__}: {typ}")
+                typ = frontend.check(res, quals)
+                info(f"{func.__name__}: {typ}")
         except errors.TypeError as e:
             msg = "Context:\n"
             msg += e.context(lines, startline) + "\n"
             msg += f"Type Error: {e.msg}"
-            print(msg)
+            error(msg)
 
             raise e
 

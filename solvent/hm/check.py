@@ -8,7 +8,6 @@ from solvent.env import ScopedEnv
 from solvent.position import Context
 from solvent.syntax import (
     ArrowType,
-    DataFrameType,
     DictType,
     HMType,
     ListType,
@@ -118,8 +117,7 @@ def check_stmt(
             ret_type, ret_constrs = check_expr(context, value)
             ret_context = context
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
     stmt.annot(ret_type)
     return ret_type.pos(stmt), ret_constrs, ret_context
 
@@ -197,8 +195,6 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             ret_typ = ListType(inner_ty)
         case syn.DictLit():
             ret_typ = DictType()
-        case syn.DataFrameLit():
-            ret_typ = DataFrameType(columns={})
         case syn.Subscript(value=v, idx=e):
             v_ty, v_constrs = check_expr(context, v)
             e_ty, e_constrs = check_expr(context, e)

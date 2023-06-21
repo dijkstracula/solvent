@@ -46,8 +46,7 @@ class BaseType(Pos):
             case TypeVar(name=n):
                 return f"'{n}"
             case x:
-                print(x)
-                raise NotImplementedError
+                raise NotImplementedError(x)
 
 
 @dataclass
@@ -199,8 +198,7 @@ class Type(Pos):
                 else:
                     return "Object"
             case x:
-                print(type(x))
-                raise Exception(x)
+                raise Exception(x, type(x))
 
     def set_predicate(self, predicate: Predicate) -> "Type":
         match self:
@@ -346,8 +344,8 @@ class Expr(Pos, TypeAnnotation):
                     return f"[{inner}]"
             case DictLit():
                 return "{<opaque>}"
-            case DataFrameLit():
-                return "DataFrame(<opaque>)"
+            case StrLiteral(value=v):
+                return f'"{v}"'
             case Subscript(value=v, idx=e):
                 return f"{v}[{e}]"
             case Neg(expr=e):
@@ -399,8 +397,8 @@ class IntLiteral(Expr):
 
 
 @dataclass
-class DataFrameLit(Expr):
-    pass
+class StrLiteral(Expr):
+    value: str
 
 
 @dataclass
@@ -482,7 +480,6 @@ class Stmt(Pos, TypeAnnotation):
             case FunctionDef(
                 name=name, body=stmts, typ=ArrowType(args=args, ret=retann)
             ) if include_types:
-                print("blah")
                 argstr = ", ".join([f"{x}:{t}" for x, t in args])
                 retstr = f" -> {retann}:" if retann is not None else ":"
                 bodystr = "\n".join(
