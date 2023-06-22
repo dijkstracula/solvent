@@ -1,5 +1,7 @@
 from typing import List
 
+from ansi.color import fg, fx
+
 from solvent import syntax
 from solvent.position import Context
 
@@ -34,7 +36,8 @@ class UnboundVariable(Exception):
         assert var.position is not None
         super().__init__(
             Context.to_string(
-                f"Variable {var.name} as not bound in context.", at=var.position
+                f"Variable {fg.boldred}{var.name}{fx.reset} is not bound in context.",
+                at=var.position,
             )
         )
 

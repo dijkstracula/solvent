@@ -113,8 +113,7 @@ def check_stmt(
             constrs += [SubType(context, assums, ty, stmt.typ).pos(stmt)]
             return stmt.typ.pos(stmt), constrs, context
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
 
 
 def check_expr(

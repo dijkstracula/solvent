@@ -17,7 +17,7 @@ class Pos:
     Describes things that can carry position information around
     """
 
-    position: Position | None = None
+    position: Position | None = field(default=None, repr=False)
 
     def ast(self, node: ast.AST):
         self.position = Position(
@@ -46,8 +46,7 @@ class BaseType(Pos):
             case TypeVar(name=n):
                 return f"'{n}"
             case x:
-                print(x)
-                raise NotImplementedError
+                raise NotImplementedError(x)
 
 
 @dataclass
@@ -130,7 +129,7 @@ class PredicateVar(Predicate):
 
 @dataclass(kw_only=True)
 class Type(Pos):
-    pending_subst: Dict[str, "Expr"] = field(default_factory=dict)
+    pending_subst: Dict[str, "Expr"] = field(default_factory=dict, repr=False)
 
     def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
         ret = deepcopy(self)
@@ -199,8 +198,7 @@ class Type(Pos):
                 else:
                     return "Object"
             case x:
-                print(type(x))
-                raise Exception(x)
+                raise Exception(x, type(x))
 
     def set_predicate(self, predicate: Predicate) -> "Type":
         match self:
@@ -346,8 +344,8 @@ class Expr(Pos, TypeAnnotation):
                     return f"[{inner}]"
             case DictLit():
                 return "{<opaque>}"
-            case DataFrameLit():
-                return "DataFrame(<opaque>)"
+            case StrLiteral(value=v):
+                return f'"{v}"'
             case Subscript(value=v, idx=e):
                 return f"{v}[{e}]"
             case Neg(expr=e):
@@ -399,8 +397,8 @@ class IntLiteral(Expr):
 
 
 @dataclass
-class DataFrameLit(Expr):
-    pass
+class StrLiteral(Expr):
+    value: str
 
 
 @dataclass

@@ -3,6 +3,7 @@ Implement Liquid Type inference
 """
 
 import pprint
+from logging import debug
 from typing import Dict, List, cast
 
 from solvent import constraints as constr
@@ -77,13 +78,11 @@ def solve(
     stmts: List[syn.Stmt],
     constrs: List[constr.SubType],
     quals: List[quals.Qualifier],
-    show_work=False,
 ) -> Solution:
-    if show_work:
-        print("Raw Constraints:")
-        for c in constrs:
-            Context.show(c, at=c.position)
-        print("======")
+    debug("Raw Constraints:")
+    for c in constrs:
+        Context.show(c, at=c.position)
+    debug("======")
 
     # split all the constraints that we have into base constraints
     constrs = sum([split(c) for c in constrs], [])
@@ -92,16 +91,15 @@ def solve(
     ipv.visit_stmts(stmts)
     solution = ipv.solution
 
-    if show_work:
-        print("Initial Constraints:")
-        for c in constrs:
-            Context.show(c, at=c.position)
-        print("======")
+    debug("Initial Constraints:")
+    for c in constrs:
+        Context.show(c, at=c.position)
+    debug("======")
 
-        print("Initial Predicates:")
-        for k, v in solution.items():
-            print(f"{k} := {v}")
-        print("======")
+    debug("Initial Predicates:")
+    for k, v in solution.items():
+        debug(f"{k} := {v}")
+    debug("======")
 
     subtype_eqs = cast(
         List[constr.SubType],
@@ -115,13 +113,12 @@ def solve(
         ),
     )
 
-    return liquid.constraints_valid(subtype_eqs, solution, show_work)
+    return liquid.constraints_valid(subtype_eqs, solution)
 
 
 def constraints_valid(
     constrs: List[constr.SubType],
     solution: Solution,
-    show_work=False,
 ):
     """
     Check if solution satisfies every constraint in constrs.
@@ -131,28 +128,27 @@ def constraints_valid(
 
     for c in constrs:
         sc = apply_constr(c, solution)
-        if show_work:
-            Context.show(f"G |- {c.lhs} <: {c.rhs}", at=c.position)
+        Context.show(f"G |- {c.lhs} <: {c.rhs}", at=c.position)
         try:
-            valid = subtype.check_constr(sc, show_work)
+            valid = subtype.check_constr(sc)
         except NotImplementedError as e:
-            print("culprit", sc)
+            debug("culprit", sc)
             ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
             assums = "\n    ".join([str(a) for a in c.assumes])
-            print(f"  Valid? w/ context:\n    {ctx}\n    {assums}")
+            debug(f"  Valid? w/ context:\n    {ctx}\n    {assums}")
             raise e
 
-        if show_work:
-            ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
-            assums = "\n    ".join([str(a) for a in c.assumes])
-            print(f"  Valid? ({valid}) w/ context:\n    {ctx}\n    {assums}")
+        ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
+        assums = "\n    ".join([str(a) for a in c.assumes])
+        debug(f"  Valid? ({valid}) w/ context:\n    {ctx}\n    {assums}")
+
         if not valid:
-            return constraints_valid(constrs, weaken(c, solution, show_work), show_work)
+            return constraints_valid(constrs, weaken(c, solution))
 
     return solution
 
 
-def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
+def weaken(c: constr.SubType, solution: Solution) -> Solution:
     """
     Weaken constr and return a new solution.
 
@@ -173,20 +169,18 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
 
             qs = []
             for qual in solution[n].conjuncts:
-                if show_work:
-                    print(f"Checking {qual}: ", end="\n")
-                    print(f"  ctx: {apply_ctx(ctx, solution)}")
-                    print(f"  constr: {apply_constr(c, solution)}")
-                    print(f"  substs: {lhs.pending_subst}, {ps}")
+                debug(f"Checking {qual}: ")
+                debug(f"  ctx: {apply_ctx(ctx, solution)}")
+                debug(f"  constr: {apply_constr(c, solution)}")
+                debug(f"  substs: {lhs.pending_subst}, {ps}")
+
                 if subtype.check(
                     apply_ctx(ctx, solution),
                     assumes,
                     apply(lhs, solution),
                     syn.RType(b2, syn.Conjoin([apply_substs(qual, ps)])),
-                    show_work=show_work,
                 ):
-                    if show_work:
-                        print("Ok")
+                    debug("Ok")
                     qs += [qual]
 
             solution[n] = syn.Conjoin(qs)
@@ -197,18 +191,16 @@ def weaken(c: constr.SubType, solution: Solution, show_work=False) -> Solution:
             if not subtype.check_constr(c):
                 raise Exception(f"Not subtype: {c}")
         case x:
-            pprint.pprint(x)
-            raise NotImplementedError(str(x))
+            raise NotImplementedError(pprint.pformat(x))
 
-    if show_work:
-        print("=================")
-        print("Current Solution:")
-        for k, v in solution.items():
-            match v:
-                case syn.Type():
-                    print(f"  {k}: {v}")
-                case x:
-                    print(f"  {k}: {x}")
+    debug("=================")
+    debug("Current Solution:")
+    for k, v in solution.items():
+        match v:
+            case syn.Type():
+                debug(f"  {k}: {v}")
+            case x:
+                debug(f"  {k}: {x}")
 
     return solution
 
