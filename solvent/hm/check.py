@@ -6,7 +6,15 @@ from solvent import syntax as syn
 from solvent import utils
 from solvent.env import ScopedEnv
 from solvent.position import Context
-from solvent.syntax import ArrowType, HMType, ListType, Type, TypeVar, base_type_eq
+from solvent.syntax import (
+    ArrowType,
+    DictType,
+    HMType,
+    ListType,
+    Type,
+    TypeVar,
+    base_type_eq,
+)
 
 
 @dataclass
@@ -65,7 +73,7 @@ def check_stmt(
             if ret is not None:
                 ret_typ = ret
             else:
-                ret_typ = HMType.fresh(name="ret").pos(stmt)
+                ret_typ = HMType.fresh(name="t").pos(stmt)
 
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
@@ -109,8 +117,7 @@ def check_stmt(
             ret_type, ret_constrs = check_expr(context, value)
             ret_context = context
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
     stmt.annot(ret_type)
     return ret_type.pos(stmt), ret_constrs, ret_context
 
@@ -143,6 +150,19 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                     BaseEq(rhs_ty, ret_typ).pos(rhs_ty),
                 ]
             )
+        case syn.ArithBinOp(lhs=lhs, rhs=rhs, op="/"):
+            # give `/` the type `'a -> int -> 'a`
+            lhs_ty, lhs_constrs = check_expr(context, lhs)
+            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            ret_typ = HMType.fresh("div")
+            ret_constrs = (
+                lhs_constrs
+                + rhs_constrs
+                + [
+                    BaseEq(lhs_ty, ret_typ).pos(lhs_ty),
+                    BaseEq(rhs_ty, HMType.int()).pos(rhs_ty),
+                ]
+            )
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, lhs)
             rhs_ty, rhs_constrs = check_expr(context, rhs)
@@ -173,6 +193,8 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 ret_constrs += cstrs
 
             ret_typ = ListType(inner_ty)
+        case syn.DictLit():
+            ret_typ = DictType()
         case syn.Subscript(value=v, idx=e):
             v_ty, v_constrs = check_expr(context, v)
             e_ty, e_constrs = check_expr(context, e)
@@ -220,9 +242,29 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 types += [(syn.NameGenerator.fresh("arg"), ty)]
                 constrs += cs
 
-            ret_typ = HMType.fresh("ret")
-            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(fn_ty)]
+            match fn_ty:
+                case ArrowType(ret=ret):
+                    ret_typ = ret
+                case syn.HMType(base=TypeVar(name=name)):
+                    ret_typ = HMType.fresh("ret")
+                case t:
+                    raise Exception("blah")
+
+            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(expr)]
             ret_constrs = constrs
+
+        case syn.GetAttr(name=name, attr=attr):
+            (nametyp, namecstrs) = check_expr(context, name)
+            match nametyp:
+                case syn.ObjectType(fields=fields) if attr in fields:
+                    ret_typ = fields[attr].pos(expr)
+                    ret_constrs = namecstrs
+                case syn.HMType(base=TypeVar(name=name)):
+                    ret_typ = HMType.fresh("attr").pos(expr)
+                case t:
+                    raise errors.TypeError(
+                        BaseEq(t, syn.ObjectType({attr: syn.Bottom()}))
+                    )
         case x:
             raise NotImplementedError(x)
     expr.annot(ret_typ)

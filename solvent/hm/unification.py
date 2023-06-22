@@ -2,14 +2,17 @@
 Implementation of the Hindley-Milner Unification Algorithm
 """
 
+from logging import debug
 from typing import Dict, List, Tuple
 
 from solvent import errors
 from solvent.env import ScopedEnv
 from solvent.syntax import (
     ArrowType,
+    DataFrameType,
     HMType,
     ListType,
+    ObjectType,
     RType,
     Type,
     TypeVar,
@@ -21,28 +24,27 @@ from .check import BaseEq
 Solution = Dict[str, Type]
 
 
-def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
+def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
     match constrs:
         case []:
             return []
         case [top, *rest]:
-            if show_work:
-                print("====== unify ======")
-                print(f"=> {top}")
-                for c in rest:
-                    print(c)
+            debug("====== unify ======")
+            debug(f"=> {top}")
+            for c in rest:
+                debug(c)
 
             lX = tvar_name(top.lhs)
             rX = tvar_name(top.rhs)
 
             if base_type_eq(top.lhs, top.rhs):
-                return solve(rest, show_work)
+                return solve(rest)
             # if lhs is variable
             elif lX is not None and lX not in free_vars(top.rhs):
-                return solve(subst(lX, top.rhs, rest), show_work) + [(lX, top.rhs)]
+                return solve(subst(lX, top.rhs, rest)) + [(lX, top.rhs)]
             # if rhs is variable
             elif rX is not None and rX not in free_vars(top.lhs):
-                return solve(subst(rX, top.lhs, rest), show_work) + [(rX, top.lhs)]
+                return solve(subst(rX, top.lhs, rest)) + [(rX, top.lhs)]
             # if both are functions variables
             elif (
                 isinstance(top.lhs, ArrowType)
@@ -56,24 +58,24 @@ def solve(constrs: List[BaseEq], show_work=False) -> List[tuple[str, Type]]:
                     )
                 )
                 ret_constr = BaseEq(lhs=top.lhs.ret, rhs=top.rhs.ret)
-                return solve(arg_constrs + [ret_constr] + rest, show_work)
+                return solve(arg_constrs + [ret_constr] + rest)
             elif isinstance(top.lhs, ListType) and isinstance(top.rhs, ListType):
                 inner_constr = BaseEq(lhs=top.lhs.inner_typ, rhs=top.rhs.inner_typ)
-                return solve([inner_constr] + rest, show_work)
+                return solve([inner_constr] + rest)
             else:
                 raise errors.TypeError(top)
         case _:
             raise Exception(f"Constrs wasn't a list: {constrs}")
 
 
-def unify(constrs: List[BaseEq], show_work=False) -> Tuple[List[BaseEq], Solution]:
+def unify(constrs: List[BaseEq]) -> Tuple[List[BaseEq], Solution]:
     """
     Find a satisfying assignment of types for a list of equality constraints
     over base types.
     """
 
     # call solve to find a solution to the system of constraints
-    solution = dict(solve(constrs, show_work))
+    solution = dict(solve(constrs))
 
     # then use a worklist algorithm to simplify the solution so
     # that you only ever have to look up one step to find the type
@@ -132,6 +134,10 @@ def free_vars(typ: Type) -> list[str]:
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
         case ListType(inner_typ=inner_typ):
             return free_vars(inner_typ)
+        case DataFrameType(columns=cols):
+            return sum([free_vars(t) for _, t in cols.items()], [])
+        case ObjectType(fields=fields):
+            return sum([free_vars(t) for _, t in fields.items()], [])
         case x:
             raise NotImplementedError(x, type(x))
 
@@ -159,6 +165,10 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_one(name, tar, inner)).pos(src)
+        case ObjectType(fields=fields):
+            return ObjectType(
+                {x: subst_one(name, tar, t) for x, t in fields.items()}
+            ).pos(src)
         case x:
             raise NotImplementedError(f"subst one: {x}")
 

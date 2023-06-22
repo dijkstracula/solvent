@@ -1,4 +1,5 @@
-from typing import List
+from logging import debug
+from typing import Dict, List
 
 import solvent.syntax as syn
 from solvent.env import ScopedEnv
@@ -8,32 +9,33 @@ from .subst import subst_stmts
 from .unification import apply, free_vars, unify  # type: ignore
 
 
-def solve(stmts: List[syn.Stmt], debug=False) -> syn.Type:
-    typ, constrs, context = check_stmts(ScopedEnv.empty(), stmts)
+def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> Dict[str, syn.Type]:
+    if env is None:
+        env = ScopedEnv.default()
 
-    if debug:
-        print(f"Initial type: {typ}")
-        print("== Constraints ==")
-        print("\n".join([str(c) for c in constrs]))
-        print("== Context ==")
-        for k, v in context.items():
-            print(f"{k} := {v}")
+    typ, constrs, context = check_stmts(env, stmts)
 
-    if debug:
-        print("== Unification ==")
+    debug(f"Initial type: {typ}")
+    debug("== Constraints ==")
+    debug("\n".join([str(c) for c in constrs]))
+    debug("== Context ==")
+    for k, v in context.items():
+        debug(f"{k} := {v}")
 
-    constrs, solution = unify(constrs, show_work=debug)
+    debug("== Unification ==")
 
-    if debug:
-        print("== Solution ==")
-        for k, v in solution.items():
-            print(f"{k} := {v}")
+    constrs, solution = unify(constrs)
 
-        print("Normalized Program:")
-        for s in stmts:
-            print(s.to_string(include_types=True))
-        print("======")
+    debug("== Solution ==")
+    for k, v in solution.items():
+        debug(f"{k} := {v}")
 
-    solved_type = apply(typ, solution)
+    _ = apply(typ, solution)
     subst_stmts(solution, stmts)
-    return solved_type
+
+    function_types = {}
+    for s in stmts:
+        if isinstance(s, syn.FunctionDef):
+            function_types[s.name] = s.typ
+
+    return function_types

@@ -1,4 +1,7 @@
-from typing import List
+from logging import debug
+from typing import Dict, List
+
+from ansi.color import fg, fx
 
 from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
@@ -8,17 +11,16 @@ from solvent.syntax import Type
 from solvent.template import Templatizer
 
 
-def infer_base(stmts: List[syn.Stmt], debug=False) -> Type:
+def infer_base(stmts: List[syn.Stmt]) -> Dict[str, Type]:
     norm_stmts = normalize.normalize(stmts)
-    solved_type = hm.solve(norm_stmts, debug)
+    solved_type = hm.solve(norm_stmts)
 
-    if debug:
-        print("Normalized Program:")
-        for s in norm_stmts:
-            print(s)
-        print("======")
+    debug("Normalized Program:")
+    for s in norm_stmts:
+        debug(s)
+    debug("======")
 
-    return alpha_rename(solved_type)
+    return {k: alpha_rename(v) for k, v in solved_type.items()}
 
 
 def number(blob: str) -> str:
@@ -28,50 +30,63 @@ def number(blob: str) -> str:
     width = len(str(total))
     for lineno, l in enumerate(lines, 1):
         padding = " " * (width - len(str(lineno)))
-        ret += [f"{lineno}{padding}|{l}"]
+        ret += [f"{fg.darkgray}{lineno}{fx.reset}{padding} {l}"]
     return "\n".join(ret)
 
 
-def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier], debug=False):
+def debug_stmts(stmts: List[syn.Stmt], include_types=False):
+    gather = "\n\n".join([number(s.to_string(include_types)) for s in stmts])
+    debug(gather)
+
+
+def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]) -> Dict[str, Type]:
     """
     Run Liquid-type inference and checking.
     """
+
     stmts = normalize.normalize(stmts)
-    if debug:
-        print("Normalized Program")
-        for s in stmts:
-            print(number(s.to_string()))
-    inferred_base_typ = hm.solve(stmts, debug)
-    if debug:
-        print("HmType program:")
-        for s in stmts:
-            print(number(s.to_string(include_types=True)))
-        print("======")
+    debug("Normalized Program:")
+    debug_stmts(stmts, True)
+
+    base_types = hm.solve(stmts)
+    debug("HmType program:")
+    debug_stmts(stmts, True)
+
+    debug("== Inferred Base Types ==")
+    debug(
+        "\n".join(
+            [f"{fn_name}: {alpha_rename(typ)}" for fn_name, typ in base_types.items()]
+        )
+    )
+
     stmts = Templatizer().visit_stmts(stmts)
     AssertHavePosition().visit_stmts(stmts)
-    if debug:
-        print("Template program:")
-        for s in stmts:
-            print(number(s.to_string(include_types=True)))
-        print("======")
+    debug("Template program:")
+    debug_stmts(stmts, True)
     AssertNoHmTypes().visit_stmts(stmts)
 
-    if debug:
-        print("== Inferred Base Type ==")
-        print(f"{inferred_base_typ}")
-
-    typ, constrs, context = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
+    _, constrs, ctx = constraints.check_stmts(ScopedEnv.default(), [], stmts)
     for c in constrs:
         AssertNoHmTypes().check_constraint(c)
 
-    predvar_solution = liquid.solve(stmts, constrs, quals, show_work=debug)
+    debug("context:")
+    msg = ""
+    for scope in ctx.scopes:
+        for k, v in scope.items():
+            msg += f"{k}: {v}\n"
+        msg += "== scope ==\n"
+    debug(msg)
 
-    if debug:
-        print("== Predicate Variable Solution ==")
-        for k, v in predvar_solution.items():
-            print(f"{k} := {v}")
+    predvar_solution = liquid.solve(stmts, constrs, quals)
 
-    return alpha_rename(liquid.apply(typ, predvar_solution))
+    debug("== Predicate Variable Solution ==")
+    for k, v in predvar_solution.items():
+        debug(f"{k} := {v}")
+
+    return {
+        k: alpha_rename(liquid.apply(v, predvar_solution))
+        for k, v in ctx.scopes[0].items()
+    }
 
 
 NAMES = "abcdefghijklmnopqrstuvwxyz"

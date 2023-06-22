@@ -3,6 +3,7 @@ Implement decidable subypting from the liquid type paper.
 """
 
 from functools import reduce
+from logging import debug
 
 import z3
 
@@ -11,7 +12,7 @@ from solvent import env, smt
 from solvent import syntax as syn
 
 
-def check(context: env.ScopedEnv, assumes, typ1, typ2, show_work=False) -> bool:
+def check(context: env.ScopedEnv, assumes, typ1, typ2) -> bool:
     match (typ1, typ2):
         case (
             syn.RType(base=t1, predicate=syn.Conjoin(cs1)),
@@ -32,8 +33,7 @@ def check(context: env.ScopedEnv, assumes, typ1, typ2, show_work=False) -> bool:
                 smt.from_exprs(cs2),
             )
 
-            if show_work:
-                print(f"  SMT: {to_check}")
+            debug(f"  SMT: {to_check}")
 
             s = z3.Solver()
             s.add(z3.Not(to_check))
@@ -41,17 +41,18 @@ def check(context: env.ScopedEnv, assumes, typ1, typ2, show_work=False) -> bool:
             if s.check() == z3.unsat:
                 return True
             else:
-                if show_work:
-                    print(f"fail with model: {s.model()}")
+                debug(f"fail with model: {s.model()}")
 
                 return False
 
         case (syn.ArrowType(), syn.ArrowType()):
-            print(typ1, typ2)
-            raise NotImplementedError
+            raise NotImplementedError(typ1, typ2)
         case _:
+            import pdb
+
+            pdb.set_trace()
             return False
 
 
-def check_constr(c: constr.SubType, show_work=False) -> bool:
-    return check(c.context, c.assumes, c.lhs, c.rhs, show_work)
+def check_constr(c: constr.SubType) -> bool:
+    return check(c.context, c.assumes, c.lhs, c.rhs)

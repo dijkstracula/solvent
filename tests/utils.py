@@ -2,8 +2,9 @@ import ast
 import inspect
 from typing import get_type_hints
 
-from solvent import parse, frontend
+from solvent import frontend, parse
 from solvent import syntax as syn
+from solvent.position import Context
 
 
 def assert_type(quals, expected):
@@ -14,11 +15,14 @@ def assert_type(quals, expected):
 
     def inner(func):
         def repl():
-            pyast = ast.parse(inspect.getsource(func))
-            res = parse.parse(pyast, get_type_hints(func, include_extras=True))
+            lines = inspect.getsource(func)
+            pyast = ast.parse(lines)
+            res = parse.Parser(get_type_hints(func, include_extras=True)).parse(pyast)
 
             syn.NameGenerator.reset()
-            assert str(frontend.check(res, quals)) == expected
+            with Context(lines=lines.split("\n")):  # type: ignore
+                types = frontend.check(res, quals)
+                assert str(types[func.__name__]) == expected
 
         repl.__name__ = func.__name__
 

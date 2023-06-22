@@ -6,7 +6,7 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Self
 
 from solvent.position import Position
 
@@ -17,7 +17,7 @@ class Pos:
     Describes things that can carry position information around
     """
 
-    position: Position | None = None
+    position: Position | None = field(default=None, repr=False)
 
     def ast(self, node: ast.AST):
         self.position = Position(
@@ -46,8 +46,7 @@ class BaseType(Pos):
             case TypeVar(name=n):
                 return f"'{n}"
             case x:
-                print(x)
-                raise NotImplementedError
+                raise NotImplementedError(x)
 
 
 @dataclass
@@ -130,13 +129,37 @@ class PredicateVar(Predicate):
 
 @dataclass(kw_only=True)
 class Type(Pos):
-    pending_subst: Dict[str, "Expr"] = field(default_factory=dict)
+    pending_subst: Dict[str, "Expr"] = field(default_factory=dict, repr=False)
 
     def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
         ret = deepcopy(self)
         for k, v in pairs:
             ret.pending_subst[k] = v
         return ret
+
+    def shape(self) -> Self:
+        """
+        Implementation of the shape function from the paper.
+        Removes a predicate from a RType.
+        """
+
+        match self:
+            case ArrowType(args=args, ret=ret, pending_subst=ps):
+                return ArrowType(
+                    args=[(name, a.shape()) for name, a in args],
+                    ret=ret.shape(),
+                    pending_subst=ps,
+                ).pos(self)
+            case RType(base=base):
+                return HMType(base).pos(self)
+            case HMType():
+                return self
+            case ListType(inner_typ):
+                return ListType(inner_typ.shape())
+            case ObjectType(fields):
+                return ObjectType({name: typ.shape() for name, typ in fields.items()})
+            case x:
+                raise Exception(f"`{x}` is not a Type.")
 
     def __str__(self):
         match self:
@@ -160,9 +183,22 @@ class Type(Pos):
                 return "False"
             case ListType(inner_typ=inner_typ):
                 return f"List[{inner_typ}]"
+            case DictType():
+                return "dict()"
+            case DataFrameType(columns=c):
+                tmp = [f"{k}: {v}" for k, v in c.items()]
+                if len(tmp) > 0:
+                    return f"DataFrame({tmp}, ..)"
+                else:
+                    return "DataFrame(..?)"
+            case ObjectType(fields=fields):
+                tmp = ", ".join([f"{k}: {v}" for k, v in fields.items()])
+                if len(tmp) > 0:
+                    return f"Object{{ {tmp} }}"
+                else:
+                    return "Object"
             case x:
-                print(type(x))
-                raise Exception(x)
+                raise Exception(x, type(x))
 
     def set_predicate(self, predicate: Predicate) -> "Type":
         match self:
@@ -227,6 +263,29 @@ class ListType(Type):
 
 
 @dataclass
+class DictType(Type):
+    # TODO: actually represent dictionary types
+    # items: Dict[str, Type]
+    pass
+
+
+@dataclass
+class DataFrameType(Type):
+    columns: Dict[str, Type]
+
+
+@dataclass
+class ObjectType(Type):
+    fields: Dict[str, Type]
+
+    @staticmethod
+    def series(inner_typ: Type):
+        return ObjectType(
+            {"max": ArrowType([], inner_typ), "data": ListType(inner_typ)}
+        )
+
+
+@dataclass
 class Bottom(Type):
     pass
 
@@ -236,7 +295,7 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
     Implements equality between base types.
     """
 
-    match (t1, t2):
+    match (t1.shape(), t2.shape()):
         case HMType(base=Int()), HMType(base=Int()):
             return True
         case HMType(base=Bool()), HMType(base=Bool()):
@@ -248,14 +307,12 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
                 map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
             )
             return args_eq and base_type_eq(ret1, ret2)
-        case RType(base=Int()), RType(base=Int()):
-            return True
-        case RType(base=Bool()), RType(base=Bool()):
-            return True
-        case RType(base=TypeVar(name=n1)), RType(base=TypeVar(name=n2)):
-            return n1 == n2
         case ListType(inner_typ1), ListType(inner_typ2):
             return base_type_eq(inner_typ1, inner_typ2)
+        case ObjectType(fields=f0), ObjectType(fields=f1):
+            return sorted(f0.keys()) == sorted(f1.keys()) and all(
+                [base_type_eq(v, f1[k]) for k, v in f0.items()]
+            )
         case _:
             return False
 
@@ -285,6 +342,10 @@ class Expr(Pos, TypeAnnotation):
                     return f"([{inner}] : {self.typ})"
                 else:
                     return f"[{inner}]"
+            case DictLit():
+                return "{<opaque>}"
+            case StrLiteral(value=v):
+                return f'"{v}"'
             case Subscript(value=v, idx=e):
                 return f"{v}[{e}]"
             case Neg(expr=e):
@@ -302,6 +363,8 @@ class Expr(Pos, TypeAnnotation):
             case Call(function_name=fn, arglist=args):
                 args = [a.to_string(include_types) for a in args]
                 return f"{fn}({', '.join(args)})"
+            case GetAttr(name=obj, attr=attr):
+                return f"{obj.to_string(include_types)}.{attr}"
             case x:
                 return f"`{repr(x)}`"
 
@@ -331,6 +394,18 @@ class Variable(Expr):
 @dataclass
 class IntLiteral(Expr):
     value: int
+
+
+@dataclass
+class StrLiteral(Expr):
+    value: str
+
+
+@dataclass
+class DictLit(Expr):
+    """TODO: add real information to dictionaries."""
+
+    pass
 
 
 @dataclass
@@ -377,6 +452,12 @@ class Not(Expr):
 class Call(Expr):
     function_name: Expr
     arglist: List[Expr]
+
+
+@dataclass
+class GetAttr(Expr):
+    name: Expr
+    attr: str
 
 
 @dataclass

@@ -2,9 +2,9 @@ import ast
 import inspect
 from typing import get_type_hints
 
-from solvent import parse, frontend
+from solvent import Refine, V, _, frontend, parse
 from solvent import syntax as syn
-from solvent import V, _, Refine
+from solvent.position import Context
 
 
 def assert_hm(expected):
@@ -15,11 +15,13 @@ def assert_hm(expected):
 
     def inner(func):
         def repl():
-            pyast = ast.parse(inspect.getsource(func))
-            res = parse.parse(pyast, get_type_hints(func, include_extras=True))
+            lines = inspect.getsource(func)
+            pyast = ast.parse(lines)
+            res = parse.Parser(get_type_hints(func, include_extras=True)).parse(pyast)
 
             syn.NameGenerator.reset()
-            assert str(frontend.infer_base(res, False)) == expected
+            with Context(lines=lines.split("\n")):  # type: ignore
+                assert str(frontend.infer_base(res)[func.__name__]) == expected
 
         repl.__name__ = func.__name__
 

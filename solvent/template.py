@@ -6,11 +6,14 @@ from solvent.syntax import (
     Assign,
     BoolOp,
     Conjoin,
+    DataFrameType,
     Expr,
     FunctionDef,
     HMType,
     IntLiteral,
     ListType,
+    Neg,
+    ObjectType,
     RType,
     Stmt,
     Type,
@@ -38,11 +41,23 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             )
         case ListType(inner_typ):
             return ListType(template_type(inner_typ, env))
+        case DataFrameType(columns=c):
+            return DataFrameType({name: template_type(t, env) for name, t in c.items()})
+        case ObjectType(fields=fields):
+            return ObjectType(
+                {name: template_type(t, env) for name, t in fields.items()}
+            )
         case x:
             raise errors.Unreachable(x)
 
 
 class Templatizer(ScopedEnvVisitor):
+    def start(self):
+        super().start()
+        # TODO: template_type for whatever is in the env
+        for name, typ in list(self.env.items()):
+            self.env[name] = template_type(typ, self.env)
+
     def start_Stmt(self, stmt: Stmt):
         super().start_Stmt(stmt)
 
@@ -83,7 +98,11 @@ class Templatizer(ScopedEnvVisitor):
     def start_Expr(self, expr: Expr):
         super().start_Expr(expr)
 
-        if isinstance(expr, Variable) or isinstance(expr, IntLiteral):
+        if (
+            isinstance(expr, Variable)
+            or isinstance(expr, Neg)
+            or isinstance(expr, IntLiteral)
+        ):
             return
 
         tt = template_type(expr.typ, self.env)
@@ -101,3 +120,8 @@ class Templatizer(ScopedEnvVisitor):
         super().start_IntLiteral(lit)
 
         lit.annot(RType(syn.Int(), Conjoin([BoolOp(syn.V(), "==", lit)])))
+
+    def start_Neg(self, expr: Neg):
+        super().start_Neg(expr)
+
+        expr.annot(RType(syn.Int(), Conjoin([BoolOp(syn.V(), "==", expr)])))

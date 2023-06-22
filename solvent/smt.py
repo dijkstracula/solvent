@@ -36,6 +36,8 @@ def from_expr(e: syn.Expr, val_name: str = ".v"):
             return from_expr(l, val_name) * from_expr(r, val_name)
         case syn.ArithBinOp(lhs=l, op="//", rhs=r):
             return from_expr(l, val_name) / from_expr(r, val_name)
+        case syn.ArithBinOp(lhs=l, op="/", rhs=r):
+            return from_expr(l, val_name) / from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op=">", rhs=r):
             return from_expr(l, val_name) > from_expr(r, val_name)
         case syn.BoolOp(lhs=l, op="==", rhs=r):
@@ -68,7 +70,7 @@ def from_expr(e: syn.Expr, val_name: str = ".v"):
             # when that happens, this becomes an error
             raise Exception(f"Can't convert TypeVar, {n}, to smt.")
         case x:
-            raise NotImplementedError(x, repr(x))
+            raise NotImplementedError(str(x), repr(x))
 
 
 def base_type(b: syn.Type):
@@ -88,6 +90,8 @@ def from_type(name: str, t: syn.Type):
         case syn.ArrowType(args=_, ret=_):
             return True
         case syn.ListType():
+            return True
+        case syn.ObjectType():
             return True
         case x:
             raise NotImplementedError(name, type(x))

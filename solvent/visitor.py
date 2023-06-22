@@ -9,6 +9,7 @@ from solvent.syntax import (
     Call,
     Expr,
     FunctionDef,
+    GetAttr,
     If,
     IntLiteral,
     ListLiteral,
@@ -88,6 +89,10 @@ class Visitor:
                 self.start_ListLiteral(cast(ListLiteral, expr))
                 new_expr = ListLiteral([self.visit_expr(e) for e in elts], typ=expr.typ)
                 self.end_ListLiteral(new_expr)
+            case GetAttr(name=name, attr=attr):
+                self.start_GetAttr(cast(GetAttr, expr))
+                new_expr = GetAttr(name=self.visit_expr(name), attr=attr, typ=expr.typ)
+                self.end_GetAttr(new_expr)
             case Subscript(value=v, idx=e):
                 self.start_Subscript(cast(Subscript, expr))
                 new_expr = Subscript(self.visit_expr(v), self.visit_expr(e))
@@ -98,9 +103,9 @@ class Visitor:
                     self.visit_expr(lhs), op, self.visit_expr(rhs), typ=expr.typ
                 )
                 self.end_BoolOp(new_expr)
-            case Neg(expr=expr):
+            case Neg(expr=e):
                 self.start_Neg(cast(Neg, expr))
-                new_expr = Neg(self.visit_expr(expr), typ=expr.typ)
+                new_expr = Neg(self.visit_expr(e), typ=expr.typ)
                 self.end_Neg(new_expr)
             case Call(function_name=fn, arglist=args):
                 self.start_Call(cast(Call, expr))
@@ -188,6 +193,12 @@ class Visitor:
         pass
 
     def end_ListLiteral(self, lit: ListLiteral):
+        pass
+
+    def start_GetAttr(self, lit: GetAttr):
+        pass
+
+    def end_GetAttr(self, lit: GetAttr):
         pass
 
     def start_Subscript(self, subscript: Subscript):

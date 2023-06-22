@@ -28,8 +28,7 @@ def subst_stmt(solution: Solution, stmt: syn.Stmt):
         case syn.Return(value=value):
             subst_expr(solution, value)
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
 
 
 def subst_expr(solution: Solution, expr: syn.Expr):
@@ -68,5 +67,7 @@ def subst_expr(solution: Solution, expr: syn.Expr):
         case syn.Subscript(value=v, idx=e):
             subst_expr(solution, v)
             subst_expr(solution, e)
+        case syn.GetAttr(name=name):
+            subst_expr(solution, name)
         case x:
             raise NotImplementedError(x)

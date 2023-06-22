@@ -17,6 +17,7 @@ from solvent.syntax import (
     ArrowType,
     Conjoin,
     ListType,
+    ObjectType,
     RType,
     Type,
     TypeVar,
@@ -112,8 +113,7 @@ def check_stmt(
             constrs += [SubType(context, assums, ty, stmt.typ).pos(stmt)]
             return stmt.typ.pos(stmt), constrs, context
         case x:
-            print(x)
-            raise NotImplementedError
+            raise NotImplementedError(x)
 
 
 def check_expr(
@@ -143,21 +143,27 @@ def check_expr(
                 RType(syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])),
                 e_constrs,
             )
-        case syn.ArithBinOp(lhs=lhs, rhs=rhs):
+        case syn.ArithBinOp(lhs=lhs, op=op, rhs=rhs):
             lhs_ty, lhs_constrs = check_expr(context, assums, lhs)
             rhs_ty, rhs_constrs = check_expr(context, assums, rhs)
             constrs = []
 
-            if base_type_eq(lhs_ty, rhs_ty) and isinstance(lhs_ty, ListType):
-                constrs += [
-                    SubType(context, assums, lhs_ty, expr.typ).pos(expr),
-                    SubType(context, assums, rhs_ty, expr.typ).pos(expr),
-                ]
-                ret_ty = expr.typ
-            else:
-                ret_ty = RType(
-                    syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])
-                ).pos(expr)
+            match op:
+                case "+" if base_type_eq(lhs_ty, rhs_ty) and isinstance(
+                    lhs_ty, ListType
+                ):
+                    constrs += [
+                        SubType(context, assums, lhs_ty, expr.typ).pos(expr),
+                        SubType(context, assums, rhs_ty, expr.typ).pos(expr),
+                    ]
+                    ret_ty = expr.typ
+                case "/" if isinstance(lhs_ty, ObjectType):
+                    ret_ty = expr.typ
+                case _:
+                    ret_ty = RType(
+                        syn.Int(), Conjoin([syn.BoolOp(syn.V(), "==", expr)])
+                    ).pos(expr)
+
             return (
                 ret_ty,
                 lhs_constrs + rhs_constrs + constrs,
@@ -208,31 +214,12 @@ def check_expr(
                     raise errors.Unreachable(x)
             constrs += [SubType(context, assums, ret_type, expr.typ).pos(expr)]
             return (ret_type, constrs)
+        case syn.GetAttr(name=name, attr=attr):
+            name_ty, name_constrs = check_expr(context, assums, name)
+            assert isinstance(name_ty, ObjectType)
+            return (name_ty.fields[attr], name_constrs)
         case x:
             raise NotImplementedError(x)
-
-
-def shape_typ(typ: Type) -> Type:
-    """
-    Implementation of the shape function from the paper.
-    Removes a predicate from a RType.
-    """
-
-    match typ:
-        case ArrowType(args=args, ret=ret, pending_subst=ps):
-            return ArrowType(
-                args=[(name, shape_typ(a)) for name, a in args],
-                ret=shape_typ(ret),
-                pending_subst=ps,
-            ).pos(typ)
-        case RType(base=base):
-            return RType.lift(base).pos(typ)
-        case x:
-            raise Exception(f"`{x}` is not a Type.")
-
-
-def shape_env(env: ScopedEnv) -> ScopedEnv:
-    return env.map(shape_typ)
 
 
 # don't actually need this
