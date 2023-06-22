@@ -23,7 +23,6 @@ class ScopedEnv:
         series_innerty = syn.RType(base=syn.Int(), predicate=syn.PredicateVar("xs0"))
         return (
             ScopedEnv.empty()
-            .push_scope()
             .add(
                 "pd",
                 syn.ObjectType(
@@ -35,6 +34,7 @@ class ScopedEnv:
                     }
                 ),
             )
+            .push_scope()
         )
 
     @staticmethod

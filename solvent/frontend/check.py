@@ -39,7 +39,7 @@ def debug_stmts(stmts: List[syn.Stmt], include_types=False):
     debug(gather)
 
 
-def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]):
+def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]) -> Dict[str, Type]:
     """
     Run Liquid-type inference and checking.
     """
@@ -53,8 +53,11 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]):
     debug_stmts(stmts, True)
 
     debug("== Inferred Base Types ==")
-    for fn_name, typ in base_types.items():
-        debug(f"{fn_name}: {typ}")
+    debug(
+        "\n".join(
+            [f"{fn_name}: {alpha_rename(typ)}" for fn_name, typ in base_types.items()]
+        )
+    )
 
     stmts = Templatizer().visit_stmts(stmts)
     AssertHavePosition().visit_stmts(stmts)
@@ -62,9 +65,17 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]):
     debug_stmts(stmts, True)
     AssertNoHmTypes().visit_stmts(stmts)
 
-    typ, constrs, _ = constraints.check_stmts(ScopedEnv.default(), [], stmts)
+    _, constrs, ctx = constraints.check_stmts(ScopedEnv.default(), [], stmts)
     for c in constrs:
         AssertNoHmTypes().check_constraint(c)
+
+    debug("context:")
+    msg = ""
+    for scope in ctx.scopes:
+        for k, v in scope.items():
+            msg += f"{k}: {v}\n"
+        msg += "== scope ==\n"
+    debug(msg)
 
     predvar_solution = liquid.solve(stmts, constrs, quals)
 
@@ -72,7 +83,10 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]):
     for k, v in predvar_solution.items():
         debug(f"{k} := {v}")
 
-    return alpha_rename(liquid.apply(typ, predvar_solution))
+    return {
+        k: alpha_rename(liquid.apply(v, predvar_solution))
+        for k, v in ctx.scopes[0].items()
+    }
 
 
 NAMES = "abcdefghijklmnopqrstuvwxyz"

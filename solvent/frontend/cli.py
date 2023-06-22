@@ -8,8 +8,6 @@ from solvent import syntax as syn
 from solvent.frontend import log
 from solvent.position import Context
 
-# from typing import get_type_hints
-
 # TODO: add a proper mechanism for adding qualifiers
 QUALS = [
     _ < V,
@@ -19,15 +17,6 @@ QUALS = [
     Q[0] <= V,
     V <= Q[0],
 ]
-
-
-# coloredlogs.DEFAULT_LOG_FORMAT =
-# coloredlogs.DEFAULT_FIELD_STYLES = {
-#     "levelname": {"bold": True},
-#     "name": {"color": "blue"},
-#     "programname": {"color": "cyan"},
-#     "username": {"color": "yellow"},
-# }
 
 
 @click.command()
@@ -45,5 +34,6 @@ def cli(files, not_strict, debug):
 
         syn.NameGenerator.reset()
         with Context(lines=lines.split("\n")):
-            typ = frontend.check(stmts, QUALS)
-            info(typ)
+            types = frontend.check(stmts, QUALS)
+            for name, typ in types.items():
+                info(f"{name}: {typ}")

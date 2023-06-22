@@ -17,7 +17,7 @@ class Pos:
     Describes things that can carry position information around
     """
 
-    position: Position | None = None
+    position: Position | None = field(default=None, repr=False)
 
     def ast(self, node: ast.AST):
         self.position = Position(
@@ -129,7 +129,7 @@ class PredicateVar(Predicate):
 
 @dataclass(kw_only=True)
 class Type(Pos):
-    pending_subst: Dict[str, "Expr"] = field(default_factory=dict)
+    pending_subst: Dict[str, "Expr"] = field(default_factory=dict, repr=False)
 
     def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
         ret = deepcopy(self)
