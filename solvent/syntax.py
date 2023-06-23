@@ -154,8 +154,9 @@ class Type(Pos):
         """
 
         match self:
-            case ArrowType(args=args, ret=ret, pending_subst=ps):
+            case ArrowType(type_abs=abs, args=args, ret=ret, pending_subst=ps):
                 return ArrowType(
+                    type_abs=abs,
                     args=[(name, a.shape()) for name, a in args],
                     ret=ret.shape(),
                     pending_subst=ps,
@@ -166,9 +167,14 @@ class Type(Pos):
                 return self
             case ListType(inner_typ):
                 return ListType(inner_typ.shape())
-            case ObjectType(name=name, type_args=type_args, fields=fields):
+            case ObjectType(
+                name=name, type_args=type_args, predicate_args=pa, fields=fields
+            ):
                 return ObjectType(
-                    name, type_args, {name: typ.shape() for name, typ in fields.items()}
+                    name,
+                    type_args,
+                    pa,
+                    {name: typ.shape() for name, typ in fields.items()},
                 )
             case x:
                 raise Exception(f"`{x}` is not a Type.")
@@ -187,9 +193,11 @@ class Type(Pos):
                 else:
                     inner = ",".join([f"{k}->({e})" for k, e in ps.items()])
                     return f"{{{base} | {pred} [{inner}]}}"
-            case ArrowType(args=args, ret=ret):
-                return "({}) -> {}".format(
-                    ", ".join([f"{name}:{t}" for name, t in args]), ret
+            case ArrowType(type_abs=abs, args=args, ret=ret):
+                return "{}({}) -> {}".format(
+                    "({}) => ".format(", ".join(abs)) if len(abs) > 0 else "",
+                    ", ".join([f"{name}:{t}" for name, t in args]),
+                    ret,
                 )
             case Bottom():
                 return "False"
@@ -203,9 +211,11 @@ class Type(Pos):
                     return f"DataFrame({tmp}, ..)"
                 else:
                     return "DataFrame(..?)"
-            case ObjectType(name=name, type_args=type_args, fields=fields):
-                if len(type_args) > 0:
-                    type_args_str = "[" + ", ".join(map(str, type_args)) + "]"
+            case ObjectType(
+                name=name, type_args=type_args, predicate_args=pa, fields=fields
+            ):
+                if len(type_args + pa) > 0:
+                    type_args_str = "[" + ", ".join(map(str, type_args + pa)) + "]"
                 else:
                     type_args_str = ""
 
@@ -280,6 +290,7 @@ class RType(Type):
 
 @dataclass
 class ArrowType(Type):
+    type_abs: List[str]
     args: List[tuple[str, Type]]
     ret: Type
 
@@ -305,18 +316,8 @@ class DataFrameType(Type):
 class ObjectType(Type):
     name: str
     type_args: List[str] = field(default_factory=list)
+    predicate_args: List[str] = field(default_factory=list)
     fields: Dict[str, Type] = field(default_factory=dict)
-
-    @staticmethod
-    def series():
-        return ObjectType(
-            "Series",
-            ["T"],
-            {
-                "max": ArrowType([], RType.lift(TypeVar("T"))),
-                "data": ListType(RType.lift(TypeVar("T"))),
-            },
-        )
 
 
 @dataclass

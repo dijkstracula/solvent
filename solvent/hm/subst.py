@@ -1,6 +1,8 @@
+from logging import warn
 from typing import List
 
 from solvent import syntax as syn
+from solvent import utils
 from solvent.syntax import HMType, TypeVar
 
 from .unification import Solution, free_vars, subst_one
@@ -12,9 +14,15 @@ def subst_stmts(solution: Solution, stmts: List[syn.Stmt]):
 
 
 def subst_stmt(solution: Solution, stmt: syn.Stmt):
+    if isinstance(stmt, syn.Assign):
+        warn(stmt, stmt.typ, free_vars(stmt.typ))
+        warn(utils.dict_fmt(solution))
+
     for var in free_vars(stmt.typ):
         if var in solution:
+            warn("do we get here?", repr(stmt.typ))
             stmt.annot(subst_one(var, solution[var], stmt.typ))
+            warn(f"{stmt.typ}[{var}/{solution[var]}]")
 
     match stmt:
         case syn.FunctionDef(body=body):

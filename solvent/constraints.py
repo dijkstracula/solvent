@@ -56,10 +56,12 @@ def check_stmt(
     context: ScopedEnv, assums: List[syn.Expr], stmt: syn.Stmt
 ) -> tuple[syn.Type, List[SubType], ScopedEnv]:
     match stmt:
-        case syn.FunctionDef(name=name, body=body, typ=ArrowType(args=args, ret=ret)):
+        case syn.FunctionDef(
+            name=name, body=body, typ=ArrowType(type_abs=abs, args=args, ret=ret)
+        ):
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
-            this_type = syn.ArrowType(args, ret)
+            this_type = syn.ArrowType(abs, args, ret)
             context = context.add(name, this_type)
             body_context = context.push_scope()
 
@@ -248,8 +250,9 @@ def shrink(solution):
                     return solution[n]
                 else:
                     return typ
-            case ArrowType(args=args, ret=ret, pending_subst=ps):
+            case ArrowType(type_abs=abs, args=args, ret=ret, pending_subst=ps):
                 return ArrowType(
+                    type_abs=abs,
                     args=[(name, lookup(a, solution)) for name, a in args],
                     ret=lookup(ret, solution),
                     pending_subst=ps,

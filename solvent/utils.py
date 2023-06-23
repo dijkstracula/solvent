@@ -1,5 +1,5 @@
 from inspect import getframeinfo, stack
-from typing import TypeVar
+from typing import Any, Dict, TypeVar
 
 
 def debuginfo():
@@ -19,3 +19,14 @@ def default(val: T | None, *, fallback: T) -> T:
         return fallback
     else:
         return val
+
+
+def dict_fmt(d: Dict[Any, Any]) -> str:
+    if len(d) == 0:
+        return "{}"
+
+    ret = "{\n"
+    for k, v in d.items():
+        ret += f"  {k}: {v}\n"
+    ret += "}"
+    return ret

@@ -60,7 +60,9 @@ def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
                 ret_constr = BaseEq(lhs=top.lhs.ret, rhs=top.rhs.ret)
                 return solve(arg_constrs + [ret_constr] + rest)
             elif isinstance(top.lhs, ListType) and isinstance(top.rhs, ListType):
-                inner_constr = BaseEq(lhs=top.lhs.inner_typ, rhs=top.rhs.inner_typ)
+                inner_constr = BaseEq(lhs=top.lhs.inner_typ, rhs=top.rhs.inner_typ).pos(
+                    top.lhs.inner_typ
+                )
                 return solve([inner_constr] + rest)
             else:
                 raise errors.TypeError(top, at=top)
@@ -114,6 +116,8 @@ def tvar_name(typ: Type):
     match typ:
         case HMType(TypeVar(name=name)):
             return name
+        case RType(base=TypeVar(name=name)):
+            return name
         case _:
             return None
 
@@ -158,18 +162,30 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
     match src:
         case HMType(TypeVar(name=n)) if name == n:
             return tar
+        case RType(base=TypeVar(name=n)) if name == n:
+            return tar
         case HMType():
             return src
-        case ArrowType(args=args, ret=ret):
+        case RType():
+            return src
+        case ArrowType(type_abs=abs, args=args, ret=ret):
             return ArrowType(
+                type_abs=abs,
                 args=[(x, subst_one(name, tar, t)) for x, t in args],
                 ret=subst_one(name, tar, ret),
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_one(name, tar, inner)).pos(src)
-        case ObjectType(name=name, type_args=type_args, fields=fields):
+        case ObjectType(
+            name=obj_name, type_args=type_args, predicate_args=pa, fields=fields
+        ):
+            if name in type_args:
+                type_args.remove(name)
             return ObjectType(
-                name, type_args, {x: subst_one(name, tar, t) for x, t in fields.items()}
+                obj_name,
+                type_args,
+                pa,
+                {x: subst_one(name, tar, t) for x, t in fields.items()},
             ).pos(src)
         case x:
             raise NotImplementedError(f"subst one: {x}")
@@ -184,14 +200,26 @@ def apply(typ: Type, solution: Solution) -> Type:
         case HMType(TypeVar(name=n)) if n in solution:
             return apply(solution[n], solution)
         case RType(base=TypeVar(name=n)) if n in solution:
-            return apply(solution[n], solution)
-        case ArrowType(args=args, ret=ret):
+            ret = apply(solution[n], solution)
+            return ret
+        case ArrowType(type_abs=abs, args=args, ret=ret):
             return ArrowType(
+                type_abs=abs,
                 args=[(name, apply(t, solution)) for name, t in args],
                 ret=apply(ret, solution),
             )
         case ListType(inner_typ=inner):
             return ListType(inner_typ=apply(inner, solution))
+        case ObjectType(
+            name=name, type_args=type_args, predicate_args=pa, fields=fields
+        ):
+            new_type_args = []
+            for t in type_args:
+                if t in solution:
+                    fields = {name: apply(t, solution) for name, t in fields.items()}
+                else:
+                    new_type_args += [t]
+            return ObjectType(name, new_type_args, pa, fields)
         case _:
             return typ
 

@@ -243,18 +243,22 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
             )
         case syn.RType(base=base, predicate=syn.PredicateVar(name=n), pending_subst=ps):
             return syn.RType.lift(base)
-        case syn.ArrowType(args=args, ret=ret, pending_subst=ps):
+        case syn.ArrowType(type_abs=abs, args=args, ret=ret, pending_subst=ps):
             return syn.ArrowType(
+                type_abs=abs,
                 args=[(x, apply(t, solution)) for x, t in args],
                 ret=apply(ret, solution),
                 pending_subst=ps,
             )
         case syn.ListType(inner_typ=inner):
             return syn.ListType(inner_typ=apply(inner, solution))
-        case syn.ObjectType(name=name, type_args=type_args, fields=fields):
+        case syn.ObjectType(
+            name=name, type_args=type_args, predicate_args=pa, fields=fields
+        ):
             return syn.ObjectType(
                 name,
                 type_args,
+                pa,
                 {name: apply(typ, solution) for name, typ in fields.items()},
             )
         case x:

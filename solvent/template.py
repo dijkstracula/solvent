@@ -27,7 +27,7 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             return typ
         case HMType(base=base):
             return RType.template(base)
-        case ArrowType(args=args, ret=ret):
+        case ArrowType(type_abs=abs, args=args, ret=ret):
             argtypes = []
             for name, t in args:
                 if name not in env or env[name] is None:
@@ -36,6 +36,7 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
                 argtypes += [(name, env[name])]
 
             return ArrowType(
+                abs,
                 argtypes,
                 template_type(ret, env),
             )
@@ -43,10 +44,13 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             return ListType(template_type(inner_typ, env))
         case DataFrameType(columns=c):
             return DataFrameType({name: template_type(t, env) for name, t in c.items()})
-        case ObjectType(name=name, type_args=type_args, fields=fields):
+        case ObjectType(
+            name=name, type_args=type_args, predicate_args=pa, fields=fields
+        ):
             return ObjectType(
                 name,
                 type_args,
+                pa,
                 {name: template_type(t, env) for name, t in fields.items()},
             )
         case x:
@@ -91,7 +95,7 @@ class Templatizer(ScopedEnvVisitor):
         else:
             ret = template_type(fd.typ.ret, self.env)
 
-        fd.annot(ArrowType(args, ret))
+        fd.annot(ArrowType(fd.typ.type_abs, args, ret))
 
         # we want to add our newly templated type to the scoped env
         # so we call our superclass after we have created the template types

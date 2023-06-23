@@ -31,7 +31,7 @@ class BaseEq(syn.Pos):
 
     def __str__(self):
         return (
-            f"{self.lhs.shape()} == {self.rhs.shape()} "
+            f"{self.lhs} == {self.rhs} "
             + f"({Context.single(at=self.position, color=True)})"
         )
 
@@ -78,7 +78,7 @@ def check_stmt(
 
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
-            this_type = syn.ArrowType(argtypes, ret_typ).pos(stmt)
+            this_type = syn.ArrowType([], argtypes, ret_typ).pos(stmt)
             ret_context = ret_context.add(name, this_type)
 
             # now typecheck the body
@@ -253,7 +253,9 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 case t:
                     raise Exception("blah")
 
-            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(expr)]
+            constrs += [
+                BaseEq(fn_ty, ArrowType([], types, ret_typ).pos(expr)).pos(expr)
+            ]
             ret_constrs = constrs
 
         case syn.GetAttr(name=name, attr=attr):
