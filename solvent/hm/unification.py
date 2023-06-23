@@ -63,7 +63,7 @@ def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
                 inner_constr = BaseEq(lhs=top.lhs.inner_typ, rhs=top.rhs.inner_typ)
                 return solve([inner_constr] + rest)
             else:
-                raise errors.TypeError(top)
+                raise errors.TypeError(top, at=top)
         case _:
             raise Exception(f"Constrs wasn't a list: {constrs}")
 
@@ -100,6 +100,8 @@ def unify(constrs: List[BaseEq]) -> Tuple[List[BaseEq], Solution]:
             # otherwise call apply
             case x:
                 solution[name] = apply(x, solution)
+
+    solution = {k: t.shape() for k, t in solution.items()}
 
     return (apply_constraints(constrs, solution), solution)
 
@@ -165,9 +167,9 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_one(name, tar, inner)).pos(src)
-        case ObjectType(fields=fields):
+        case ObjectType(name=name, type_args=type_args, fields=fields):
             return ObjectType(
-                {x: subst_one(name, tar, t) for x, t in fields.items()}
+                name, type_args, {x: subst_one(name, tar, t) for x, t in fields.items()}
             ).pos(src)
         case x:
             raise NotImplementedError(f"subst one: {x}")

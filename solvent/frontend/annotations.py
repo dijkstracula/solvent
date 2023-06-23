@@ -19,17 +19,13 @@ def infer(quals=None, debug=False):
         lines = "".join(source).split("\n")
 
         syn.NameGenerator.reset()
-        try:
-            with Context(lines=lines):  # type: ignore
+        with Context(lines=lines):  # type: ignore
+            try:
                 typ = frontend.check(res, quals)
                 info(f"{func.__name__}: {typ}")
-        except errors.TypeError as e:
-            msg = "Context:\n"
-            msg += e.context(lines, startline) + "\n"
-            msg += f"Type Error: {e.msg}"
-            error(msg)
-
-            raise e
+            except errors.TypeError as e:
+                error(e)
+                raise e
 
         return func
 

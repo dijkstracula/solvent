@@ -35,20 +35,29 @@ def number(blob: str) -> str:
 
 
 def debug_stmts(stmts: List[syn.Stmt], include_types=False):
-    gather = "\n\n".join([number(s.to_string(include_types)) for s in stmts])
+    gather = "\n\n".join(
+        [number(s.to_string(include_types=include_types)) for s in stmts]
+    )
     debug(gather)
 
 
-def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]) -> Dict[str, Type]:
+def check(
+    stmts: List[syn.Stmt],
+    quals: List[qualifiers.Qualifier],
+    env: ScopedEnv | None = None,
+) -> Dict[str, Type]:
     """
     Run Liquid-type inference and checking.
     """
 
+    if env is None:
+        env = ScopedEnv.empty()
+
     stmts = normalize.normalize(stmts)
     debug("Normalized Program:")
-    debug_stmts(stmts, True)
+    debug_stmts(stmts)
 
-    base_types = hm.solve(stmts)
+    base_types = hm.solve(stmts, env=env)
     debug("HmType program:")
     debug_stmts(stmts, True)
 
@@ -59,13 +68,13 @@ def check(stmts: List[syn.Stmt], quals: List[qualifiers.Qualifier]) -> Dict[str,
         )
     )
 
-    stmts = Templatizer().visit_stmts(stmts)
+    stmts = Templatizer(env).visit_stmts(stmts)
     AssertHavePosition().visit_stmts(stmts)
     debug("Template program:")
     debug_stmts(stmts, True)
     AssertNoHmTypes().visit_stmts(stmts)
 
-    _, constrs, ctx = constraints.check_stmts(ScopedEnv.default(), [], stmts)
+    _, constrs, ctx = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
     for c in constrs:
         AssertNoHmTypes().check_constraint(c)
 

@@ -17,6 +17,7 @@ from solvent.syntax import (
     Return,
     Star,
     Stmt,
+    StrLiteral,
     Subscript,
     Type,
     V,
@@ -85,6 +86,8 @@ class Visitor:
                 self.end_ArithBinOp(new_expr)
             case BoolLiteral():
                 new_expr = self.start_BoolLiteral(cast(BoolLiteral, expr))
+            case StrLiteral():
+                new_expr = self.start_StrLiteral(cast(StrLiteral, expr))
             case ListLiteral(elts=elts):
                 self.start_ListLiteral(cast(ListLiteral, expr))
                 new_expr = ListLiteral([self.visit_expr(e) for e in elts], typ=expr.typ)
@@ -180,19 +183,22 @@ class Visitor:
     def start_IntLiteral(self, lit: IntLiteral):
         pass
 
-    def start_ArithBinOp(self, arith_bin_op: ArithBinOp):
-        pass
-
-    def end_ArithBinOp(self, arith_bin_op: ArithBinOp):
-        pass
-
     def start_BoolLiteral(self, lit: BoolLiteral):
+        pass
+
+    def start_StrLiteral(self, lit: StrLiteral):
         pass
 
     def start_ListLiteral(self, lit: ListLiteral):
         pass
 
     def end_ListLiteral(self, lit: ListLiteral):
+        pass
+
+    def start_ArithBinOp(self, arith_bin_op: ArithBinOp):
+        pass
+
+    def end_ArithBinOp(self, arith_bin_op: ArithBinOp):
         pass
 
     def start_GetAttr(self, lit: GetAttr):

@@ -31,7 +31,8 @@ class BaseEq(syn.Pos):
 
     def __str__(self):
         return (
-            f"{self.lhs} == {self.rhs} ({Context.single(at=self.position, color=True)})"
+            f"{self.lhs.shape()} == {self.rhs.shape()} "
+            + f"({Context.single(at=self.position, color=True)})"
         )
 
 
@@ -180,6 +181,8 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
         case syn.ListLiteral(elts=[]):
             inner_ty = HMType.fresh("lst").pos(expr)
             ret_typ = ListType(inner_ty)
+        case syn.StrLiteral():
+            ret_typ = HMType.str()
         case syn.ListLiteral(elts=elts):
             elts_typs = [check_expr(context, e) for e in elts]
             assert elts_typs != []
@@ -262,9 +265,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("attr").pos(expr)
                 case t:
-                    raise errors.TypeError(
-                        BaseEq(t, syn.ObjectType({attr: syn.Bottom()}))
-                    )
+                    raise errors.TypeError(BaseEq(t, syn.ObjectType("object")), at=expr)
         case x:
             raise NotImplementedError(x)
     expr.annot(ret_typ)

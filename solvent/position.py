@@ -12,10 +12,10 @@ from ansi.color import fg, fx
 
 @dataclass
 class Position:
-    lineno: int | None = None
-    end_lineno: int | None = None
-    col_offset: int | None = None
-    end_col_offset: int | None = None
+    lineno: int = -1
+    end_lineno: int = -1
+    col_offset: int = -1
+    end_col_offset: int = -1
 
 
 class Context(eff.ects):
@@ -71,9 +71,6 @@ class Context(eff.ects):
     @classmethod
     def single(cls, *, at: Position | None, color: bool = False):
         if at is not None:
-            assert at.lineno is not None
-            assert at.end_lineno is not None
-
             line = cls.lines[at.lineno - 1]
             if at.lineno == at.end_lineno:
                 res = line[at.col_offset : at.end_col_offset]
@@ -89,5 +86,5 @@ class Context(eff.ects):
             return res
 
     @classmethod
-    def show(cls, msg: Any, *, at: Position | None):
+    def show(cls, msg: Any, *, at: Position):
         debug(f"{msg} ({cls.single(at=at, color=True)})")

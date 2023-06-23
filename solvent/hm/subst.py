@@ -47,16 +47,18 @@ def subst_expr(solution: Solution, expr: syn.Expr):
             pass
         case syn.IntLiteral():
             pass
+        case syn.BoolLiteral(_):
+            pass
+        case syn.StrLiteral():
+            pass
+        case syn.ListLiteral(elts=elts):
+            for e in elts:
+                subst_expr(solution, e)
         case syn.Neg(expr=e):
             subst_expr(solution, e)
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
             subst_expr(solution, lhs)
             subst_expr(solution, rhs)
-        case syn.BoolLiteral(_):
-            pass
-        case syn.ListLiteral(elts=elts):
-            for e in elts:
-                subst_expr(solution, e)
         case syn.BoolOp(lhs=lhs, rhs=rhs):
             subst_expr(solution, lhs)
             subst_expr(solution, rhs)

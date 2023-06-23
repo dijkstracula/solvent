@@ -3,8 +3,9 @@ from logging import info
 
 import click
 
-from solvent import Q, V, _, frontend, parse
+from solvent import Q, V, _, frontend, parse, prelude
 from solvent import syntax as syn
+from solvent.env import ScopedEnv
 from solvent.frontend import log
 from solvent.position import Context
 
@@ -32,8 +33,15 @@ def cli(files, not_strict, debug):
         p = parse.Parser({}, strict=not not_strict)
         stmts = p.parse(pyast)
 
+        env = ScopedEnv.empty()
+        for prog_name, resolved_name in p.modules.items():
+            typ = prelude.lookup(resolved_name)
+            if typ is not None:
+                env[prog_name] = typ
+        env.push_scope()
+
         syn.NameGenerator.reset()
         with Context(lines=lines.split("\n")):
-            types = frontend.check(stmts, QUALS)
+            types = frontend.check(stmts, QUALS, env)
             for name, typ in types.items():
                 info(f"{name}: {typ}")

@@ -18,26 +18,6 @@ class ScopedEnv:
     scopes: List[Dict[str, Any]]
 
     @staticmethod
-    def default():
-        # HACK
-        series_innerty = syn.RType(base=syn.Int(), predicate=syn.PredicateVar("xs0"))
-        return (
-            ScopedEnv.empty()
-            .add(
-                "pd",
-                syn.ObjectType(
-                    {
-                        "Series": syn.ArrowType(
-                            args=[("l", syn.ListType(series_innerty))],
-                            ret=syn.ObjectType.series(series_innerty),
-                        )
-                    }
-                ),
-            )
-            .push_scope()
-        )
-
-    @staticmethod
     def empty():
         return ScopedEnv([{}])
 
@@ -107,8 +87,11 @@ class ScopedEnv:
 
 
 class ScopedEnvVisitor(Visitor):
-    def start(self):
-        self.env = ScopedEnv.default()
+    def start(self, initial_env: ScopedEnv | None = None):
+        if initial_env is None:
+            initial_env = ScopedEnv.empty()
+
+        self.env = initial_env
 
     def start_FunctionDef(self, fd: syn.FunctionDef):
         assert isinstance(fd.typ, syn.ArrowType)

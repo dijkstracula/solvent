@@ -43,17 +43,19 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             return ListType(template_type(inner_typ, env))
         case DataFrameType(columns=c):
             return DataFrameType({name: template_type(t, env) for name, t in c.items()})
-        case ObjectType(fields=fields):
+        case ObjectType(name=name, type_args=type_args, fields=fields):
             return ObjectType(
-                {name: template_type(t, env) for name, t in fields.items()}
+                name,
+                type_args,
+                {name: template_type(t, env) for name, t in fields.items()},
             )
         case x:
             raise errors.Unreachable(x)
 
 
 class Templatizer(ScopedEnvVisitor):
-    def start(self):
-        super().start()
+    def start(self, initial_env: ScopedEnv | None = None):
+        super().start(initial_env)
         # TODO: template_type for whatever is in the env
         for name, typ in list(self.env.items()):
             self.env[name] = template_type(typ, self.env)
@@ -114,7 +116,7 @@ class Templatizer(ScopedEnvVisitor):
         if var.name in self.env:
             var.annot(self.env[var.name])
         else:
-            raise errors.Unreachable()
+            raise errors.Unreachable(f"{var} is undefined")
 
     def start_IntLiteral(self, lit: IntLiteral):
         super().start_IntLiteral(lit)

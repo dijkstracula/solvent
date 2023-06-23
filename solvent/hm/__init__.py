@@ -11,7 +11,7 @@ from .unification import apply, free_vars, unify  # type: ignore
 
 def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> Dict[str, syn.Type]:
     if env is None:
-        env = ScopedEnv.default()
+        env = ScopedEnv.empty()
 
     typ, constrs, context = check_stmts(env, stmts)
 
@@ -23,7 +23,6 @@ def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> Dict[str, syn.
         debug(f"{k} := {v}")
 
     debug("== Unification ==")
-
     constrs, solution = unify(constrs)
 
     debug("== Solution ==")

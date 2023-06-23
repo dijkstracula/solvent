@@ -251,9 +251,11 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
             )
         case syn.ListType(inner_typ=inner):
             return syn.ListType(inner_typ=apply(inner, solution))
-        case syn.ObjectType(fields=fields):
+        case syn.ObjectType(name=name, type_args=type_args, fields=fields):
             return syn.ObjectType(
-                {name: apply(typ, solution) for name, typ in fields.items()}
+                name,
+                type_args,
+                {name: apply(typ, solution) for name, typ in fields.items()},
             )
         case x:
             return x

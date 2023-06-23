@@ -252,7 +252,7 @@ class Parser:
                 elif type(val) == str and not self.strict:
                     return syn.StrLiteral(value=val).ast(expr)
                 else:
-                    raise NotImplementedError(val)
+                    raise NotImplementedError(val, type(val))
             case ast.List(elts=elts, ctx=ast.Load()):
                 exprs = [self.parse_expr(e) for e in elts]
                 return syn.ListLiteral(exprs).ast(expr)

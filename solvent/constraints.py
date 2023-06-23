@@ -170,6 +170,8 @@ def check_expr(
             )
         case syn.BoolLiteral(_):
             return (RType.bool().pos(expr), [])
+        case syn.StrLiteral():
+            return (RType.str().pos(expr), [])
         case syn.ListLiteral(elts=elts, typ=ListType(inner_typ)):
             constrs: List[SubType] = []
             for e in elts:
