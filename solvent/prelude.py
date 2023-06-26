@@ -22,19 +22,18 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
         [],
         {"TypeVar": ArrowType([], [("name", RType.str())], ObjectType("TypeVar"))},
     ),
-    # HACK: hardcoding the predicate var and not using fresh
     "pandas": ObjectType(
         "pandas",
         [],
         [],
         {
             "Series": ArrowType(
-                type_abs=["T", "K"],
+                type_abs=["T"],
                 args=[("l", ListType(RType(TypeVar("T"), PredicateVar("K"))))],
                 ret=ObjectType(
                     "Series",
-                    ["T"],
-                    ["K"],
+                    [],
+                    [],
                     {
                         "max": ArrowType(
                             [], [], RType(TypeVar("T"), PredicateVar("K"))

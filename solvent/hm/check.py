@@ -8,9 +8,12 @@ from solvent.env import ScopedEnv
 from solvent.position import Context
 from solvent.syntax import (
     ArrowType,
+    BaseType,
     DictType,
     HMType,
     ListType,
+    ObjectType,
+    RType,
     Type,
     TypeVar,
     base_type_eq,
@@ -246,7 +249,13 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 constrs += cs
 
             match fn_ty:
-                case ArrowType(ret=ret):
+                case ArrowType(type_abs=abs, ret=ret):
+                    for var in abs:
+                        tv = TypeVar.fresh(var)
+                        fn_ty = subst_typevar(var, tv, fn_ty)
+                        ret = subst_typevar(var, tv, ret)
+                    assert isinstance(fn_ty, ArrowType)
+                    fn_ty.type_abs = []
                     ret_typ = ret
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("ret")
@@ -272,3 +281,34 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             raise NotImplementedError(x)
     expr.annot(ret_typ)
     return ret_typ.pos(expr), ret_constrs
+
+
+def subst_typevar(typevar: str, tar: BaseType, src: Type) -> Type:
+    match src:
+        case HMType(TypeVar(name=n)) if typevar == n:
+            return HMType(tar).pos(src)
+        case HMType():
+            return src
+        case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if typevar == n:
+            return syn.RType(tar, p, pending_subst=ps).pos(src)
+        case RType():
+            return src
+        case ArrowType(type_abs=abs, args=args, ret=ret):
+            return ArrowType(
+                type_abs=abs,
+                args=[(x, subst_typevar(typevar, tar, t)) for x, t in args],
+                ret=subst_typevar(typevar, tar, ret),
+            ).pos(src)
+        case ListType(inner_typ=inner):
+            return ListType(subst_typevar(typevar, tar, inner)).pos(src)
+        case ObjectType(
+            name=obj_name, type_args=type_args, predicate_args=pa, fields=fields
+        ):
+            return ObjectType(
+                obj_name,
+                type_args,
+                pa,
+                {x: subst_typevar(typevar, tar, t) for x, t in fields.items()},
+            )
+        case x:
+            raise NotImplementedError(x)

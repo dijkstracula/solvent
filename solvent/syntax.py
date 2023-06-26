@@ -215,7 +215,7 @@ class Type(Pos):
                 name=name, type_args=type_args, predicate_args=pa, fields=fields
             ):
                 if len(type_args + pa) > 0:
-                    type_args_str = "[" + ", ".join(map(str, type_args + pa)) + "]"
+                    type_args_str = "(" + ", ".join(map(str, type_args + pa)) + ") => "
                 else:
                     type_args_str = ""
 
@@ -225,7 +225,7 @@ class Type(Pos):
                 else:
                     value_str = ""
 
-                return f"{name}{type_args_str}{value_str}"
+                return f"{type_args_str}{name}{value_str}"
             case x:
                 raise Exception(x, type(x))
 
