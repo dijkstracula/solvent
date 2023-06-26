@@ -3,7 +3,7 @@ Implement Liquid Type inference
 """
 
 import pprint
-from logging import debug
+from logging import info
 from typing import Dict, List, cast
 
 from solvent import constraints as constr
@@ -79,10 +79,10 @@ def solve(
     constrs: List[constr.SubType],
     quals: List[quals.Qualifier],
 ) -> Solution:
-    debug("Raw Constraints:")
+    info("Raw Constraints:")
     for c in constrs:
         Context.show(c, at=c.position)
-    debug("======")
+    info("======")
 
     # split all the constraints that we have into base constraints
     constrs = sum([split(c) for c in constrs], [])
@@ -91,15 +91,15 @@ def solve(
     ipv.visit_stmts(stmts)
     solution = ipv.solution
 
-    debug("Initial Constraints:")
+    info("Initial Constraints:")
     for c in constrs:
         Context.show(c, at=c.position)
-    debug("======")
+    info("======")
 
-    debug("Initial Predicates:")
+    info("Initial Predicates:")
     for k, v in solution.items():
-        debug(f"{k} := {v}")
-    debug("======")
+        info(f"{k} := {v}")
+    info("======")
 
     subtype_eqs = cast(
         List[constr.SubType],
@@ -132,15 +132,15 @@ def constraints_valid(
         try:
             valid = subtype.check_constr(sc)
         except NotImplementedError as e:
-            debug("culprit", sc)
+            info("culprit", sc)
             ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
             assums = "\n    ".join([str(a) for a in c.assumes])
-            debug(f"  Valid? w/ context:\n    {ctx}\n    {assums}")
+            info(f"  Valid? w/ context:\n    {ctx}\n    {assums}")
             raise e
 
         ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
         assums = "\n    ".join([str(a) for a in c.assumes])
-        debug(f"  Valid? ({valid}) w/ context:\n    {ctx}\n    {assums}")
+        info(f"  Valid? ({valid}) w/ context:\n    {ctx}\n    {assums}")
 
         if not valid:
             return constraints_valid(constrs, weaken(c, solution))
@@ -169,10 +169,10 @@ def weaken(c: constr.SubType, solution: Solution) -> Solution:
 
             qs = []
             for qual in solution[n].conjuncts:
-                debug(f"Checking {qual}: ")
-                debug(f"  ctx: {apply_ctx(ctx, solution)}")
-                debug(f"  constr: {apply_constr(c, solution)}")
-                debug(f"  substs: {lhs.pending_subst}, {ps}")
+                info(f"Checking {qual}: ")
+                info(f"  ctx: {apply_ctx(ctx, solution)}")
+                info(f"  constr: {apply_constr(c, solution)}")
+                info(f"  substs: {lhs.pending_subst}, {ps}")
 
                 if subtype.check(
                     apply_ctx(ctx, solution),
@@ -180,7 +180,7 @@ def weaken(c: constr.SubType, solution: Solution) -> Solution:
                     apply(lhs, solution),
                     syn.RType(b2, syn.Conjoin([apply_substs(qual, ps)])),
                 ):
-                    debug("Ok")
+                    info("Ok")
                     qs += [qual]
 
             solution[n] = syn.Conjoin(qs)
@@ -193,14 +193,14 @@ def weaken(c: constr.SubType, solution: Solution) -> Solution:
         case x:
             raise NotImplementedError(pprint.pformat(x))
 
-    debug("=================")
-    debug("Current Solution:")
+    info("=================")
+    info("Current Solution:")
     for k, v in solution.items():
         match v:
             case syn.Type():
-                debug(f"  {k}: {v}")
+                info(f"  {k}: {v}")
             case x:
-                debug(f"  {k}: {x}")
+                info(f"  {k}: {x}")
 
     return solution
 
@@ -252,13 +252,10 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
             )
         case syn.ListType(inner_typ=inner):
             return syn.ListType(inner_typ=apply(inner, solution))
-        case syn.ObjectType(
-            name=name, type_args=type_args, predicate_args=pa, fields=fields
-        ):
+        case syn.ObjectType(name=name, type_abs=abs, fields=fields):
             return syn.ObjectType(
                 name,
-                type_args,
-                pa,
+                abs,
                 {name: apply(typ, solution) for name, typ in fields.items()},
             )
         case x:

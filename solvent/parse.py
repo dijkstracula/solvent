@@ -1,5 +1,5 @@
 import ast
-from logging import debug
+from logging import info
 from typing import Annotated, Any, Dict, List, get_args, get_origin
 
 import solvent
@@ -86,7 +86,7 @@ class Parser:
             case ast.Pass():
                 return []
             case _ if not self.strict:
-                debug(ast.dump(tree, indent=2))
+                info(ast.dump(tree, indent=2))
                 return []
             case _:
                 raise NotImplementedError(ast.dump(tree, indent=2))
@@ -215,7 +215,7 @@ class Parser:
                 )
             case x:
                 if x is not None and isinstance(x, ast.AST):
-                    debug(ast.dump(ann, indent=2))
+                    info(ast.dump(ann, indent=2))
                 raise NotImplementedError(x)
 
     def parse_expr(self, expr) -> syn.Expr:

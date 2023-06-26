@@ -2,7 +2,7 @@
 Implementation of the Hindley-Milner Unification Algorithm
 """
 
-from logging import debug
+from logging import info
 from typing import Dict, List, Tuple
 
 from solvent import errors
@@ -29,10 +29,10 @@ def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
         case []:
             return []
         case [top, *rest]:
-            debug("====== unify ======")
-            debug(f"=> {top}")
+            info("====== unify ======")
+            info(f"=> {top}")
             for c in rest:
-                debug(c)
+                info(c)
 
             lX = tvar_name(top.lhs)
             rX = tvar_name(top.rhs)
@@ -174,15 +174,12 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_one(name, tar, inner)).pos(src)
-        case ObjectType(
-            name=obj_name, type_args=type_args, predicate_args=pa, fields=fields
-        ):
-            if name in type_args:
-                type_args.remove(name)
+        case ObjectType(name=obj_name, type_abs=abs, fields=fields):
+            if name in abs:
+                del abs[name]
             return ObjectType(
                 obj_name,
-                type_args,
-                pa,
+                abs,
                 {x: subst_one(name, tar, t) for x, t in fields.items()},
             ).pos(src)
         case x:
@@ -208,16 +205,14 @@ def apply(typ: Type, solution: Solution) -> Type:
             )
         case ListType(inner_typ=inner):
             return ListType(inner_typ=apply(inner, solution))
-        case ObjectType(
-            name=name, type_args=type_args, predicate_args=pa, fields=fields
-        ):
-            new_type_args = []
-            for t in type_args:
+        case ObjectType(name=name, type_abs=abs, fields=fields):
+            new_type_abs = {}
+            for t, k in abs.items():
                 if t in solution:
                     fields = {name: apply(t, solution) for name, t in fields.items()}
                 else:
-                    new_type_args += [t]
-            return ObjectType(name, new_type_args, pa, fields)
+                    new_type_abs[t] = k
+            return ObjectType(name, new_type_abs, fields)
         case _:
             return typ
 

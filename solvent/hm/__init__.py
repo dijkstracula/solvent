@@ -1,4 +1,4 @@
-from logging import debug, warn
+from logging import info
 from typing import Dict, List
 
 import solvent.syntax as syn
@@ -15,19 +15,19 @@ def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> Dict[str, syn.
 
     typ, constrs, context = check_stmts(env, stmts)
 
-    debug(f"Initial type: {typ}")
-    debug("== Constraints ==")
-    debug("\n".join([str(c) for c in constrs]))
-    debug("== Context ==")
+    info(f"Initial type: {typ}")
+    info("== Constraints ==")
+    info("\n".join([str(c) for c in constrs]))
+    info("== Context ==")
     for k, v in context.items():
-        debug(f"{k} := {v}")
+        info(f"{k} := {v}")
 
-    debug("== Unification ==")
+    info("== Unification ==")
     constrs, solution = unify(constrs)
 
-    debug("== Solution ==")
+    info("== Solution ==")
     for k, v in solution.items():
-        debug(f"{k} := {v}")
+        info(f"{k} := {v}")
 
     _ = apply(typ, solution)
     subst_stmts(solution, stmts)

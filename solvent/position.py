@@ -3,7 +3,7 @@ Provides line and position information about python code.
 """
 
 from dataclasses import dataclass
-from logging import debug
+from logging import info
 from typing import Any, List
 
 import eff
@@ -87,4 +87,4 @@ class Context(eff.ects):
 
     @classmethod
     def show(cls, msg: Any, *, at: Position):
-        debug(f"{msg} ({cls.single(at=at, color=True)})")
+        info(f"{msg} ({cls.single(at=at, color=True)})")

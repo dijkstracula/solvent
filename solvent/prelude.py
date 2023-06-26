@@ -18,22 +18,19 @@ from solvent.syntax import (
 PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
     "typing": ObjectType(
         "typing",
-        [],
-        [],
+        {},
         {"TypeVar": ArrowType({}, [("name", RType.str())], ObjectType("TypeVar"))},
     ),
     "pandas": ObjectType(
         "pandas",
-        [],
-        [],
+        {},
         {
             "Series": ArrowType(
                 type_abs={"T": "type", "K": "pred"},
                 args=[("l", ListType(RType(TypeVar("T"), PredicateVar("K"))))],
                 ret=ObjectType(
                     "Series",
-                    [],
-                    [],
+                    {},
                     {
                         "max": ArrowType(
                             {}, [], RType(TypeVar("T"), PredicateVar("K"))

@@ -167,13 +167,10 @@ class Type(Pos):
                 return self
             case ListType(inner_typ):
                 return ListType(inner_typ.shape())
-            case ObjectType(
-                name=name, type_args=type_args, predicate_args=pa, fields=fields
-            ):
+            case ObjectType(name=name, type_abs=abs, fields=fields):
                 return ObjectType(
                     name,
-                    type_args,
-                    pa,
+                    abs,
                     {name: typ.shape() for name, typ in fields.items()},
                 )
             case x:
@@ -204,7 +201,7 @@ class Type(Pos):
                     return f"{{{base} | {pred} [{inner}]}}"
             case ArrowType(type_abs=abs, args=args, ret=ret):
                 return "{}({}) -> {}".format(
-                    "({}) => ".format(", ".join(abs)) if len(abs) > 0 else "",
+                    "∀({}), ".format(", ".join(abs)) if len(abs) > 0 else "",
                     ", ".join([f"{name}:{t}" for name, t in args]),
                     ret,
                 )
@@ -220,11 +217,9 @@ class Type(Pos):
                     return f"DataFrame({tmp}, ..)"
                 else:
                     return "DataFrame(..?)"
-            case ObjectType(
-                name=name, type_args=type_args, predicate_args=pa, fields=fields
-            ):
-                if len(type_args + pa) > 0:
-                    type_args_str = "(" + ", ".join(map(str, type_args + pa)) + ") => "
+            case ObjectType(name=name, type_abs=abs, fields=fields):
+                if len(abs) > 0:
+                    type_args_str = "∀(" + ", ".join(map(str, abs.keys())) + "), "
                 else:
                     type_args_str = ""
 
@@ -324,8 +319,7 @@ class DataFrameType(Type):
 @dataclass
 class ObjectType(Type):
     name: str
-    type_args: List[str] = field(default_factory=list)
-    predicate_args: List[str] = field(default_factory=list)
+    type_abs: Dict[str, str] = field(default_factory=dict)
     fields: Dict[str, Type] = field(default_factory=dict)
 
 
@@ -407,6 +401,9 @@ class Expr(Pos, TypeAnnotation):
                 return f"{fn}({', '.join(args)})"
             case GetAttr(name=obj, attr=attr):
                 return f"{obj.to_string(include_types)}.{attr}"
+            case TypeApp(expr=e, arglist=args):
+                arg_str = ", ".join([a.to_string(include_types) for a in args])
+                return f"{e.to_string(include_types)}[{arg_str}]"
             case x:
                 return f"`{repr(x)}`"
 
@@ -500,6 +497,12 @@ class Call(Expr):
 class GetAttr(Expr):
     name: Expr
     attr: str
+
+
+@dataclass
+class TypeApp(Expr):
+    expr: Expr
+    arglist: List[Expr]
 
 
 @dataclass

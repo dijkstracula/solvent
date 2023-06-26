@@ -3,7 +3,7 @@ Implement decidable subypting from the liquid type paper.
 """
 
 from functools import reduce
-from logging import debug
+from logging import info
 
 import z3
 
@@ -33,7 +33,7 @@ def check(context: env.ScopedEnv, assumes, typ1, typ2) -> bool:
                 smt.from_exprs(cs2),
             )
 
-            debug(f"  SMT: {to_check}")
+            info(f"  SMT: {to_check}")
 
             s = z3.Solver()
             s.add(z3.Not(to_check))
@@ -41,7 +41,7 @@ def check(context: env.ScopedEnv, assumes, typ1, typ2) -> bool:
             if s.check() == z3.unsat:
                 return True
             else:
-                debug(f"fail with model: {s.model()}")
+                info(f"fail with model: {s.model()}")
 
                 return False
 

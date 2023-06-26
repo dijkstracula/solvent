@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
+from logging import debug
 from typing import Any, Dict, List, Self
 
 from solvent import syntax as syn
@@ -90,18 +91,19 @@ class ScopedEnvVisitor(Visitor):
     def start(self, initial_env: ScopedEnv | None = None):
         if initial_env is None:
             initial_env = ScopedEnv.empty()
+        else:
+            debug(f"Starting with {initial_env}")
 
         self.env = initial_env
 
     def start_FunctionDef(self, fd: syn.FunctionDef):
-        assert isinstance(fd.typ, syn.ArrowType)
+        if isinstance(fd.typ, syn.ArrowType):
+            # add function name to current scope
+            self.env[fd.name] = fd.typ
 
-        # add function name to current scope
-        self.env[fd.name] = fd.typ
-
-        self.env.push_scope_mut()
-        for name, t in fd.typ.args:
-            self.env[name] = t
+            self.env.push_scope_mut()
+            for name, t in fd.typ.args:
+                self.env[name] = t
 
     def end_FunctionDef(self, _: syn.FunctionDef):
         self.env.pop_scope_mut()

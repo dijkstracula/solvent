@@ -44,13 +44,10 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             return ListType(template_type(inner_typ, env))
         case DataFrameType(columns=c):
             return DataFrameType({name: template_type(t, env) for name, t in c.items()})
-        case ObjectType(
-            name=name, type_args=type_args, predicate_args=pa, fields=fields
-        ):
+        case ObjectType(name=name, type_abs=abs, fields=fields):
             return ObjectType(
                 name,
-                type_args,
-                pa,
+                abs,
                 {name: template_type(t, env) for name, t in fields.items()},
             )
         case x:

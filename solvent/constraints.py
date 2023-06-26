@@ -8,6 +8,7 @@ as well as Sub-type constraints for infering refinement predicates.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from logging import debug
 from typing import List
 
 from solvent import errors
@@ -200,6 +201,7 @@ def check_expr(
             subst = []
             types = []
 
+            debug("ST:", expr, fn_ty)
             match fn_ty:
                 # we know that we have a function type,
                 # so we can generate subtyping relations

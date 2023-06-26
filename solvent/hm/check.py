@@ -252,19 +252,22 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
 
             match fn_ty:
                 case ArrowType(type_abs=abs, ret=ret):
+                    type_abs = {}
                     for var, kind in abs.items():
                         if kind == "type":
                             tv = TypeVar.fresh(var)
                             fn_ty = subst_typevar(var, tv, fn_ty)
                             ret = subst_typevar(var, tv, ret)
                         elif kind == "pred":
+                            # type_abs[var] = kind
+                            # pass
                             pv = PredicateVar.fresh(var)
                             fn_ty = subst_predvar(var, pv, fn_ty)
                             ret = subst_predvar(var, pv, ret)
                         else:
                             raise NotImplementedError(f"{var}: {kind}")
                     assert isinstance(fn_ty, ArrowType)
-                    fn_ty.type_abs = {}
+                    fn_ty.type_abs = type_abs
                     ret_typ = ret
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("ret")
@@ -310,13 +313,10 @@ def subst_typevar(typevar: str, tar: BaseType, src: Type) -> Type:
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_typevar(typevar, tar, inner)).pos(src)
-        case ObjectType(
-            name=obj_name, type_args=type_args, predicate_args=pa, fields=fields
-        ):
+        case ObjectType(name=obj_name, type_abs=abs, fields=fields):
             return ObjectType(
                 obj_name,
-                type_args,
-                pa,
+                abs,
                 {x: subst_typevar(typevar, tar, t) for x, t in fields.items()},
             )
         case x:
@@ -341,13 +341,10 @@ def subst_predvar(predvar: str, tar: Predicate, src: Type) -> Type:
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_predvar(predvar, tar, inner)).pos(src)
-        case ObjectType(
-            name=obj_name, type_args=type_args, predicate_args=pa, fields=fields
-        ):
+        case ObjectType(name=obj_name, type_abs=abs, fields=fields):
             return ObjectType(
                 obj_name,
-                type_args,
-                pa,
+                abs,
                 {x: subst_predvar(predvar, tar, t) for x, t in fields.items()},
             )
         case x:
