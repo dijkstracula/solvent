@@ -103,8 +103,6 @@ def unify(constrs: List[BaseEq]) -> Tuple[List[BaseEq], Solution]:
             case x:
                 solution[name] = apply(x, solution)
 
-    solution = {k: t.shape() for k, t in solution.items()}
-
     return (apply_constraints(constrs, solution), solution)
 
 
@@ -162,8 +160,8 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
     match src:
         case HMType(TypeVar(name=n)) if name == n:
             return tar
-        case RType(base=TypeVar(name=n)) if name == n:
-            return tar
+        case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if name == n:
+            return RType(base=tar.base_type(), predicate=p, pending_subst=ps).pos(tar)
         case HMType():
             return src
         case RType():

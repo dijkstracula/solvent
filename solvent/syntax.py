@@ -179,6 +179,15 @@ class Type(Pos):
             case x:
                 raise Exception(f"`{x}` is not a Type.")
 
+    def base_type(self) -> BaseType:
+        match self:
+            case HMType(base=base):
+                return base
+            case RType(base=base):
+                return base
+            case x:
+                raise Exception(f"Can't take the base type of {x}.")
+
     def __str__(self):
         match self:
             case HMType(base=base):
@@ -290,7 +299,7 @@ class RType(Type):
 
 @dataclass
 class ArrowType(Type):
-    type_abs: List[str]
+    type_abs: Dict[str, str]
     args: List[tuple[str, Type]]
     ret: Type
 

@@ -1,4 +1,4 @@
-from logging import debug
+from logging import debug, warn
 from typing import Dict, List
 
 import solvent.syntax as syn

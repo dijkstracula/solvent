@@ -47,11 +47,9 @@ def check(context: env.ScopedEnv, assumes, typ1, typ2) -> bool:
 
         case (syn.ArrowType(), syn.ArrowType()):
             raise NotImplementedError(typ1, typ2)
-        case _:
-            import pdb
-
-            pdb.set_trace()
-            return False
+        case x:
+            raise Exception(f"We are not handling this case: {x}")
+            # return False
 
 
 def check_constr(c: constr.SubType) -> bool:

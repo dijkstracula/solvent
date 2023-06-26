@@ -206,7 +206,7 @@ class Parser:
                     ret = syn.RType.lift(syn.Unit())
 
                 return syn.ArrowType(
-                    type_abs=[],
+                    type_abs={},
                     args=[
                         (syn.NameGenerator.fresh("x"), self.parse_annotation(a))
                         for a in arg_types

@@ -13,6 +13,8 @@ from solvent.syntax import (
     HMType,
     ListType,
     ObjectType,
+    Predicate,
+    PredicateVar,
     RType,
     Type,
     TypeVar,
@@ -81,7 +83,7 @@ def check_stmt(
 
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
-            this_type = syn.ArrowType([], argtypes, ret_typ).pos(stmt)
+            this_type = syn.ArrowType({}, argtypes, ret_typ).pos(stmt)
             ret_context = ret_context.add(name, this_type)
 
             # now typecheck the body
@@ -250,12 +252,19 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
 
             match fn_ty:
                 case ArrowType(type_abs=abs, ret=ret):
-                    for var in abs:
-                        tv = TypeVar.fresh(var)
-                        fn_ty = subst_typevar(var, tv, fn_ty)
-                        ret = subst_typevar(var, tv, ret)
+                    for var, kind in abs.items():
+                        if kind == "type":
+                            tv = TypeVar.fresh(var)
+                            fn_ty = subst_typevar(var, tv, fn_ty)
+                            ret = subst_typevar(var, tv, ret)
+                        elif kind == "pred":
+                            pv = PredicateVar.fresh(var)
+                            fn_ty = subst_predvar(var, pv, fn_ty)
+                            ret = subst_predvar(var, pv, ret)
+                        else:
+                            raise NotImplementedError(f"{var}: {kind}")
                     assert isinstance(fn_ty, ArrowType)
-                    fn_ty.type_abs = []
+                    fn_ty.type_abs = {}
                     ret_typ = ret
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("ret")
@@ -263,7 +272,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                     raise Exception("blah")
 
             constrs += [
-                BaseEq(fn_ty, ArrowType([], types, ret_typ).pos(expr)).pos(expr)
+                BaseEq(fn_ty, ArrowType({}, types, ret_typ).pos(expr)).pos(expr)
             ]
             ret_constrs = constrs
 
@@ -309,6 +318,37 @@ def subst_typevar(typevar: str, tar: BaseType, src: Type) -> Type:
                 type_args,
                 pa,
                 {x: subst_typevar(typevar, tar, t) for x, t in fields.items()},
+            )
+        case x:
+            raise NotImplementedError(x)
+
+
+def subst_predvar(predvar: str, tar: Predicate, src: Type) -> Type:
+    match src:
+        case HMType():
+            return src
+        case RType(
+            base=base, predicate=PredicateVar(name=n), pending_subst=ps
+        ) if predvar == n:
+            return syn.RType(base, tar, pending_subst=ps).pos(src)
+        case RType():
+            return src
+        case ArrowType(type_abs=abs, args=args, ret=ret):
+            return ArrowType(
+                type_abs=abs,
+                args=[(x, subst_predvar(predvar, tar, t)) for x, t in args],
+                ret=subst_predvar(predvar, tar, ret),
+            ).pos(src)
+        case ListType(inner_typ=inner):
+            return ListType(subst_predvar(predvar, tar, inner)).pos(src)
+        case ObjectType(
+            name=obj_name, type_args=type_args, predicate_args=pa, fields=fields
+        ):
+            return ObjectType(
+                obj_name,
+                type_args,
+                pa,
+                {x: subst_predvar(predvar, tar, t) for x, t in fields.items()},
             )
         case x:
             raise NotImplementedError(x)

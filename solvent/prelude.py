@@ -20,7 +20,7 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
         "typing",
         [],
         [],
-        {"TypeVar": ArrowType([], [("name", RType.str())], ObjectType("TypeVar"))},
+        {"TypeVar": ArrowType({}, [("name", RType.str())], ObjectType("TypeVar"))},
     ),
     "pandas": ObjectType(
         "pandas",
@@ -28,7 +28,7 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
         [],
         {
             "Series": ArrowType(
-                type_abs=["T"],
+                type_abs={"T": "type", "K": "pred"},
                 args=[("l", ListType(RType(TypeVar("T"), PredicateVar("K"))))],
                 ret=ObjectType(
                     "Series",
@@ -36,7 +36,7 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
                     [],
                     {
                         "max": ArrowType(
-                            [], [], RType(TypeVar("T"), PredicateVar("K"))
+                            {}, [], RType(TypeVar("T"), PredicateVar("K"))
                         ),
                         "data": ListType(RType(TypeVar("T"), PredicateVar("K"))),
                     },
