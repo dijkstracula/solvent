@@ -201,7 +201,6 @@ def check_expr(
             subst = []
             types = []
 
-            debug("ST:", expr, fn_ty)
             match fn_ty:
                 # we know that we have a function type,
                 # so we can generate subtyping relations
@@ -224,6 +223,15 @@ def check_expr(
             name_ty, name_constrs = check_expr(context, assums, name)
             assert isinstance(name_ty, ObjectType)
             return (name_ty.fields[attr], name_constrs)
+        case syn.TypeApp(expr=e, arglist=args):
+            e_ty, constrs = check_expr(context, assums, e)
+            assert isinstance(e_ty, ArrowType) or isinstance(e_ty, ObjectType)
+            for typvar, val in zip(e_ty.type_abs, args):
+                e_ty = e_ty.subst_typevar(typvar, val)
+
+            debug(f"{expr}\n", e_ty, expr.typ)
+
+            return (e_ty, constrs)
         case x:
             raise NotImplementedError(x)
 

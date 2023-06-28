@@ -14,7 +14,7 @@ from solvent.type_applications import TypeApplication
 
 def infer_base(stmts: List[syn.Stmt]) -> Dict[str, Type]:
     norm_stmts = normalize.normalize(stmts)
-    solved_type = hm.solve(norm_stmts)
+    _, solved_type = hm.solve(norm_stmts)
 
     info("Normalized Program:")
     for s in norm_stmts:
@@ -58,10 +58,11 @@ def check(
     info("Normalized Program:")
     info_stmts(stmts)
 
-    info("Insert type applications")
-    TypeApplication(env.clone()).visit_stmts(stmts)
+    info("Inserting type applications")
+    stmts = TypeApplication(env.clone()).visit_stmts(stmts)
+    info_stmts(stmts)
 
-    base_types = hm.solve(stmts, env=env)
+    stmts, base_types = hm.solve(stmts, env=env)
     info("HmType program:")
     info_stmts(stmts, True)
 

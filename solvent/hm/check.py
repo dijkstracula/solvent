@@ -8,14 +8,9 @@ from solvent.env import ScopedEnv
 from solvent.position import Context
 from solvent.syntax import (
     ArrowType,
-    BaseType,
     DictType,
     HMType,
     ListType,
-    ObjectType,
-    Predicate,
-    PredicateVar,
-    RType,
     Type,
     TypeVar,
     base_type_eq,
@@ -251,23 +246,21 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 constrs += cs
 
             match fn_ty:
-                case ArrowType(type_abs=abs, ret=ret):
-                    type_abs = {}
-                    for var, kind in abs.items():
-                        if kind == "type":
-                            tv = TypeVar.fresh(var)
-                            fn_ty = subst_typevar(var, tv, fn_ty)
-                            ret = subst_typevar(var, tv, ret)
-                        elif kind == "pred":
-                            # type_abs[var] = kind
-                            # pass
-                            pv = PredicateVar.fresh(var)
-                            fn_ty = subst_predvar(var, pv, fn_ty)
-                            ret = subst_predvar(var, pv, ret)
-                        else:
-                            raise NotImplementedError(f"{var}: {kind}")
-                    assert isinstance(fn_ty, ArrowType)
-                    fn_ty.type_abs = type_abs
+                case ArrowType(ret=ret):
+                    # type_abs = {}
+                    # for var, kind in abs.items():
+                    #     if kind == "type":
+                    #         tv = TypeVar.fresh(var)
+                    #         fn_ty = subst_typevar(var, tv, fn_ty)
+                    #         ret = subst_typevar(var, tv, ret)
+                    #     elif kind == "pred":
+                    #         pv = PredicateVar.fresh(var)
+                    #         fn_ty = subst_predvar(var, pv, fn_ty)
+                    #         ret = subst_predvar(var, pv, ret)
+                    #     else:
+                    #         raise NotImplementedError(f"{var}: {kind}")
+                    # assert isinstance(fn_ty, ArrowType)
+                    # fn_ty.type_abs = type_abs
                     ret_typ = ret
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("ret")
@@ -289,63 +282,16 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                     ret_typ = HMType.fresh("attr").pos(expr)
                 case t:
                     raise errors.TypeError(BaseEq(t, syn.ObjectType("object")), at=expr)
+        case syn.TypeApp(expr=e, arglist=args):
+            e_typ, e_cstrs = check_expr(context, e)
+            ret_typ = e_typ
+            assert isinstance(e_typ, ArrowType)
+            for (tv, _), concrete in zip(e_typ.type_abs.items(), args):
+                ret_typ = ret_typ.subst_typevar(tv, concrete)
+            assert isinstance(ret_typ, ArrowType)
+            ret_typ.type_abs = {}
+            ret_constrs = e_cstrs
         case x:
             raise NotImplementedError(x)
     expr.annot(ret_typ)
     return ret_typ.pos(expr), ret_constrs
-
-
-def subst_typevar(typevar: str, tar: BaseType, src: Type) -> Type:
-    match src:
-        case HMType(TypeVar(name=n)) if typevar == n:
-            return HMType(tar).pos(src)
-        case HMType():
-            return src
-        case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if typevar == n:
-            return syn.RType(tar, p, pending_subst=ps).pos(src)
-        case RType():
-            return src
-        case ArrowType(type_abs=abs, args=args, ret=ret):
-            return ArrowType(
-                type_abs=abs,
-                args=[(x, subst_typevar(typevar, tar, t)) for x, t in args],
-                ret=subst_typevar(typevar, tar, ret),
-            ).pos(src)
-        case ListType(inner_typ=inner):
-            return ListType(subst_typevar(typevar, tar, inner)).pos(src)
-        case ObjectType(name=obj_name, type_abs=abs, fields=fields):
-            return ObjectType(
-                obj_name,
-                abs,
-                {x: subst_typevar(typevar, tar, t) for x, t in fields.items()},
-            )
-        case x:
-            raise NotImplementedError(x)
-
-
-def subst_predvar(predvar: str, tar: Predicate, src: Type) -> Type:
-    match src:
-        case HMType():
-            return src
-        case RType(
-            base=base, predicate=PredicateVar(name=n), pending_subst=ps
-        ) if predvar == n:
-            return syn.RType(base, tar, pending_subst=ps).pos(src)
-        case RType():
-            return src
-        case ArrowType(type_abs=abs, args=args, ret=ret):
-            return ArrowType(
-                type_abs=abs,
-                args=[(x, subst_predvar(predvar, tar, t)) for x, t in args],
-                ret=subst_predvar(predvar, tar, ret),
-            ).pos(src)
-        case ListType(inner_typ=inner):
-            return ListType(subst_predvar(predvar, tar, inner)).pos(src)
-        case ObjectType(name=obj_name, type_abs=abs, fields=fields):
-            return ObjectType(
-                obj_name,
-                abs,
-                {x: subst_predvar(predvar, tar, t) for x, t in fields.items()},
-            )
-        case x:
-            raise NotImplementedError(x)

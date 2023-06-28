@@ -5,11 +5,13 @@ import solvent.syntax as syn
 from solvent.env import ScopedEnv
 
 from .check import check_stmts
-from .subst import subst_stmts
+from .subst import Subst, subst_stmts
 from .unification import apply, free_vars, unify  # type: ignore
 
 
-def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> Dict[str, syn.Type]:
+def solve(
+    stmts: List[syn.Stmt], env: ScopedEnv | None = None
+) -> tuple[List[syn.Stmt], Dict[str, syn.Type]]:
     if env is None:
         env = ScopedEnv.empty()
 
@@ -30,11 +32,15 @@ def solve(stmts: List[syn.Stmt], env: ScopedEnv | None = None) -> Dict[str, syn.
         info(f"{k} := {v}")
 
     _ = apply(typ, solution)
-    subst_stmts(solution, stmts)
+    # subst_stmts(solution, stmts)
+    stmts = Subst(solution).visit_stmts(stmts)
+
+    for s in stmts:
+        info(s.to_string(True))
 
     function_types = {}
     for s in stmts:
         if isinstance(s, syn.FunctionDef):
             function_types[s.name] = s.typ
 
-    return function_types
+    return (stmts, function_types)

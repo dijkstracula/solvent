@@ -147,6 +147,41 @@ class Type(Pos):
             ret.pending_subst[k] = v
         return ret
 
+    def subst_typevar(self, typevar: str, tar: "Type | Predicate") -> Self:
+        match self:
+            case HMType(TypeVar(name=n)) if typevar == n:
+                assert isinstance(tar, Self)
+                return HMType(tar.base_type()).pos(self)
+            case HMType():
+                return self
+            case RType(base=base, predicate=p, pending_subst=ps):
+                if isinstance(base, TypeVar) and base.name == typevar:
+                    assert isinstance(tar, Type)
+                    base = tar.base_type()
+
+                if isinstance(p, PredicateVar) and p.name == typevar:
+                    assert isinstance(tar, Predicate)
+                    p = tar
+
+                return RType(base, p, pending_subst=ps).pos(self)
+
+            case ArrowType(type_abs=abs, args=args, ret=ret):
+                return ArrowType(
+                    type_abs={k: abs[k] for k in abs if k != typevar},
+                    args=[(x, t.subst_typevar(typevar, tar)) for x, t in args],
+                    ret=ret.subst_typevar(typevar, tar),
+                )
+            case ListType(inner_typ=inner):
+                return ListType(inner.subst_typevar(typevar, tar)).pos(self)
+            case ObjectType(name=obj_name, type_abs=abs, fields=fields):
+                return ObjectType(
+                    obj_name,
+                    abs,
+                    {x: t.subst_typevar(typevar, tar) for x, t in fields.items()},
+                )
+            case x:
+                raise NotImplementedError(x)
+
     def shape(self) -> Self:
         """
         Implementation of the shape function from the paper.
@@ -402,8 +437,8 @@ class Expr(Pos, TypeAnnotation):
             case GetAttr(name=obj, attr=attr):
                 return f"{obj.to_string(include_types)}.{attr}"
             case TypeApp(expr=e, arglist=args):
-                arg_str = ", ".join([a.to_string(include_types) for a in args])
-                return f"{e.to_string(include_types)}[{arg_str}]"
+                arg_str = ", ".join([str(a) for a in args])
+                return f"{e.to_string(include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
             case x:
                 return f"`{repr(x)}`"
 
@@ -502,7 +537,7 @@ class GetAttr(Expr):
 @dataclass
 class TypeApp(Expr):
     expr: Expr
-    arglist: List[Expr]
+    arglist: List[Type | Predicate]
 
 
 @dataclass

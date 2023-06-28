@@ -20,6 +20,7 @@ from solvent.syntax import (
     StrLiteral,
     Subscript,
     Type,
+    TypeApp,
     V,
     Variable,
 )
@@ -94,8 +95,9 @@ class Visitor:
                 self.end_ListLiteral(new_expr)
             case GetAttr(name=name, attr=attr):
                 self.start_GetAttr(cast(GetAttr, expr))
-                new_expr = GetAttr(name=self.visit_expr(name), attr=attr, typ=expr.typ)
-                self.end_GetAttr(new_expr)
+                new_expr = self.end_GetAttr(
+                    GetAttr(name=self.visit_expr(name), attr=attr, typ=expr.typ)
+                )
             case Subscript(value=v, idx=e):
                 self.start_Subscript(cast(Subscript, expr))
                 new_expr = Subscript(self.visit_expr(v), self.visit_expr(e))
@@ -117,7 +119,11 @@ class Visitor:
                     [self.visit_expr(a) for a in args],
                     typ=expr.typ,
                 )
-                self.end_Call(new_expr)
+                new_expr = self.end_Call(new_expr)
+            case TypeApp(expr=e, arglist=args):
+                self.start_TypeApp(cast(TypeApp, expr))
+                new_expr = TypeApp(self.visit_expr(e), args, typ=expr.typ)
+                new_expr = self.end_TypeApp(new_expr)
             case x:
                 raise errors.Unreachable(x)
         if new_expr is None:
@@ -204,7 +210,7 @@ class Visitor:
     def start_GetAttr(self, lit: GetAttr):
         pass
 
-    def end_GetAttr(self, lit: GetAttr):
+    def end_GetAttr(self, lit: GetAttr) -> Expr | None:
         pass
 
     def start_Subscript(self, subscript: Subscript):
@@ -228,5 +234,11 @@ class Visitor:
     def start_Call(self, op: Call):
         pass
 
-    def end_Call(self, op: Call):
+    def end_Call(self, op: Call) -> Expr:
+        return op
+
+    def start_TypeApp(self, op: TypeApp):
+        pass
+
+    def end_TypeApp(self, op: TypeApp) -> Expr | None:
         pass
