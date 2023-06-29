@@ -1,16 +1,19 @@
 import ast
 import inspect
-from logging import error, info
+from logging import error
 from typing import get_type_hints
 
 from solvent import errors, frontend, parse
 from solvent import syntax as syn
+from solvent.frontend import log
 from solvent.position import Context
 
 
 def infer(quals=None, debug=False):
     if quals is None:
         quals = []
+
+    log.install(debug)
 
     def inner(func):
         source, startline = inspect.getsourcelines(func)
@@ -19,17 +22,13 @@ def infer(quals=None, debug=False):
         lines = "".join(source).split("\n")
 
         syn.NameGenerator.reset()
-        try:
-            with Context(lines=lines):  # type: ignore
+        with Context(lines=lines):  # type: ignore
+            try:
                 typ = frontend.check(res, quals)
-                info(f"{func.__name__}: {typ}")
-        except errors.TypeError as e:
-            msg = "Context:\n"
-            msg += e.context(lines, startline) + "\n"
-            msg += f"Type Error: {e.msg}"
-            error(msg)
-
-            raise e
+                print(f"{func.__name__}: {typ[func.__name__]}")
+            except errors.TypeError as e:
+                error(e)
+                raise e
 
         return func
 

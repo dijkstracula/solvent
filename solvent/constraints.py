@@ -8,6 +8,7 @@ as well as Sub-type constraints for infering refinement predicates.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from logging import debug
 from typing import List
 
 from solvent import errors
@@ -56,10 +57,12 @@ def check_stmt(
     context: ScopedEnv, assums: List[syn.Expr], stmt: syn.Stmt
 ) -> tuple[syn.Type, List[SubType], ScopedEnv]:
     match stmt:
-        case syn.FunctionDef(name=name, body=body, typ=ArrowType(args=args, ret=ret)):
+        case syn.FunctionDef(
+            name=name, body=body, typ=ArrowType(type_abs=abs, args=args, ret=ret)
+        ):
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
-            this_type = syn.ArrowType(args, ret)
+            this_type = syn.ArrowType(abs, args, ret)
             context = context.add(name, this_type)
             body_context = context.push_scope()
 
@@ -170,6 +173,8 @@ def check_expr(
             )
         case syn.BoolLiteral(_):
             return (RType.bool().pos(expr), [])
+        case syn.StrLiteral():
+            return (RType.str().pos(expr), [])
         case syn.ListLiteral(elts=elts, typ=ListType(inner_typ)):
             constrs: List[SubType] = []
             for e in elts:
@@ -218,6 +223,15 @@ def check_expr(
             name_ty, name_constrs = check_expr(context, assums, name)
             assert isinstance(name_ty, ObjectType)
             return (name_ty.fields[attr], name_constrs)
+        case syn.TypeApp(expr=e, arglist=args):
+            e_ty, constrs = check_expr(context, assums, e)
+            assert isinstance(e_ty, ArrowType) or isinstance(e_ty, ObjectType)
+            for typvar, val in zip(e_ty.type_abs, args):
+                e_ty = e_ty.subst_typevar(typvar, val)
+
+            debug(f"{expr}\n", e_ty, expr.typ)
+
+            return (e_ty, constrs)
         case x:
             raise NotImplementedError(x)
 
@@ -246,8 +260,9 @@ def shrink(solution):
                     return solution[n]
                 else:
                     return typ
-            case ArrowType(args=args, ret=ret, pending_subst=ps):
+            case ArrowType(type_abs=abs, args=args, ret=ret, pending_subst=ps):
                 return ArrowType(
+                    type_abs=abs,
                     args=[(name, lookup(a, solution)) for name, a in args],
                     ret=lookup(ret, solution),
                     pending_subst=ps,

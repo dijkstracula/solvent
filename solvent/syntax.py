@@ -8,7 +8,10 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Self
 
+from ansi.color import fg, fx
+
 from solvent.position import Position
+from solvent.utils import default
 
 
 @dataclass(kw_only=True)
@@ -17,14 +20,14 @@ class Pos:
     Describes things that can carry position information around
     """
 
-    position: Position | None = field(default=None, repr=False)
+    position: Position = field(default_factory=Position, repr=False)
 
     def ast(self, node: ast.AST):
         self.position = Position(
             lineno=node.lineno,
-            end_lineno=node.end_lineno,
+            end_lineno=default(node.end_lineno, fallback=node.lineno),
             col_offset=node.col_offset,
-            end_col_offset=node.end_col_offset,
+            end_col_offset=default(node.end_col_offset, fallback=node.col_offset),
         )
         return self
 
@@ -41,6 +44,8 @@ class BaseType(Pos):
                 return "int"
             case Bool():
                 return "bool"
+            case Str():
+                return "str"
             case Unit():
                 return "unit"
             case TypeVar(name=n):
@@ -61,6 +66,11 @@ class Int(BaseType):
 
 @dataclass
 class Bool(BaseType):
+    pass
+
+
+@dataclass
+class Str(BaseType):
     pass
 
 
@@ -137,6 +147,41 @@ class Type(Pos):
             ret.pending_subst[k] = v
         return ret
 
+    def subst_typevar(self, typevar: str, tar: "Type | Predicate") -> Self:
+        match self:
+            case HMType(TypeVar(name=n)) if typevar == n:
+                assert isinstance(tar, Self)
+                return HMType(tar.base_type()).pos(self)
+            case HMType():
+                return self
+            case RType(base=base, predicate=p, pending_subst=ps):
+                if isinstance(base, TypeVar) and base.name == typevar:
+                    assert isinstance(tar, Type)
+                    base = tar.base_type()
+
+                if isinstance(p, PredicateVar) and p.name == typevar:
+                    assert isinstance(tar, Predicate)
+                    p = tar
+
+                return RType(base, p, pending_subst=ps).pos(self)
+
+            case ArrowType(type_abs=abs, args=args, ret=ret):
+                return ArrowType(
+                    type_abs={k: abs[k] for k in abs if k != typevar},
+                    args=[(x, t.subst_typevar(typevar, tar)) for x, t in args],
+                    ret=ret.subst_typevar(typevar, tar),
+                )
+            case ListType(inner_typ=inner):
+                return ListType(inner.subst_typevar(typevar, tar)).pos(self)
+            case ObjectType(name=obj_name, type_abs=abs, fields=fields):
+                return ObjectType(
+                    obj_name,
+                    abs,
+                    {x: t.subst_typevar(typevar, tar) for x, t in fields.items()},
+                )
+            case x:
+                raise NotImplementedError(x)
+
     def shape(self) -> Self:
         """
         Implementation of the shape function from the paper.
@@ -144,8 +189,9 @@ class Type(Pos):
         """
 
         match self:
-            case ArrowType(args=args, ret=ret, pending_subst=ps):
+            case ArrowType(type_abs=abs, args=args, ret=ret, pending_subst=ps):
                 return ArrowType(
+                    type_abs=abs,
                     args=[(name, a.shape()) for name, a in args],
                     ret=ret.shape(),
                     pending_subst=ps,
@@ -156,10 +202,23 @@ class Type(Pos):
                 return self
             case ListType(inner_typ):
                 return ListType(inner_typ.shape())
-            case ObjectType(fields):
-                return ObjectType({name: typ.shape() for name, typ in fields.items()})
+            case ObjectType(name=name, type_abs=abs, fields=fields):
+                return ObjectType(
+                    name,
+                    abs,
+                    {name: typ.shape() for name, typ in fields.items()},
+                )
             case x:
                 raise Exception(f"`{x}` is not a Type.")
+
+    def base_type(self) -> BaseType:
+        match self:
+            case HMType(base=base):
+                return base
+            case RType(base=base):
+                return base
+            case x:
+                raise Exception(f"Can't take the base type of {x}.")
 
     def __str__(self):
         match self:
@@ -175,9 +234,11 @@ class Type(Pos):
                 else:
                     inner = ",".join([f"{k}->({e})" for k, e in ps.items()])
                     return f"{{{base} | {pred} [{inner}]}}"
-            case ArrowType(args=args, ret=ret):
-                return "({}) -> {}".format(
-                    ", ".join([f"{name}:{t}" for name, t in args]), ret
+            case ArrowType(type_abs=abs, args=args, ret=ret):
+                return "{}({}) -> {}".format(
+                    "∀({}), ".format(", ".join(abs)) if len(abs) > 0 else "",
+                    ", ".join([f"{name}:{t}" for name, t in args]),
+                    ret,
                 )
             case Bottom():
                 return "False"
@@ -191,12 +252,21 @@ class Type(Pos):
                     return f"DataFrame({tmp}, ..)"
                 else:
                     return "DataFrame(..?)"
-            case ObjectType(fields=fields):
+            case ObjectType(name=name, type_abs=abs, fields=fields):
+                if len(abs) == 0:
+                    type_args_str = ""
+                elif len(abs) == 1:
+                    type_args_str = "∀" + "".join(map(str, abs.keys())) + ", "
+                else:
+                    type_args_str = "∀(" + ", ".join(map(str, abs.keys())) + "), "
+
                 tmp = ", ".join([f"{k}: {v}" for k, v in fields.items()])
                 if len(tmp) > 0:
-                    return f"Object{{ {tmp} }}"
+                    value_str = f"{{{tmp}}}"
                 else:
-                    return "Object"
+                    value_str = ""
+
+                return f"{type_args_str}{name}{value_str}"
             case x:
                 raise Exception(x, type(x))
 
@@ -221,6 +291,10 @@ class HMType(Type):
     @staticmethod
     def int():
         return HMType(Int())
+
+    @staticmethod
+    def str():
+        return HMType(Str())
 
     @staticmethod
     def fresh(name="t"):
@@ -250,9 +324,14 @@ class RType(Type):
     def int():
         return RType(Int(), Conjoin([BoolLiteral(value=True)]))
 
+    @staticmethod
+    def str():
+        return RType(Str(), Conjoin([BoolLiteral(value=True)]))
+
 
 @dataclass
 class ArrowType(Type):
+    type_abs: Dict[str, str]
     args: List[tuple[str, Type]]
     ret: Type
 
@@ -276,13 +355,9 @@ class DataFrameType(Type):
 
 @dataclass
 class ObjectType(Type):
-    fields: Dict[str, Type]
-
-    @staticmethod
-    def series(inner_typ: Type):
-        return ObjectType(
-            {"max": ArrowType([], inner_typ), "data": ListType(inner_typ)}
-        )
+    name: str
+    type_abs: Dict[str, str] = field(default_factory=dict)
+    fields: Dict[str, Type] = field(default_factory=dict)
 
 
 @dataclass
@@ -296,12 +371,10 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
     """
 
     match (t1.shape(), t2.shape()):
-        case HMType(base=Int()), HMType(base=Int()):
-            return True
-        case HMType(base=Bool()), HMType(base=Bool()):
-            return True
         case HMType(TypeVar(name=n1)), HMType(TypeVar(name=n2)):
             return n1 == n2
+        case HMType(base=x), HMType(base=y):
+            return x == y
         case (ArrowType(args=args1, ret=ret1), ArrowType(args=args2, ret=ret2)):
             args_eq = all(
                 map(lambda a: base_type_eq(a[0][1], a[1][1]), zip(args1, args2))
@@ -309,7 +382,7 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
             return args_eq and base_type_eq(ret1, ret2)
         case ListType(inner_typ1), ListType(inner_typ2):
             return base_type_eq(inner_typ1, inner_typ2)
-        case ObjectType(fields=f0), ObjectType(fields=f1):
+        case ObjectType(name=n0, fields=f0), ObjectType(name=n1, fields=f1) if n0 == n1:
             return sorted(f0.keys()) == sorted(f1.keys()) and all(
                 [base_type_eq(v, f1[k]) for k, v in f0.items()]
             )
@@ -365,6 +438,9 @@ class Expr(Pos, TypeAnnotation):
                 return f"{fn}({', '.join(args)})"
             case GetAttr(name=obj, attr=attr):
                 return f"{obj.to_string(include_types)}.{attr}"
+            case TypeApp(expr=e, arglist=args):
+                arg_str = ", ".join([str(a) for a in args])
+                return f"{e.to_string(include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
             case x:
                 return f"`{repr(x)}`"
 
@@ -461,6 +537,12 @@ class GetAttr(Expr):
 
 
 @dataclass
+class TypeApp(Expr):
+    expr: Expr
+    arglist: List[Type | Predicate]
+
+
+@dataclass
 class Argument:
     name: str
     annotation: Optional[Type]
@@ -480,8 +562,10 @@ class Stmt(Pos, TypeAnnotation):
             case FunctionDef(
                 name=name, body=stmts, typ=ArrowType(args=args, ret=retann)
             ) if include_types:
-                argstr = ", ".join([f"{x}:{t}" for x, t in args])
-                retstr = f" -> {retann}:" if retann is not None else ":"
+                argstr = ", ".join([f"{x}:{fg.yellow}{t}{fx.reset}" for x, t in args])
+                retstr = (
+                    f" -> {fg.yellow}{retann}{fx.reset}:" if retann is not None else ":"
+                )
                 bodystr = "\n".join(
                     [s.to_string(indent + 2, include_types) for s in stmts]
                 )
@@ -515,7 +599,7 @@ class Stmt(Pos, TypeAnnotation):
                 )
                 return res
             case Assign(name=name, value=value):
-                typann = f": {self.typ}" if include_types else ""
+                typann = f": {fg.yellow}{self.typ}{fx.reset}" if include_types else ""
                 return f"{align}{name}{typann} = {value.to_string(False)}"
             case Return(value):
                 return f"{align}return {value.to_string(include_types)}"
@@ -523,7 +607,7 @@ class Stmt(Pos, TypeAnnotation):
                 return f"{align}{repr(x)}"
 
     def __str__(self):
-        return self.to_string(0)
+        return self.to_string()
 
 
 @dataclass

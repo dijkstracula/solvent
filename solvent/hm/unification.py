@@ -2,13 +2,14 @@
 Implementation of the Hindley-Milner Unification Algorithm
 """
 
-from logging import debug
+from logging import info
 from typing import Dict, List, Tuple
 
 from solvent import errors
 from solvent.env import ScopedEnv
 from solvent.syntax import (
     ArrowType,
+    Bottom,
     DataFrameType,
     HMType,
     ListType,
@@ -29,10 +30,10 @@ def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
         case []:
             return []
         case [top, *rest]:
-            debug("====== unify ======")
-            debug(f"=> {top}")
+            info("====== unify ======")
+            info(f"=> {top}")
             for c in rest:
-                debug(c)
+                info(c)
 
             lX = tvar_name(top.lhs)
             rX = tvar_name(top.rhs)
@@ -60,10 +61,12 @@ def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
                 ret_constr = BaseEq(lhs=top.lhs.ret, rhs=top.rhs.ret)
                 return solve(arg_constrs + [ret_constr] + rest)
             elif isinstance(top.lhs, ListType) and isinstance(top.rhs, ListType):
-                inner_constr = BaseEq(lhs=top.lhs.inner_typ, rhs=top.rhs.inner_typ)
+                inner_constr = BaseEq(lhs=top.lhs.inner_typ, rhs=top.rhs.inner_typ).pos(
+                    top.lhs.inner_typ
+                )
                 return solve([inner_constr] + rest)
             else:
-                raise errors.TypeError(top)
+                raise errors.TypeError(top, at=top)
         case _:
             raise Exception(f"Constrs wasn't a list: {constrs}")
 
@@ -112,6 +115,8 @@ def tvar_name(typ: Type):
     match typ:
         case HMType(TypeVar(name=name)):
             return name
+        case RType(base=TypeVar(name=name)):
+            return name
         case _:
             return None
 
@@ -138,6 +143,8 @@ def free_vars(typ: Type) -> list[str]:
             return sum([free_vars(t) for _, t in cols.items()], [])
         case ObjectType(fields=fields):
             return sum([free_vars(t) for _, t in fields.items()], [])
+        case Bottom():
+            return []
         case x:
             raise NotImplementedError(x, type(x))
 
@@ -156,18 +163,27 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
     match src:
         case HMType(TypeVar(name=n)) if name == n:
             return tar
+        case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if name == n:
+            return RType(base=tar.base_type(), predicate=p, pending_subst=ps).pos(tar)
         case HMType():
             return src
-        case ArrowType(args=args, ret=ret):
+        case RType():
+            return src
+        case ArrowType(type_abs=abs, args=args, ret=ret):
             return ArrowType(
+                type_abs=abs,
                 args=[(x, subst_one(name, tar, t)) for x, t in args],
                 ret=subst_one(name, tar, ret),
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_one(name, tar, inner)).pos(src)
-        case ObjectType(fields=fields):
+        case ObjectType(name=obj_name, type_abs=abs, fields=fields):
+            if name in abs:
+                del abs[name]
             return ObjectType(
-                {x: subst_one(name, tar, t) for x, t in fields.items()}
+                obj_name,
+                abs,
+                {x: subst_one(name, tar, t) for x, t in fields.items()},
             ).pos(src)
         case x:
             raise NotImplementedError(f"subst one: {x}")
@@ -182,14 +198,24 @@ def apply(typ: Type, solution: Solution) -> Type:
         case HMType(TypeVar(name=n)) if n in solution:
             return apply(solution[n], solution)
         case RType(base=TypeVar(name=n)) if n in solution:
-            return apply(solution[n], solution)
-        case ArrowType(args=args, ret=ret):
+            ret = apply(solution[n], solution)
+            return ret
+        case ArrowType(type_abs=abs, args=args, ret=ret):
             return ArrowType(
+                type_abs=abs,
                 args=[(name, apply(t, solution)) for name, t in args],
                 ret=apply(ret, solution),
             )
         case ListType(inner_typ=inner):
             return ListType(inner_typ=apply(inner, solution))
+        case ObjectType(name=name, type_abs=abs, fields=fields):
+            new_type_abs = {}
+            for t, k in abs.items():
+                if t in solution:
+                    fields = {name: apply(t, solution) for name, t in fields.items()}
+                else:
+                    new_type_abs[t] = k
+            return ObjectType(name, new_type_abs, fields)
         case _:
             return typ
 

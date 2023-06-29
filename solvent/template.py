@@ -27,7 +27,7 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             return typ
         case HMType(base=base):
             return RType.template(base)
-        case ArrowType(args=args, ret=ret):
+        case ArrowType(type_abs=abs, args=args, ret=ret):
             argtypes = []
             for name, t in args:
                 if name not in env or env[name] is None:
@@ -36,6 +36,7 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
                 argtypes += [(name, env[name])]
 
             return ArrowType(
+                abs,
                 argtypes,
                 template_type(ret, env),
             )
@@ -43,17 +44,19 @@ def template_type(typ: Type, env: ScopedEnv) -> Type:
             return ListType(template_type(inner_typ, env))
         case DataFrameType(columns=c):
             return DataFrameType({name: template_type(t, env) for name, t in c.items()})
-        case ObjectType(fields=fields):
+        case ObjectType(name=name, type_abs=abs, fields=fields):
             return ObjectType(
-                {name: template_type(t, env) for name, t in fields.items()}
+                name,
+                abs,
+                {name: template_type(t, env) for name, t in fields.items()},
             )
         case x:
             raise errors.Unreachable(x)
 
 
 class Templatizer(ScopedEnvVisitor):
-    def start(self):
-        super().start()
+    def start(self, initial_env: ScopedEnv | None = None):
+        super().start(initial_env)
         # TODO: template_type for whatever is in the env
         for name, typ in list(self.env.items()):
             self.env[name] = template_type(typ, self.env)
@@ -89,7 +92,7 @@ class Templatizer(ScopedEnvVisitor):
         else:
             ret = template_type(fd.typ.ret, self.env)
 
-        fd.annot(ArrowType(args, ret))
+        fd.annot(ArrowType(fd.typ.type_abs, args, ret))
 
         # we want to add our newly templated type to the scoped env
         # so we call our superclass after we have created the template types
@@ -114,7 +117,7 @@ class Templatizer(ScopedEnvVisitor):
         if var.name in self.env:
             var.annot(self.env[var.name])
         else:
-            raise errors.Unreachable()
+            raise errors.Unreachable(f"{var} is undefined")
 
     def start_IntLiteral(self, lit: IntLiteral):
         super().start_IntLiteral(lit)

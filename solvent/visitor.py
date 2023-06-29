@@ -17,8 +17,10 @@ from solvent.syntax import (
     Return,
     Star,
     Stmt,
+    StrLiteral,
     Subscript,
     Type,
+    TypeApp,
     V,
     Variable,
 )
@@ -85,14 +87,17 @@ class Visitor:
                 self.end_ArithBinOp(new_expr)
             case BoolLiteral():
                 new_expr = self.start_BoolLiteral(cast(BoolLiteral, expr))
+            case StrLiteral():
+                new_expr = self.start_StrLiteral(cast(StrLiteral, expr))
             case ListLiteral(elts=elts):
                 self.start_ListLiteral(cast(ListLiteral, expr))
                 new_expr = ListLiteral([self.visit_expr(e) for e in elts], typ=expr.typ)
                 self.end_ListLiteral(new_expr)
             case GetAttr(name=name, attr=attr):
                 self.start_GetAttr(cast(GetAttr, expr))
-                new_expr = GetAttr(name=self.visit_expr(name), attr=attr, typ=expr.typ)
-                self.end_GetAttr(new_expr)
+                new_expr = self.end_GetAttr(
+                    GetAttr(name=self.visit_expr(name), attr=attr, typ=expr.typ)
+                )
             case Subscript(value=v, idx=e):
                 self.start_Subscript(cast(Subscript, expr))
                 new_expr = Subscript(self.visit_expr(v), self.visit_expr(e))
@@ -114,7 +119,11 @@ class Visitor:
                     [self.visit_expr(a) for a in args],
                     typ=expr.typ,
                 )
-                self.end_Call(new_expr)
+                new_expr = self.end_Call(new_expr)
+            case TypeApp(expr=e, arglist=args):
+                self.start_TypeApp(cast(TypeApp, expr))
+                new_expr = TypeApp(self.visit_expr(e), args, typ=expr.typ)
+                new_expr = self.end_TypeApp(new_expr)
             case x:
                 raise errors.Unreachable(x)
         if new_expr is None:
@@ -180,13 +189,10 @@ class Visitor:
     def start_IntLiteral(self, lit: IntLiteral):
         pass
 
-    def start_ArithBinOp(self, arith_bin_op: ArithBinOp):
-        pass
-
-    def end_ArithBinOp(self, arith_bin_op: ArithBinOp):
-        pass
-
     def start_BoolLiteral(self, lit: BoolLiteral):
+        pass
+
+    def start_StrLiteral(self, lit: StrLiteral):
         pass
 
     def start_ListLiteral(self, lit: ListLiteral):
@@ -195,10 +201,16 @@ class Visitor:
     def end_ListLiteral(self, lit: ListLiteral):
         pass
 
+    def start_ArithBinOp(self, arith_bin_op: ArithBinOp):
+        pass
+
+    def end_ArithBinOp(self, arith_bin_op: ArithBinOp):
+        pass
+
     def start_GetAttr(self, lit: GetAttr):
         pass
 
-    def end_GetAttr(self, lit: GetAttr):
+    def end_GetAttr(self, lit: GetAttr) -> Expr | None:
         pass
 
     def start_Subscript(self, subscript: Subscript):
@@ -222,5 +234,11 @@ class Visitor:
     def start_Call(self, op: Call):
         pass
 
-    def end_Call(self, op: Call):
+    def end_Call(self, op: Call) -> Expr:
+        return op
+
+    def start_TypeApp(self, op: TypeApp):
+        pass
+
+    def end_TypeApp(self, op: TypeApp) -> Expr | None:
         pass

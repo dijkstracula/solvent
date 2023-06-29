@@ -1,5 +1,5 @@
 import ast
-from logging import debug
+from logging import info
 from typing import Annotated, Any, Dict, List, get_args, get_origin
 
 import solvent
@@ -86,7 +86,7 @@ class Parser:
             case ast.Pass():
                 return []
             case _ if not self.strict:
-                debug(ast.dump(tree, indent=2))
+                info(ast.dump(tree, indent=2))
                 return []
             case _:
                 raise NotImplementedError(ast.dump(tree, indent=2))
@@ -206,6 +206,7 @@ class Parser:
                     ret = syn.RType.lift(syn.Unit())
 
                 return syn.ArrowType(
+                    type_abs={},
                     args=[
                         (syn.NameGenerator.fresh("x"), self.parse_annotation(a))
                         for a in arg_types
@@ -214,7 +215,7 @@ class Parser:
                 )
             case x:
                 if x is not None and isinstance(x, ast.AST):
-                    debug(ast.dump(ann, indent=2))
+                    info(ast.dump(ann, indent=2))
                 raise NotImplementedError(x)
 
     def parse_expr(self, expr) -> syn.Expr:
@@ -252,7 +253,7 @@ class Parser:
                 elif type(val) == str and not self.strict:
                     return syn.StrLiteral(value=val).ast(expr)
                 else:
-                    raise NotImplementedError(val)
+                    raise NotImplementedError(val, type(val))
             case ast.List(elts=elts, ctx=ast.Load()):
                 exprs = [self.parse_expr(e) for e in elts]
                 return syn.ListLiteral(exprs).ast(expr)

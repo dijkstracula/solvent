@@ -77,3 +77,13 @@ df["mean"] = df["A"].mean()
 
 # DataFrame[.., mean: {float | V == self["A"].mean()}]
 ```
+
+# Things
+
+## Some classes of operators
+
+1) Asserting that all values in a column are in some set
+  - Can do this by filtering positively, and negatively
+  - some kind of normalization (normalizing a bunch of strings, normalizing values)
+    - mapping a function across a column
+2) Pivoting

@@ -17,7 +17,7 @@ class CustomFormatter(logging.Formatter):
     def format(self, record):
         if record.args is not None:
             # if we have args, join them with a space
-            args = " ".join(map(str, record.args))
+            args = "\n".join(map(str, record.args))
             # we are handling args ourselves, so we set
             # record.args to None so that it doesn't yell at us
             record.args = None
@@ -56,7 +56,7 @@ def install(debug=False):
     if debug:
         root_logger.setLevel(logging.DEBUG)
     else:
-        root_logger.setLevel(logging.INFO)
+        root_logger.setLevel(logging.WARNING)
     console_handler = logging.StreamHandler(stream=sys.stdout)
     colored_formatter = CustomFormatter()
     console_handler.setFormatter(colored_formatter)

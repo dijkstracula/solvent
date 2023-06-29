@@ -31,7 +31,8 @@ class BaseEq(syn.Pos):
 
     def __str__(self):
         return (
-            f"{self.lhs} == {self.rhs} ({Context.single(at=self.position, color=True)})"
+            f"{self.lhs} == {self.rhs} "
+            + f"({Context.single(at=self.position, color=True)})"
         )
 
 
@@ -77,7 +78,7 @@ def check_stmt(
 
             # add the function that we are currently defining to our
             # context, so that we can support recursive uses
-            this_type = syn.ArrowType(argtypes, ret_typ).pos(stmt)
+            this_type = syn.ArrowType({}, argtypes, ret_typ).pos(stmt)
             ret_context = ret_context.add(name, this_type)
 
             # now typecheck the body
@@ -180,6 +181,8 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
         case syn.ListLiteral(elts=[]):
             inner_ty = HMType.fresh("lst").pos(expr)
             ret_typ = ListType(inner_ty)
+        case syn.StrLiteral():
+            ret_typ = HMType.str()
         case syn.ListLiteral(elts=elts):
             elts_typs = [check_expr(context, e) for e in elts]
             assert elts_typs != []
@@ -248,9 +251,11 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("ret")
                 case t:
-                    raise Exception("blah")
+                    raise NotImplementedError(t)
 
-            constrs += [BaseEq(fn_ty, ArrowType(types, ret_typ).pos(expr)).pos(expr)]
+            constrs += [
+                BaseEq(fn_ty, ArrowType({}, types, ret_typ).pos(expr)).pos(expr)
+            ]
             ret_constrs = constrs
 
         case syn.GetAttr(name=name, attr=attr):
@@ -262,9 +267,16 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("attr").pos(expr)
                 case t:
-                    raise errors.TypeError(
-                        BaseEq(t, syn.ObjectType({attr: syn.Bottom()}))
-                    )
+                    raise errors.TypeError(BaseEq(t, syn.ObjectType("object")), at=expr)
+        case syn.TypeApp(expr=e, arglist=args):
+            e_typ, e_cstrs = check_expr(context, e)
+            ret_typ = e_typ
+            assert isinstance(e_typ, ArrowType)
+            for (tv, _), concrete in zip(e_typ.type_abs.items(), args):
+                ret_typ = ret_typ.subst_typevar(tv, concrete)
+            assert isinstance(ret_typ, ArrowType)
+            ret_typ.type_abs = {}
+            ret_constrs = e_cstrs
         case x:
             raise NotImplementedError(x)
     expr.annot(ret_typ)

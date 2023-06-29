@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import dataclass
+from logging import debug
 from typing import Any, Dict, List, Self
 
 from solvent import syntax as syn
@@ -16,26 +17,6 @@ class ScopedEnv:
     """
 
     scopes: List[Dict[str, Any]]
-
-    @staticmethod
-    def default():
-        # HACK
-        series_innerty = syn.RType(base=syn.Int(), predicate=syn.PredicateVar("xs0"))
-        return (
-            ScopedEnv.empty()
-            .add(
-                "pd",
-                syn.ObjectType(
-                    {
-                        "Series": syn.ArrowType(
-                            args=[("l", syn.ListType(series_innerty))],
-                            ret=syn.ObjectType.series(series_innerty),
-                        )
-                    }
-                ),
-            )
-            .push_scope()
-        )
 
     @staticmethod
     def empty():
@@ -107,21 +88,26 @@ class ScopedEnv:
 
 
 class ScopedEnvVisitor(Visitor):
-    def start(self):
-        self.env = ScopedEnv.default()
+    def start(self, initial_env: ScopedEnv | None = None):
+        if initial_env is None:
+            initial_env = ScopedEnv.empty()
+        else:
+            debug(f"Starting with {initial_env}")
+
+        self.env = initial_env
 
     def start_FunctionDef(self, fd: syn.FunctionDef):
-        assert isinstance(fd.typ, syn.ArrowType)
+        if isinstance(fd.typ, syn.ArrowType):
+            # add function name to current scope
+            self.env[fd.name] = fd.typ
 
-        # add function name to current scope
-        self.env[fd.name] = fd.typ
+            self.env.push_scope_mut()
+            for name, t in fd.typ.args:
+                self.env[name] = t
 
-        self.env.push_scope_mut()
-        for name, t in fd.typ.args:
-            self.env[name] = t
-
-    def end_FunctionDef(self, _: syn.FunctionDef):
-        self.env.pop_scope_mut()
+    def end_FunctionDef(self, fd: syn.FunctionDef):
+        if isinstance(fd.typ, syn.ArrowType):
+            self.env.pop_scope_mut()
 
     def end_Assign(self, stmt: syn.Assign):
         self.env[stmt.name] = stmt.typ
