@@ -14,6 +14,21 @@ from solvent.position import Position
 from solvent.utils import default
 
 
+class ID:
+    next_id: int = 0
+
+    @classmethod
+    def next(cls):
+        i = cls.next_id
+        cls.next_id += 1
+        return i
+
+
+@dataclass(kw_only=True)
+class Node:
+    node_id: int = field(default_factory=ID.next)
+
+
 @dataclass(kw_only=True)
 class Pos:
     """
@@ -400,7 +415,7 @@ class TypeAnnotation:
 
 
 @dataclass
-class Expr(Pos, TypeAnnotation):
+class Expr(Node, Pos, TypeAnnotation):
     def to_string(self, include_types=False) -> str:
         match self:
             case Variable(name=x):
@@ -555,7 +570,7 @@ class Argument:
 
 
 @dataclass
-class Stmt(Pos, TypeAnnotation):
+class Stmt(Node, Pos, TypeAnnotation):
     def to_string(self, indent=0, include_types=False):
         align = " " * indent
         match self:
