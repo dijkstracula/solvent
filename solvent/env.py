@@ -105,8 +105,9 @@ class ScopedEnvVisitor(Visitor):
             for name, t in fd.typ.args:
                 self.env[name] = t
 
-    def end_FunctionDef(self, _: syn.FunctionDef):
-        self.env.pop_scope_mut()
+    def end_FunctionDef(self, fd: syn.FunctionDef):
+        if isinstance(fd.typ, syn.ArrowType):
+            self.env.pop_scope_mut()
 
     def end_Assign(self, stmt: syn.Assign):
         self.env[stmt.name] = stmt.typ

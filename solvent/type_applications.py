@@ -1,5 +1,3 @@
-from logging import debug
-
 from solvent.env import ScopedEnvVisitor
 from solvent.errors import Unreachable
 from solvent.syntax import (
@@ -19,7 +17,6 @@ class TypeApplication(ScopedEnvVisitor):
     def end_Call(self, op: Call):
         super().end_Call(op)
 
-        debug(repr(op))
         obj_type = op.function_name.typ
         if isinstance(obj_type, ArrowType):
             if len(obj_type.type_abs) > 0:
@@ -37,13 +34,14 @@ class TypeApplication(ScopedEnvVisitor):
                 ).pos(op)
 
     def start_Variable(self, var: Variable):
-        var.annot(self.env[var.name])
+        if var.name in self.env:
+            var.annot(self.env[var.name])
         super().start_Variable(var)
 
     def end_GetAttr(self, lit: GetAttr):
         super().end_GetAttr(lit)
 
-        assert isinstance(lit.name.typ, ObjectType)
-        lit.annot(lit.name.typ.fields[lit.attr])
+        if isinstance(lit.name.typ, ObjectType):
+            lit.annot(lit.name.typ.fields[lit.attr])
 
         return lit
