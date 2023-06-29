@@ -253,10 +253,12 @@ class Type(Pos):
                 else:
                     return "DataFrame(..?)"
             case ObjectType(name=name, type_abs=abs, fields=fields):
-                if len(abs) > 0:
-                    type_args_str = "∀(" + ", ".join(map(str, abs.keys())) + "), "
-                else:
+                if len(abs) == 0:
                     type_args_str = ""
+                elif len(abs) == 1:
+                    type_args_str = "∀" + "".join(map(str, abs.keys())) + ", "
+                else:
+                    type_args_str = "∀(" + ", ".join(map(str, abs.keys())) + "), "
 
                 tmp = ", ".join([f"{k}: {v}" for k, v in fields.items()])
                 if len(tmp) > 0:

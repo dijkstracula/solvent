@@ -247,25 +247,11 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
 
             match fn_ty:
                 case ArrowType(ret=ret):
-                    # type_abs = {}
-                    # for var, kind in abs.items():
-                    #     if kind == "type":
-                    #         tv = TypeVar.fresh(var)
-                    #         fn_ty = subst_typevar(var, tv, fn_ty)
-                    #         ret = subst_typevar(var, tv, ret)
-                    #     elif kind == "pred":
-                    #         pv = PredicateVar.fresh(var)
-                    #         fn_ty = subst_predvar(var, pv, fn_ty)
-                    #         ret = subst_predvar(var, pv, ret)
-                    #     else:
-                    #         raise NotImplementedError(f"{var}: {kind}")
-                    # assert isinstance(fn_ty, ArrowType)
-                    # fn_ty.type_abs = type_abs
                     ret_typ = ret
                 case syn.HMType(base=TypeVar(name=name)):
                     ret_typ = HMType.fresh("ret")
                 case t:
-                    raise Exception("blah")
+                    raise NotImplementedError(t)
 
             constrs += [
                 BaseEq(fn_ty, ArrowType({}, types, ret_typ).pos(expr)).pos(expr)
