@@ -1,10 +1,11 @@
-from logging import info
+from logging import debug, info
 from typing import Dict, List
 
 from ansi.color import fg, fx
 
 from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
+from solvent.annotate import Annotate
 from solvent.env import ScopedEnv
 from solvent.sanitize import AssertHavePosition, AssertNoHmTypes
 from solvent.syntax import Type
@@ -35,9 +36,9 @@ def number(blob: str) -> str:
     return "\n".join(ret)
 
 
-def info_stmts(stmts: List[syn.Stmt], include_types=False):
+def info_stmts(stmts: List[syn.Stmt], types=None, include_types=False):
     gather = "\n\n".join(
-        [number(s.to_string(include_types=include_types)) for s in stmts]
+        [number(s.to_string(types=types, include_types=include_types)) for s in stmts]
     )
     info(gather)
 
@@ -58,9 +59,20 @@ def check(
     info("Normalized Program:")
     info_stmts(stmts)
 
-    info("Inserting type applications")
-    stmts = TypeApplication(env.clone()).visit_stmts(stmts)
-    info_stmts(stmts)
+    info("Forward type annotation")
+    annotator = Annotate(env.clone())
+    stmts = annotator.visit_stmts(stmts)
+    types: Dict[int, Type] = annotator.id_map
+    info_stmts(stmts, types=types, include_types=True)
+
+    for k, v in types.items():
+        debug(k, v)
+
+    # info("Inserting type applications")
+    # stmts = TypeApplication(types).visit_stmts(stmts)
+    # info_stmts(stmts, types=types, include_types=True)
+
+    raise Exception("blah")
 
     stmts, base_types = hm.solve(stmts, env=env)
     info("HmType program:")

@@ -1,33 +1,35 @@
 from copy import deepcopy
 from dataclasses import dataclass
 from logging import debug
-from typing import Any, Dict, List, Self
+from typing import Dict, Generic, List, Self, TypeVar
 
 from solvent import syntax as syn
 from solvent.syntax import Type
 from solvent.visitor import Visitor
 
+T = TypeVar("T")
+
 
 @dataclass(frozen=True)
-class ScopedEnv:
+class ScopedEnv(Generic[T]):
     """
     A scoped environment. Each scope is represented as map from variable names (str)
     to anything. New scopes are prepended to the front of the list of scopes.
     Variables in newer scopes, shadow variables in older scopes.
     """
 
-    scopes: List[Dict[str, Any]]
+    scopes: List[Dict[str, T]]
 
     @staticmethod
     def empty():
         return ScopedEnv([{}])
 
-    def add(self, name: str, data: Any) -> Self:
+    def add(self, name: str, data: T) -> Self:
         new = deepcopy(self)
         new.scopes[0][name] = data
         return new
 
-    def add_mut(self, name: str, data: Any):
+    def add_mut(self, name: str, data: T):
         self.scopes[0][name] = data
 
     def push_scope(self) -> Self:
@@ -65,7 +67,7 @@ class ScopedEnv:
                 return v
         raise IndexError(f"{name} not bound in context.\n{self}")
 
-    def __setitem__(self, name, value):
+    def __setitem__(self, name: str, value: T):
         self.add_mut(name, value)
 
     def __contains__(self, name):

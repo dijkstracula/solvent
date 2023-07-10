@@ -1,5 +1,5 @@
 import ast
-from logging import info
+from logging import debug, info
 from typing import Annotated, Any, Dict, List, get_args, get_origin
 
 import solvent
@@ -56,8 +56,12 @@ class Parser:
 
                 return []
             case ast.FunctionDef(name=name, args=args, body=body, returns=returns):
-                if returns is not None and "return" in self.typing_hints:
-                    ret_ann = self.parse_hint(self.typing_hints["return"]).ast(returns)
+                if "return" in self.typing_hints:
+                    ret_ann = self.parse_hint(self.typing_hints["return"])
+                    if returns is not None:
+                        ret_ann = ret_ann.ast(returns)
+                elif returns is not None:
+                    ret_ann = self.parse_annotation(returns).ast(returns)
                 else:
                     ret_ann = None
 

@@ -6,6 +6,7 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
+from logging import debug
 from typing import Any, Dict, Iterable, List, Optional, Self
 
 from ansi.color import fg, fx
@@ -226,14 +227,15 @@ class Type(Pos):
             case x:
                 raise Exception(f"`{x}` is not a Type.")
 
-    def base_type(self) -> BaseType:
+    def base_type(self) -> BaseType | None:
         match self:
             case HMType(base=base):
                 return base
             case RType(base=base):
                 return base
             case x:
-                raise Exception(f"Can't take the base type of {x}.")
+                return None
+                # raise Exception(f"Can't take the base type of {x}.")
 
     def __str__(self):
         match self:
@@ -256,7 +258,7 @@ class Type(Pos):
                     ret,
                 )
             case Bottom():
-                return "False"
+                return "Unknown"
             case ListType(inner_typ=inner_typ):
                 return f"List[{inner_typ}]"
             case DictType():
@@ -416,7 +418,12 @@ class TypeAnnotation:
 
 @dataclass
 class Expr(Node, Pos, TypeAnnotation):
-    def to_string(self, include_types=False) -> str:
+    def to_string(
+        self, types: Dict[int, Type] | None = None, include_types=False
+    ) -> str:
+        if types is not None:
+            return self.to_string2(types, include_types)
+
         match self:
             case Variable(name=x):
                 return f"{x}"
@@ -437,25 +444,68 @@ class Expr(Node, Pos, TypeAnnotation):
             case Subscript(value=v, idx=e):
                 return f"{v}[{e}]"
             case Neg(expr=e):
-                return f"-({e.to_string(include_types)})"
+                return f"-({e.to_string(types, include_types)})"
             case ArithBinOp(lhs=l, op=op, rhs=r):
-                return f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
+                return f"{l.to_string(types, include_types)} {op} {r.to_string(types, include_types)}"
             case BoolOp(lhs=l, op=op, rhs=r):
-                return f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
+                return f"{l.to_string(types, include_types)} {op} {r.to_string(types, include_types)}"
             case Not(expr=e):
-                return f"!({e.to_string(include_types)})"
+                return f"!({e.to_string(types, include_types)})"
             case V():
                 return "V"
             case Star():
                 return "*"
             case Call(function_name=fn, arglist=args):
-                args = [a.to_string(include_types) for a in args]
+                args = [a.to_string(types, include_types) for a in args]
                 return f"{fn}({', '.join(args)})"
             case GetAttr(name=obj, attr=attr):
-                return f"{obj.to_string(include_types)}.{attr}"
+                return f"{obj.to_string(types, include_types)}.{attr}"
             case TypeApp(expr=e, arglist=args):
                 arg_str = ", ".join([str(a) for a in args])
-                return f"{e.to_string(include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
+                return f"{e.to_string(types, include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
+            case x:
+                return f"`{repr(x)}`"
+
+    def to_string2(self, types: Dict[int, Type], include_types=False) -> str:
+        match self:
+            case Variable(name=x):
+                return f"{x}"
+            case IntLiteral(value=v):
+                return f"{v}"
+            case BoolLiteral(value=v):
+                return f"{v}"
+            case ListLiteral(elts=elts):
+                inner = ", ".join([e.to_string() for e in elts])
+                if include_types:
+                    return f"([{inner}] : {types[self.node_id]})"
+                else:
+                    return f"[{inner}]"
+            case DictLit():
+                return "{<opaque>}"
+            case StrLiteral(value=v):
+                return f'"{v}"'
+            case Subscript(value=v, idx=e):
+                return f"{v}[{e}]"
+            case Neg(expr=e):
+                return f"-({e.to_string2(types, include_types)})"
+            case ArithBinOp(lhs=l, op=op, rhs=r):
+                return f"{l.to_string2(types, include_types)} {op} {r.to_string2(types, include_types)}"
+            case BoolOp(lhs=l, op=op, rhs=r):
+                return f"{l.to_string2(types, include_types)} {op} {r.to_string2(types, include_types)}"
+            case Not(expr=e):
+                return f"!({e.to_string2(types, include_types)})"
+            case V():
+                return "V"
+            case Star():
+                return "*"
+            case Call(function_name=fn, arglist=args):
+                args = [a.to_string2(types, include_types) for a in args]
+                return f"{fn}({', '.join(args)})"
+            case GetAttr(name=obj, attr=attr):
+                return f"{obj.to_string2(types, include_types)}.{attr}"
+            case TypeApp(expr=e, arglist=args):
+                arg_str = ", ".join([str(a) for a in args])
+                return f"{e.to_string2(types, include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
             case x:
                 return f"`{repr(x)}`"
 
@@ -566,23 +616,27 @@ class Argument:
         if self.annotation is None:
             return self.name
         else:
-            return f"{self.name}: {self.annotation}"
+            return f"{self.name}: {fg.yellow}{self.annotation}{fx.reset}"
 
 
 @dataclass
 class Stmt(Node, Pos, TypeAnnotation):
-    def to_string(self, indent=0, include_types=False):
+    def to_string(
+        self, types: Dict[int, Type] | None = None, indent=0, include_types=False
+    ):
         align = " " * indent
+
+        if types is not None:
+            return self.to_string2(types, indent, include_types)
+
         match self:
             case FunctionDef(
                 name=name, body=stmts, typ=ArrowType(args=args, ret=retann)
             ) if include_types:
                 argstr = ", ".join([f"{x}:{fg.yellow}{t}{fx.reset}" for x, t in args])
-                retstr = (
-                    f" -> {fg.yellow}{retann}{fx.reset}:" if retann is not None else ":"
-                )
+                retstr = f" -> {fg.yellow}{retann}{fx.reset}:"
                 bodystr = "\n".join(
-                    [s.to_string(indent + 2, include_types) for s in stmts]
+                    [s.to_string(types, indent + 2, include_types) for s in stmts]
                 )
                 return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
 
@@ -592,21 +646,23 @@ class Stmt(Node, Pos, TypeAnnotation):
                 argstr = ", ".join([str(a) for a in args])
                 retstr = f" -> {retann}:" if retann is not None else ":"
                 bodystr = "\n".join(
-                    [s.to_string(indent + 2, include_types) for s in stmts]
+                    [s.to_string(types, indent + 2, include_types) for s in stmts]
                 )
                 return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
             case If(test=test, body=body, orelse=orelse):
                 bodystr = "\n".join(
-                    [s.to_string(indent + 2, include_types) for s in body]
+                    [s.to_string(types, indent + 2, include_types) for s in body]
                 )
                 elsestr = "\n".join(
-                    [s.to_string(indent + 2, include_types) for s in orelse]
+                    [s.to_string(types, indent + 2, include_types) for s in orelse]
                 )
                 typstr0 = "(" if include_types else ""
-                typstr1 = f") : {self.typ}" if include_types else ""
+                typstr1 = (
+                    f") : {fg.yellow}{self.typ}{fx.reset}" if include_types else ""
+                )
                 res = "\n".join(
                     [
-                        f"{align}{typstr0}if {test.to_string(include_types)}:",
+                        f"{align}{typstr0}if {test.to_string(types, include_types)}:",
                         f"{bodystr}",
                         f"{align}else:",
                         f"{elsestr}{typstr1}",
@@ -615,9 +671,69 @@ class Stmt(Node, Pos, TypeAnnotation):
                 return res
             case Assign(name=name, value=value):
                 typann = f": {fg.yellow}{self.typ}{fx.reset}" if include_types else ""
-                return f"{align}{name}{typann} = {value.to_string(False)}"
+                return f"{align}{name}{typann} = {value.to_string(types, False)}"
             case Return(value):
-                return f"{align}return {value.to_string(include_types)}"
+                return f"{align}return {value.to_string(types, include_types)}"
+            case x:
+                return f"{align}{repr(x)}"
+
+    def to_string2(self, types: Dict[int, Type], indent=0, include_types=False):
+        align = " " * indent
+
+        match self:
+            case FunctionDef(name=name, body=stmts) if include_types:
+                typ = types[self.node_id]
+                assert isinstance(typ, ArrowType)
+                args = typ.args
+                retann = typ.ret
+
+                argstr = ", ".join([f"{x}:{fg.yellow}{t}{fx.reset}" for x, t in args])
+                retstr = f" -> {fg.yellow}{retann}{fx.reset}:"
+                bodystr = "\n".join(
+                    [s.to_string2(types, indent + 2, include_types) for s in stmts]
+                )
+                return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
+
+            case FunctionDef(
+                name=name, args=args, return_annotation=retann, body=stmts
+            ):
+                argstr = ", ".join([str(a) for a in args])
+                retstr = f" -> {retann}:" if retann is not None else ":"
+                bodystr = "\n".join(
+                    [s.to_string2(types, indent + 2, include_types) for s in stmts]
+                )
+                return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
+            case If(test=test, body=body, orelse=orelse):
+                bodystr = "\n".join(
+                    [s.to_string2(types, indent + 2, include_types) for s in body]
+                )
+                elsestr = "\n".join(
+                    [s.to_string2(types, indent + 2, include_types) for s in orelse]
+                )
+                typstr0 = "(" if include_types else ""
+                typstr1 = (
+                    f") : {fg.yellow}{types[self.node_id]}{fx.reset}"
+                    if include_types
+                    else ""
+                )
+                res = "\n".join(
+                    [
+                        f"{align}{typstr0}if {test.to_string2(types, include_types)}:",
+                        f"{bodystr}",
+                        f"{align}else:",
+                        f"{elsestr}{typstr1}",
+                    ]
+                )
+                return res
+            case Assign(name=name, value=value):
+                typann = (
+                    f": {fg.yellow}{types[self.node_id]}{fx.reset}"
+                    if include_types
+                    else ""
+                )
+                return f"{align}{name}{typann} = {value.to_string2(types, False)}"
+            case Return(value):
+                return f"{align}return {value.to_string2(types, include_types)}"
             case x:
                 return f"{align}{repr(x)}"
 

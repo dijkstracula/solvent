@@ -7,6 +7,7 @@ from typing import Dict
 
 from solvent.syntax import (
     ArrowType,
+    HMType,
     ListType,
     ObjectType,
     PredicateVar,
@@ -38,7 +39,7 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
                         "data": ListType(RType(TypeVar("T"), PredicateVar("K"))),
                     },
                 ),
-            )
+            ),
         },
     ),
 }
