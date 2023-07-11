@@ -98,7 +98,7 @@ class Parser:
     def parse_argument(self, arg: ast.arg) -> syn.Argument:
         if arg.arg in self.typing_hints:
             ann = self.parse_hint(self.typing_hints[arg.arg]).ast(arg)
-        elif isinstance(arg.annotation, ast.Subscript):
+        elif arg.annotation is not None:
             ann = self.parse_annotation(arg.annotation)
         else:
             ann = None

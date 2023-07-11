@@ -3,7 +3,8 @@ Standard type definitions that may be included in the context
 of programs type-checked with solvent.
 """
 
-from typing import Dict
+import typing as py
+from typing import Dict, Generic, Self
 
 from solvent.syntax import (
     ArrowType,
@@ -42,7 +43,26 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
             ),
         },
     ),
+    "test": Class(
+        name="Series",
+        type_abs=["T"],
+    ),
 }
+
+T = py.TypeVar("T")
+K = py.TypeVar("K")
+K1 = py.TypeVar("K1")
+
+
+class Test(Generic[T, K]):
+    def __init__(self, data: py.List[py.Annotated[T, K]]):
+        self.data: py.List[py.Annotated[T, K]] = data
+
+    def max(self: Self) -> py.Annotated[T, K]:
+        ...
+
+    def __div__(self, other: int) -> "Test[T, K1]":
+        ...
 
 
 def lookup(name: str) -> Type | None:
