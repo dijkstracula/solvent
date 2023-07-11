@@ -5,12 +5,12 @@ from ansi.color import fg, fx
 
 from solvent import constraints, hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
+from solvent import visitor
 from solvent.annotate import Annotate
 from solvent.env import ScopedEnv
 from solvent.sanitize import AssertHavePosition, AssertNoHmTypes
 from solvent.syntax import Type
 from solvent.template import Templatizer
-from solvent.type_applications import TypeApplication
 
 
 def infer_base(stmts: List[syn.Stmt]) -> Dict[str, Type]:
@@ -63,6 +63,14 @@ def check(
     annotator = Annotate(env.clone())
     stmts = annotator.visit_stmts(stmts)
     types: Dict[int, Type] = annotator.id_map
+
+    # replace all unknown types with type variables
+    # TODO: move into solve
+    # for node_id, ty in types.items():
+    #     types[node_id] = visitor.type_mapper(
+    #         ty, lambda t: syn.HMType.fresh("t") if isinstance(t, syn.Unknown) else t
+    #     )
+
     info_stmts(stmts, types=types, include_types=True)
 
     for k, v in types.items():
@@ -72,11 +80,11 @@ def check(
     # stmts = TypeApplication(types).visit_stmts(stmts)
     # info_stmts(stmts, types=types, include_types=True)
 
-    raise Exception("blah")
+    # raise Exception("blah")
 
-    stmts, base_types = hm.solve(stmts, env=env)
+    stmts, base_types = hm.solve(stmts, types, env=env)
     info("HmType program:")
-    info_stmts(stmts, True)
+    info_stmts(stmts, include_types=True)
 
     info("== Inferred Base Types ==")
     info(

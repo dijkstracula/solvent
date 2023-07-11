@@ -1,8 +1,9 @@
-from typing import List, cast
+from typing import Callable, List, cast
 
-from solvent import errors
+from solvent import errors, position
 from solvent.syntax import (
     ArithBinOp,
+    ArrowType,
     Assign,
     BoolLiteral,
     BoolOp,
@@ -10,10 +11,13 @@ from solvent.syntax import (
     Expr,
     FunctionDef,
     GetAttr,
+    HMType,
     If,
     IntLiteral,
     ListLiteral,
+    ListType,
     Neg,
+    ObjectType,
     Return,
     Star,
     Stmt,
@@ -44,9 +48,8 @@ class Visitor:
                     args,
                     retann,
                     self.visit_stmts(body),
-                    typ=stmt.typ,
                     node_id=stmt.node_id,
-                )
+                ).pos(stmt)
                 self.end_FunctionDef(new_stmt)
             case If(test=test, body=body, orelse=orelse):
                 self.start_If(cast(If, stmt))
@@ -54,21 +57,18 @@ class Visitor:
                     self.visit_expr(test),
                     self.visit_stmts(body),
                     self.visit_stmts(orelse),
-                    typ=stmt.typ,
                     node_id=stmt.node_id,
-                )
+                ).pos(stmt)
                 self.end_If(new_stmt)
             case Assign(name=name, value=expr):
                 self.start_Assign(cast(Assign, stmt))
                 new_stmt = Assign(
-                    name, self.visit_expr(expr), typ=stmt.typ, node_id=stmt.node_id
-                )
+                    name, self.visit_expr(expr), node_id=stmt.node_id
+                ).pos(stmt)
                 self.end_Assign(new_stmt)
             case Return(value=expr):
                 self.start_Return(cast(Return, stmt))
-                new_stmt = Return(
-                    self.visit_expr(expr), typ=stmt.typ, node_id=stmt.node_id
-                )
+                new_stmt = Return(self.visit_expr(expr), node_id=stmt.node_id).pos(stmt)
                 self.end_Return(new_stmt)
             case x:
                 raise errors.Unreachable(x)
@@ -95,9 +95,8 @@ class Visitor:
                     self.visit_expr(lhs),
                     op,
                     self.visit_expr(rhs),
-                    typ=expr.typ,
                     node_id=expr.node_id,
-                )
+                ).pos(expr)
                 self.end_ArithBinOp(new_expr)
             case BoolLiteral():
                 new_expr = self.start_BoolLiteral(cast(BoolLiteral, expr))
@@ -107,7 +106,6 @@ class Visitor:
                 self.start_ListLiteral(cast(ListLiteral, expr))
                 new_expr = ListLiteral(
                     [self.visit_expr(e) for e in elts],
-                    typ=expr.typ,
                     node_id=expr.node_id,
                 )
                 self.end_ListLiteral(new_expr)
@@ -117,7 +115,6 @@ class Visitor:
                     GetAttr(
                         name=self.visit_expr(name),
                         attr=attr,
-                        typ=expr.typ,
                         node_id=expr.node_id,
                     )
                 )
@@ -126,7 +123,6 @@ class Visitor:
                 new_expr = Subscript(
                     self.visit_expr(v),
                     self.visit_expr(e),
-                    typ=expr.typ,
                     node_id=expr.node_id,
                 )
                 self.end_Subscript(new_expr)
@@ -136,28 +132,24 @@ class Visitor:
                     self.visit_expr(lhs),
                     op,
                     self.visit_expr(rhs),
-                    typ=expr.typ,
                     node_id=expr.node_id,
-                )
+                ).pos(expr)
                 self.end_BoolOp(new_expr)
             case Neg(expr=e):
                 self.start_Neg(cast(Neg, expr))
-                new_expr = Neg(self.visit_expr(e), typ=expr.typ, node_id=expr.node_id)
+                new_expr = Neg(self.visit_expr(e), node_id=expr.node_id)
                 self.end_Neg(new_expr)
             case Call(function_name=fn, arglist=args):
                 self.start_Call(cast(Call, expr))
                 new_expr = Call(
                     self.visit_expr(fn),
                     [self.visit_expr(a) for a in args],
-                    typ=expr.typ,
                     node_id=expr.node_id,
                 )
                 new_expr = self.end_Call(new_expr)
             case TypeApp(expr=e, arglist=args):
                 self.start_TypeApp(cast(TypeApp, expr))
-                new_expr = TypeApp(
-                    self.visit_expr(e), args, typ=expr.typ, node_id=expr.node_id
-                )
+                new_expr = TypeApp(self.visit_expr(e), args, node_id=expr.node_id)
                 new_expr = self.end_TypeApp(new_expr)
             case x:
                 raise errors.Unreachable(x)
@@ -277,3 +269,34 @@ class Visitor:
 
     def end_TypeApp(self, op: TypeApp) -> Expr | None:
         pass
+
+
+def type_mapper(typ: Type, fn: Callable[[Type], Type]) -> Type:
+    match typ:
+        case ArrowType(type_abs=abs, args=args, ret=ret):
+            return fn(
+                ArrowType(
+                    abs,
+                    [(name, type_mapper(t, fn)) for name, t in args],
+                    type_mapper(ret, fn),
+                )
+            ).metadata(typ)
+        case ListType(inner_typ=inner):
+            return fn(ListType(type_mapper(inner, fn))).metadata(typ)
+        case ObjectType(name=name, type_abs=abs, fields=fields):
+            return fn(
+                ObjectType(
+                    name=name,
+                    type_abs=abs,
+                    fields={x: type_mapper(t, fn) for x, t in fields.items()},
+                )
+            ).metadata(typ)
+        case x:
+            return fn(x).metadata(x)
+
+
+# class TypeVisitor:
+#     def enter_HMType():
+#         pass
+
+#     def

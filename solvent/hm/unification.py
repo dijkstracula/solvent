@@ -8,19 +8,20 @@ from typing import Dict, List, Tuple
 from solvent import errors
 from solvent.env import ScopedEnv
 from solvent.syntax import (
+    Any,
     ArrowType,
-    Bottom,
-    DataFrameType,
     HMType,
     ListType,
     ObjectType,
     RType,
     Type,
     TypeVar,
+    Unknown,
     base_type_eq,
 )
+from solvent.utils import unwrap
 
-from .check import BaseEq
+from .constraints import BaseEq
 
 Solution = Dict[str, Type]
 
@@ -139,11 +140,11 @@ def free_vars(typ: Type) -> list[str]:
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
         case ListType(inner_typ=inner_typ):
             return free_vars(inner_typ)
-        case DataFrameType(columns=cols):
-            return sum([free_vars(t) for _, t in cols.items()], [])
         case ObjectType(fields=fields):
             return sum([free_vars(t) for _, t in fields.items()], [])
-        case Bottom():
+        case Unknown():
+            return []
+        case Any():
             return []
         case x:
             raise NotImplementedError(x, type(x))
@@ -164,7 +165,9 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
         case HMType(TypeVar(name=n)) if name == n:
             return tar
         case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if name == n:
-            return RType(base=tar.base_type(), predicate=p, pending_subst=ps).pos(tar)
+            return RType(
+                base=unwrap(tar.base_type()), predicate=p, pending_subst=ps
+            ).pos(tar)
         case HMType():
             return src
         case RType():

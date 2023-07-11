@@ -254,7 +254,7 @@ class Parser:
                     return syn.IntLiteral(value=val).ast(expr)
                 elif type(val) == bool:
                     return syn.BoolLiteral(value=val).ast(expr)
-                elif type(val) == str and not self.strict:
+                elif type(val) == str:
                     return syn.StrLiteral(value=val).ast(expr)
                 else:
                     raise NotImplementedError(val, type(val))

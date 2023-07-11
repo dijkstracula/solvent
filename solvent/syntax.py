@@ -6,13 +6,12 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
-from logging import debug
 from typing import Any, Dict, Iterable, List, Optional, Self
 
 from ansi.color import fg, fx
 
 from solvent.position import Position
-from solvent.utils import default
+from solvent.utils import default, unwrap
 
 
 class ID:
@@ -157,6 +156,11 @@ class PredicateVar(Predicate):
 class Type(Pos):
     pending_subst: Dict[str, "Expr"] = field(default_factory=dict, repr=False)
 
+    def metadata(self, other: "Type") -> "Type":
+        self.pending_subst = other.pending_subst
+        self.position = other.position
+        return self
+
     def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
         ret = deepcopy(self)
         for k, v in pairs:
@@ -167,13 +171,13 @@ class Type(Pos):
         match self:
             case HMType(TypeVar(name=n)) if typevar == n:
                 assert isinstance(tar, Self)
-                return HMType(tar.base_type()).pos(self)
+                return HMType(unwrap(tar.base_type())).pos(self)
             case HMType():
                 return self
             case RType(base=base, predicate=p, pending_subst=ps):
                 if isinstance(base, TypeVar) and base.name == typevar:
                     assert isinstance(tar, Type)
-                    base = tar.base_type()
+                    base = unwrap(tar.base_type())
 
                 if isinstance(p, PredicateVar) and p.name == typevar:
                     assert isinstance(tar, Predicate)
@@ -233,9 +237,8 @@ class Type(Pos):
                 return base
             case RType(base=base):
                 return base
-            case x:
+            case _:
                 return None
-                # raise Exception(f"Can't take the base type of {x}.")
 
     def __str__(self):
         match self:
@@ -257,18 +260,14 @@ class Type(Pos):
                     ", ".join([f"{name}:{t}" for name, t in args]),
                     ret,
                 )
-            case Bottom():
+            case Unknown():
                 return "Unknown"
+            case Any():
+                return "Any"
             case ListType(inner_typ=inner_typ):
                 return f"List[{inner_typ}]"
             case DictType():
                 return "dict()"
-            case DataFrameType(columns=c):
-                tmp = [f"{k}: {v}" for k, v in c.items()]
-                if len(tmp) > 0:
-                    return f"DataFrame({tmp}, ..)"
-                else:
-                    return "DataFrame(..?)"
             case ObjectType(name=name, type_abs=abs, fields=fields):
                 if len(abs) == 0:
                     type_args_str = ""
@@ -366,11 +365,6 @@ class DictType(Type):
 
 
 @dataclass
-class DataFrameType(Type):
-    columns: Dict[str, Type]
-
-
-@dataclass
 class ObjectType(Type):
     name: str
     type_abs: Dict[str, str] = field(default_factory=dict)
@@ -378,7 +372,12 @@ class ObjectType(Type):
 
 
 @dataclass
-class Bottom(Type):
+class Unknown(Type):
+    pass
+
+
+@dataclass
+class Any(Type):
     pass
 
 
@@ -409,7 +408,7 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
 
 @dataclass(kw_only=True)
 class TypeAnnotation:
-    typ: Type = field(default_factory=Bottom)
+    typ: Type = field(default_factory=Unknown)
 
     def annot(self, t: Type):
         self.typ = t
@@ -417,7 +416,7 @@ class TypeAnnotation:
 
 
 @dataclass
-class Expr(Node, Pos, TypeAnnotation):
+class Expr(Node, Pos):
     def to_string(
         self, types: Dict[int, Type] | None = None, include_types=False
     ) -> str:
@@ -434,7 +433,7 @@ class Expr(Node, Pos, TypeAnnotation):
             case ListLiteral(elts=elts):
                 inner = ", ".join([e.to_string() for e in elts])
                 if include_types:
-                    return f"([{inner}] : {self.typ})"
+                    return f"([{inner}] : [depr])"
                 else:
                     return f"[{inner}]"
             case DictLit():
@@ -580,7 +579,7 @@ class Subscript(Expr):
 @dataclass
 class BoolOp(Expr):
     lhs: Expr
-    op: Any
+    op: str
     rhs: Expr
 
 
@@ -620,7 +619,7 @@ class Argument:
 
 
 @dataclass
-class Stmt(Node, Pos, TypeAnnotation):
+class Stmt(Node, Pos):
     def to_string(
         self, types: Dict[int, Type] | None = None, indent=0, include_types=False
     ):
@@ -657,9 +656,7 @@ class Stmt(Node, Pos, TypeAnnotation):
                     [s.to_string(types, indent + 2, include_types) for s in orelse]
                 )
                 typstr0 = "(" if include_types else ""
-                typstr1 = (
-                    f") : {fg.yellow}{self.typ}{fx.reset}" if include_types else ""
-                )
+                typstr1 = f") : {fg.yellow}[depr]{fx.reset}" if include_types else ""
                 res = "\n".join(
                     [
                         f"{align}{typstr0}if {test.to_string(types, include_types)}:",
@@ -670,7 +667,7 @@ class Stmt(Node, Pos, TypeAnnotation):
                 )
                 return res
             case Assign(name=name, value=value):
-                typann = f": {fg.yellow}{self.typ}{fx.reset}" if include_types else ""
+                typann = f": {fg.yellow}[depr]{fx.reset}" if include_types else ""
                 return f"{align}{name}{typann} = {value.to_string(types, False)}"
             case Return(value):
                 return f"{align}return {value.to_string(types, include_types)}"
@@ -687,7 +684,7 @@ class Stmt(Node, Pos, TypeAnnotation):
                 args = typ.args
                 retann = typ.ret
 
-                argstr = ", ".join([f"{x}:{fg.yellow}{t}{fx.reset}" for x, t in args])
+                argstr = ", ".join([f"{x}: {fg.yellow}{t}{fx.reset}" for x, t in args])
                 retstr = f" -> {fg.yellow}{retann}{fx.reset}:"
                 bodystr = "\n".join(
                     [s.to_string2(types, indent + 2, include_types) for s in stmts]
@@ -707,21 +704,18 @@ class Stmt(Node, Pos, TypeAnnotation):
                 bodystr = "\n".join(
                     [s.to_string2(types, indent + 2, include_types) for s in body]
                 )
-                elsestr = "\n".join(
-                    [s.to_string2(types, indent + 2, include_types) for s in orelse]
-                )
-                typstr0 = "(" if include_types else ""
-                typstr1 = (
-                    f") : {fg.yellow}{types[self.node_id]}{fx.reset}"
-                    if include_types
+                elsestr = (
+                    f"\n{align}else:\n"
+                    + "\n".join(
+                        [s.to_string2(types, indent + 2, include_types) for s in orelse]
+                    )
+                    if len(orelse) > 0
                     else ""
                 )
                 res = "\n".join(
                     [
-                        f"{align}{typstr0}if {test.to_string2(types, include_types)}:",
-                        f"{bodystr}",
-                        f"{align}else:",
-                        f"{elsestr}{typstr1}",
+                        f"{align}if ({test} : {fg.yellow}{types[test.node_id]}{fx.reset}):",
+                        f"{bodystr}{elsestr}",
                     ]
                 )
                 return res
@@ -733,7 +727,7 @@ class Stmt(Node, Pos, TypeAnnotation):
                 )
                 return f"{align}{name}{typann} = {value.to_string2(types, False)}"
             case Return(value):
-                return f"{align}return {value.to_string2(types, include_types)}"
+                return f"{align}return ({value} : {fg.yellow}{types[value.node_id]}{fx.reset})"
             case x:
                 return f"{align}{repr(x)}"
 

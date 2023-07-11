@@ -4,10 +4,12 @@ from typing import Dict
 from solvent.env import ScopedEnv
 from solvent.errors import Unreachable
 from solvent.syntax import (
+    Any,
     ArithBinOp,
     ArrowType,
     Assign,
-    Bottom,
+    BoolLiteral,
+    BoolOp,
     Call,
     Expr,
     FunctionDef,
@@ -21,10 +23,11 @@ from solvent.syntax import (
     ObjectType,
     PredicateVar,
     Stmt,
-    Str,
     Type,
     TypeApp,
     TypeVar,
+    Unit,
+    Unknown,
     Variable,
 )
 from solvent.utils import default
@@ -42,8 +45,7 @@ class Annotate(Visitor):
 
     def end_Stmt(self, stmt: Stmt):
         if stmt.node_id not in self.id_map:
-            self.id_map[stmt.node_id] = Bottom()
-        return super().end_Stmt(stmt)
+            self.id_map[stmt.node_id] = HMType(Unit())
 
     def start_FunctionDef(self, fd: FunctionDef):
         """
@@ -52,12 +54,14 @@ class Annotate(Visitor):
 
         arglist = []
         for arg in fd.args:
-            arglist += [(arg.name, default(arg.annotation, fallback=Bottom()))]
+            arglist += [(arg.name, default(arg.annotation, fallback=HMType.fresh("a")))]
 
         # add the type of fd to the environment
-        self.env[fd.name] = ArrowType(
-            {}, arglist, default(fd.return_annotation, fallback=Bottom())
+        this_typ = ArrowType(
+            {}, arglist, default(fd.return_annotation, fallback=HMType.fresh("ret"))
         )
+        self.env[fd.name] = this_typ
+        self.id_map[fd.node_id] = this_typ
         self.env.push_scope_mut()
 
         for name, typ in arglist:
@@ -65,41 +69,25 @@ class Annotate(Visitor):
 
         return super().start_FunctionDef(fd)
 
+    def end_FunctionDef(self, _: FunctionDef):
+        self.env.pop_scope_mut()
+
     def end_Assign(self, asgn: Assign):
         self.env[asgn.name] = self.id_map[asgn.value.node_id]
         self.id_map[asgn.node_id] = self.id_map[asgn.value.node_id]
 
         return super().end_Assign(asgn)
 
-    def end_FunctionDef(self, fd: FunctionDef):
-        """
-        Add a type annotation for this function definition.
-        """
-
-        self.env.pop_scope_mut()
-
-        typ_args = []
-        for a in fd.args:
-            if a.annotation is not None:
-                typ_args += [(a.name, a.annotation)]
-            else:
-                typ_args += [(a.name, Bottom())]
-
-        ret_typ = Bottom()
-        if fd.return_annotation is not None:
-            ret_typ = fd.return_annotation
-
-        self.id_map[fd.node_id] = ArrowType({}, typ_args, ret_typ)
-        return super().end_FunctionDef(fd)
-
     def end_Expr(self, expr: Expr):
         if expr.node_id not in self.id_map:
-            self.id_map[expr.node_id] = Bottom()
-        return super().end_Expr(expr)
+            raise NotImplementedError(expr)
+            # self.id_map[expr.node_id] = Unknown()
 
     def start_IntLiteral(self, lit: IntLiteral):
         self.id_map[lit.node_id] = HMType.int()
-        return super().start_IntLiteral(lit)
+
+    def start_BoolLiteral(self, lit: BoolLiteral):
+        self.id_map[lit.node_id] = HMType.bool()
 
     def start_Variable(self, var: Variable):
         super().start_Variable(var)
@@ -117,7 +105,9 @@ class Annotate(Visitor):
             ):
                 self.id_map[abo.node_id] = lhs_typ.fields["__div__"].ret
             case (None, _, _):
-                self.id_map[abo.node_id] = Bottom()
+                self.id_map[abo.node_id] = Unknown()
+            case (TypeVar(_), _, _):
+                self.id_map[abo.node_id] = HMType.fresh("abo")
             case (Int(), "+", Int()):
                 self.id_map[abo.node_id] = HMType.int()
             case (Int(), "-", Int()):
@@ -127,7 +117,15 @@ class Annotate(Visitor):
             case x:
                 raise NotImplementedError(x)
 
-        return super().end_ArithBinOp(abo)
+    def end_BoolOp(self, op: BoolOp):
+        lhs_typ = self.id_map[op.lhs.node_id]
+        rhs_typ = self.id_map[op.rhs.node_id]
+
+        match (lhs_typ.base_type(), op.op, rhs_typ.base_type()):
+            case (TypeVar(_), _, _):
+                self.id_map[op.node_id] = HMType.fresh("bo")
+            case x:
+                raise NotImplementedError(x)
 
     def end_ListLiteral(self, lit: ListLiteral):
         # TODO: compute least upper bound of types in list
@@ -139,10 +137,10 @@ class Annotate(Visitor):
             if inner_typ is None:
                 inner_typ = elt_typ
             elif inner_typ != elt_typ:
-                inner_typ = Bottom()
+                inner_typ = Any()
 
         if inner_typ is None:
-            inner_typ = Bottom()
+            inner_typ = Unknown()
 
         self.id_map[lit.node_id] = ListType(inner_typ)
 
@@ -168,33 +166,54 @@ class Annotate(Visitor):
         return super().end_Neg(op)
 
     def end_Call(self, op: Call) -> Expr | None:
+        # type of function
         fn_typ = self.id_map[op.function_name.node_id]
+
+        # if we already know that it is a function type, we can be
+        # more precise in the type we assign right now
         if isinstance(fn_typ, ArrowType):
+            # if we are not abstracting over any types we check what we know about
+            # the types of the arguments we are passing against the types of arguments
+            # that we are expecting
             if fn_typ.type_abs == {}:
                 assert len(fn_typ.args) == len(op.arglist)  # TODO: real error message
 
                 for (_, typ), exp in zip(fn_typ.args, op.arglist):
-                    assert typ == self.id_map[exp.node_id]
+                    if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
+                        debug(typ, self.id_map[exp.node_id])
+                        assert (
+                            typ == self.id_map[exp.node_id]
+                        )  # TODO: real error message
 
+                # the type of this node is the return type of the function we are calling
                 self.id_map[op.node_id] = fn_typ.ret
+            # otherwise, we know that we are abstracting over type variables
             else:
+                new_fn_type = fn_typ
+                # make a list of fresh type variables
                 new_vars = []
                 for v, kind in fn_typ.type_abs.items():
                     if kind == "type":
-                        new_vars += [HMType(TypeVar.fresh(v))]
+                        fresh = HMType(TypeVar.fresh(v))
+                        new_vars += [fresh]
                     elif kind == "pred":
-                        pass
-                        # new_vars += [PredicateVar.fresh(v)]
+                        fresh = PredicateVar.fresh(v)
+                        new_vars += [fresh]
                     else:
                         raise Unreachable(kind)
+                    new_fn_type = new_fn_type.subst_typevar(v, fresh)
 
+                # construct a new type application node using this list of variables
                 type_app = TypeApp(
                     op.function_name,
                     new_vars,
                 ).pos(op.function_name)
 
-                self.id_map[type_app.node_id] = HMType(Str())
+                self.id_map[type_app.node_id] = new_fn_type
+                self.id_map[op.node_id] = new_fn_type.ret
 
+                # construct a new call node that calls the type app instead of the
+                # function
                 return Call(
                     type_app,
                     op.arglist,
