@@ -156,9 +156,9 @@ class PredicateVar(Predicate):
 class Type(Pos):
     pending_subst: Dict[str, "Expr"] = field(default_factory=dict, repr=False)
 
-    def metadata(self, other: "Type") -> "Type":
-        self.pending_subst = other.pending_subst
-        self.position = other.position
+    def metadata(self, frm: "Type") -> "Type":
+        self.pending_subst = frm.pending_subst
+        self.position = frm.position
         return self
 
     def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
@@ -193,12 +193,14 @@ class Type(Pos):
                 )
             case ListType(inner_typ=inner):
                 return ListType(inner.subst_typevar(typevar, tar)).pos(self)
-            case ObjectType(name=obj_name, type_abs=abs, fields=fields):
-                return ObjectType(
-                    obj_name,
-                    abs,
-                    {x: t.subst_typevar(typevar, tar) for x, t in fields.items()},
-                )
+            # case Class():
+            #     raise NotImplementedError(self)
+            # case ObjectType(name=obj_name, type_abs=abs, fields=fields):
+            # return ObjectType(
+            #     obj_name,
+            #     abs,
+            #     {x: t.subst_typevar(typevar, tar) for x, t in fields.items()},
+            # )
             case x:
                 raise NotImplementedError(x)
 
@@ -209,25 +211,32 @@ class Type(Pos):
         """
 
         match self:
-            case ArrowType(type_abs=abs, args=args, ret=ret, pending_subst=ps):
+            case ArrowType(type_abs=abs, args=args, ret=ret):
                 return ArrowType(
                     type_abs=abs,
                     args=[(name, a.shape()) for name, a in args],
                     ret=ret.shape(),
-                    pending_subst=ps,
-                ).pos(self)
+                ).metadata(self)
             case RType(base=base):
-                return HMType(base).pos(self)
+                return HMType(base).metadata(self)
             case HMType():
                 return self
             case ListType(inner_typ):
-                return ListType(inner_typ.shape())
-            case ObjectType(name=name, type_abs=abs, fields=fields):
+                return ListType(inner_typ.shape()).metadata(self)
+            case Class(name=name, type_abs=abs, constructor=cons, fields=fields):
+                return Class(
+                    name=name,
+                    type_abs=abs,
+                    constructor=cons.shape(),
+                    fields={name: ty.shape() for name, ty in fields.items()},
+                ).metadata(self)
+            case ObjectType(name=name, generic_args=args):
                 return ObjectType(
                     name,
-                    abs,
-                    {name: typ.shape() for name, typ in fields.items()},
-                )
+                    [a.shape() for a in args],
+                ).metadata(self)
+            case SelfType(generic_args=args):
+                return SelfType(generic_args=[a.shape() for a in args]).metadata(self)
             case x:
                 raise Exception(f"`{x}` is not a Type.")
 
@@ -268,21 +277,24 @@ class Type(Pos):
                 return f"List[{inner_typ}]"
             case DictType():
                 return "dict()"
-            case ObjectType(name=name, type_abs=abs, fields=fields):
-                if len(abs) == 0:
-                    type_args_str = ""
-                elif len(abs) == 1:
-                    type_args_str = "∀" + "".join(map(str, abs.keys())) + ", "
-                else:
-                    type_args_str = "∀(" + ", ".join(map(str, abs.keys())) + "), "
+            case Class(name=name, type_abs=abs):
+                return repr(self)
+            case ObjectType(name=name, generic_args=args):
+                return f"{name}[{map(str, args)}]"
+                # if len(abs) == 0:
+                #     type_args_str = ""
+                # elif len(abs) == 1:
+                #     type_args_str = "∀" + "".join(map(str, abs.keys())) + ", "
+                # else:
+                #     type_args_str = "∀(" + ", ".join(map(str, abs.keys())) + "), "
 
-                tmp = ", ".join([f"{k}: {v}" for k, v in fields.items()])
-                if len(tmp) > 0:
-                    value_str = f"{{{tmp}}}"
-                else:
-                    value_str = ""
+                # tmp = ", ".join([f"{k}: {v}" for k, v in fields.items()])
+                # if len(tmp) > 0:
+                #     value_str = f"{{{tmp}}}"
+                # else:
+                #     value_str = ""
 
-                return f"{type_args_str}{name}{value_str}"
+                # return f"{type_args_str}{name}{value_str}"
             case x:
                 raise Exception(x, type(x))
 
@@ -359,16 +371,26 @@ class ListType(Type):
 
 @dataclass
 class DictType(Type):
-    # TODO: actually represent dictionary types
-    # items: Dict[str, Type]
-    pass
+    items: Dict[str, Type]
+
+
+@dataclass
+class Class(Type):
+    name: str
+    type_abs: List[str]
+    constructor: ArrowType
+    fields: Dict[str, Type] = field(default_factory=dict)
 
 
 @dataclass
 class ObjectType(Type):
     name: str
-    type_abs: Dict[str, str] = field(default_factory=dict)
-    fields: Dict[str, Type] = field(default_factory=dict)
+    generic_args: List[Type]
+
+
+@dataclass
+class SelfType(Type):
+    generic_args: List[Type] = field(default_factory=list)
 
 
 @dataclass

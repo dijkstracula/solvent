@@ -55,6 +55,49 @@ class Parser:
                     self.modules[f"{used_name}"] = f"{module}.{n.name}"
 
                 return []
+            case ast.ClassDef(name=name, bases=bases, body=body):
+                # parse base classes to see if we have any generic variables
+                # HACK: hardcoding the name of Generic. At some point we'll
+                # want to actually resovle this name
+                type_vars = []
+                match bases:
+                    case [
+                        ast.Subscript(
+                            value=ast.Name(id="Generic"), slice=ast.Name(id=name)
+                        )
+                    ]:
+                        type_vars = [name]
+                    case [
+                        ast.Subscript(
+                            value=ast.Name(id="Generic"), slice=ast.Tuple(elts=elts)
+                        )
+                    ]:
+                        for e in elts:
+                            if isinstance(e, ast.Name):
+                                type_vars += [e.id]
+                    case _:
+                        pass
+
+                constructor = syn.ArrowType({}, [], syn.SelfType())
+                fields = {}
+                for stmt in body:
+                    match stmt:
+                        case ast.FunctionDef(name="__init__"):
+                            pass
+                        case ast.FunctionDef(name=name):
+                            fields[name] = self.parse(stmt)
+                        case _:
+                            pass
+                debug("\n".join([ast.dump(x, indent=2) for x in body]))
+
+                raise NotImplementedError(
+                    syn.Class(
+                        name=name,
+                        type_abs=type_vars,
+                        constructor=constructor,
+                        fields={},
+                    )
+                )
             case ast.FunctionDef(name=name, args=args, body=body, returns=returns):
                 if "return" in self.typing_hints:
                     ret_ann = self.parse_hint(self.typing_hints["return"])
@@ -133,6 +176,7 @@ class Parser:
             raise NotImplementedError(hint)
 
     def parse_annotation(self, ann) -> syn.Type:
+        debug(ast.dump(ann, indent=2))
         match ann:
             case ast.Name(id="int"):
                 return syn.RType.lift(syn.Int())
@@ -198,6 +242,8 @@ class Parser:
                         return rtype.set_predicate(
                             syn.Conjoin([syn.BoolLiteral(locals["pred"])])
                         )
+                    case str():
+                        return rtype.set_predicate(syn.PredicateVar(locals["pred"]))
                     case x:
                         raise NotImplementedError(x)
             case ast.Subscript(
@@ -217,10 +263,12 @@ class Parser:
                     ],
                     ret=ret,
                 )
+            case ast.Name(id=name):
+                return syn.RType(syn.TypeVar(name), syn.Conjoin([]))
             case x:
                 if x is not None and isinstance(x, ast.AST):
                     info(ast.dump(ann, indent=2))
-                raise NotImplementedError(x)
+                raise NotImplementedError(x, type(x))
 
     def parse_expr(self, expr) -> syn.Expr:
         match expr:

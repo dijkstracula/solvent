@@ -7,62 +7,89 @@ import typing as py
 from typing import Dict, Generic, Self
 
 from solvent.syntax import (
+    ArithBinOp,
     ArrowType,
+    BoolOp,
+    Call,
+    Class,
+    Conjoin,
+    DictType,
     HMType,
     ListType,
     ObjectType,
     PredicateVar,
     RType,
+    SelfType,
+    Str,
     Type,
     TypeVar,
+    V,
+    Variable,
 )
 
 PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
-    "typing": ObjectType(
-        "typing",
-        {},
-        {"TypeVar": ArrowType({}, [("name", RType.str())], ObjectType("TypeVar"))},
-    ),
-    "pandas": ObjectType(
-        "pandas",
-        {},
+    "typing": DictType(
         {
-            "Series": ArrowType(
-                type_abs={"T": "type", "K": "pred"},
-                args=[("l", ListType(RType(TypeVar("T"), PredicateVar("K"))))],
-                ret=ObjectType(
-                    "Series",
-                    {},
-                    {
-                        "max": ArrowType(
-                            {}, [], RType(TypeVar("T"), PredicateVar("K"))
-                        ),
-                        "data": ListType(RType(TypeVar("T"), PredicateVar("K"))),
-                    },
+            "TypeVar": Class(
+                "TypeVar",
+                [],
+                ArrowType({}, [("name", HMType(Str()))], SelfType()),
+            )
+        }
+    ),
+    "pandas": DictType(
+        {
+            "Series": Class(
+                name="Series",
+                type_abs=["T"],
+                constructor=ArrowType(
+                    {"T": "type"},
+                    [("l", ListType(HMType(TypeVar("T"))))],
+                    SelfType([HMType(TypeVar("T"))]),
                 ),
+                fields={
+                    "max": ArrowType(
+                        {"K": "pred"},
+                        [("self", SelfType([RType(TypeVar("T"), PredicateVar("K"))]))],
+                        RType(TypeVar("T"), PredicateVar("K")),
+                    ),
+                    "el": ArrowType(
+                        {"K": "pred"},
+                        [("self", SelfType([RType(TypeVar("T"), PredicateVar("K"))]))],
+                        RType(TypeVar("T"), PredicateVar("K")),
+                    ),
+                    "__mul__": ArrowType(
+                        {"K": "pred", "K1": "pred"},
+                        [("self", SelfType([RType(TypeVar("T"), PredicateVar("K"))]))],
+                        SelfType(
+                            [
+                                RType(
+                                    TypeVar("T"),
+                                    Conjoin(
+                                        [
+                                            BoolOp(
+                                                V(),
+                                                "==",
+                                                ArithBinOp(
+                                                    Call(
+                                                        Variable("el"),
+                                                        [Variable("self")],
+                                                    ),
+                                                    "*",
+                                                    Variable("other"),
+                                                ),
+                                            )
+                                        ]
+                                    ),
+                                )
+                            ]
+                        ),
+                    ),
+                },
             ),
         },
     ),
-    "test": Class(
-        name="Series",
-        type_abs=["T"],
-    ),
 }
-
-T = py.TypeVar("T")
-K = py.TypeVar("K")
-K1 = py.TypeVar("K1")
-
-
-class Test(Generic[T, K]):
-    def __init__(self, data: py.List[py.Annotated[T, K]]):
-        self.data: py.List[py.Annotated[T, K]] = data
-
-    def max(self: Self) -> py.Annotated[T, K]:
-        ...
-
-    def __div__(self, other: int) -> "Test[T, K1]":
-        ...
 
 
 def lookup(name: str) -> Type | None:
