@@ -202,12 +202,12 @@ class Type(Pos):
                 return ObjectType(
                     name, [a.subst_typevar(typevar, tar) for a in args]
                 ).metadata(self)
-            case Class(name=name, type_abs=abs, constructor=cons, fields=fields):
+            case Class(name=cls_name, type_abs=abs, constructor=cons, fields=fields):
                 return Class(
-                    name,
+                    cls_name,
                     [a for a in abs if a != typevar],
-                    cons.subst_typevar(name, tar),
-                    {x: t.subst_typevar(name, tar) for x, t in fields.items()},
+                    cons.subst_typevar(typevar, tar),
+                    {x: t.subst_typevar(typevar, tar) for x, t in fields.items()},
                 ).metadata(self)
             case x:
                 raise NotImplementedError(str(x), type(x))
@@ -245,6 +245,8 @@ class Type(Pos):
                 ).metadata(self)
             case SelfType(generic_args=args):
                 return SelfType(generic_args=[a.shape() for a in args]).metadata(self)
+            case Unknown() | Any():
+                return self
             case x:
                 raise Exception(f"`{x}` is not a Type.")
 

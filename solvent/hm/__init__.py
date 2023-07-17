@@ -3,6 +3,7 @@ from typing import Dict, List
 
 import solvent.syntax as syn
 from solvent import visitor
+from solvent.annotate import Annotate
 from solvent.env import ScopedEnv
 from solvent.qualifiers import predicate
 
@@ -53,6 +54,10 @@ def solve(
     new_types: Dict[int, syn.Type] = {
         id: visitor.type_mapper(t, replace) for id, t in hm.types.items()
     }
+
+    annotator2 = Annotate(env.clone(), initial_id_map=new_types)
+    stmts = annotator2.visit_stmts(stmts)
+    new_types: Dict[int, syn.Type] = annotator2.id_map
 
     # _ = apply(typ, solution)
     # subst_stmts(solution, stmts)

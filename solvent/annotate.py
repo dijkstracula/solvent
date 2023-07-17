@@ -58,6 +58,23 @@ def lookup_path(path: List[str], thing: Type) -> Type:
             raise Unreachable()
 
 
+def resolve_class(obj: ObjectType, env: ScopedEnv) -> Class:
+    match obj.name.split("."):
+        case [name]:
+            cls_def = env[name]
+        case [name, *rest]:
+            cls_def = lookup_path(rest, env[name])
+        case _:
+            raise Unreachable()
+
+    assert isinstance(cls_def, Class)
+
+    for cls_tyv, conc_tyv in zip(cls_def.type_abs, obj.generic_args):
+        cls_def = cls_def.subst_typevar(cls_tyv, conc_tyv)
+
+    return cls_def
+
+
 class Annotate(Visitor):
     def start(
         self,
@@ -131,13 +148,28 @@ class Annotate(Visitor):
         lhs_typ = self.id_map[abo.lhs.node_id]
         rhs_typ = self.id_map[abo.rhs.node_id]
 
+        if isinstance(lhs_typ, ObjectType):
+            # find the class that this object refers to
+            # TODO: factor this out
+            cls_def = resolve_class(lhs_typ, self.env)
+            match abo.op:
+                case "*":
+                    if "__mul__" in cls_def.fields:
+                        method = cls_def.fields["__mul__"]
+                        assert isinstance(method, ArrowType)
+                        warning("not doing any type checking here")  # TODO: fix this
+                        self.id_map[abo.node_id] = method.ret.resolve_name(lhs_typ.name)
+                        return
+                case _:
+                    pass
+
         match (lhs_typ.base_type(), abo.op, rhs_typ.base_type()):
-            case (None, "/", _) if isinstance(
-                lhs_typ, ObjectType
-            ) and "__div__" in lhs_typ.fields and isinstance(
-                lhs_typ.fields["__div__"], ArrowType
-            ):
-                self.id_map[abo.node_id] = lhs_typ.fields["__div__"].ret
+            # case (None, "/", _) if isinstance(
+            #     lhs_typ, ObjectType
+            # ) and "__div__" in lhs_typ.fields and isinstance(
+            #     lhs_typ.fields["__div__"], ArrowType
+            # ):
+            #     self.id_map[abo.node_id] = lhs_typ.fields["__div__"].ret
             case (None, _, _):
                 self.id_map[abo.node_id] = Unknown()
             case (TypeVar(_), _, _):
@@ -196,15 +228,7 @@ class Annotate(Visitor):
                 raise Exception(f"{lit.attr} not in {lit.name}")
             case ObjectType(name=name, generic_args=args):
                 # find the class that this object refers to
-                match name.split("."):
-                    case [name]:
-                        cls_def = self.env[name]
-                    case [name, *rest]:
-                        cls_def = lookup_path(rest, self.env[name])
-                    case _:
-                        raise Unreachable()
-
-                assert isinstance(cls_def, Class)
+                cls_def = resolve_class(name, self.env)
 
                 # get the method from the class
                 method = cls_def.fields[lit.attr]

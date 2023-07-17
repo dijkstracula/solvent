@@ -140,8 +140,8 @@ def free_vars(typ: Type) -> list[str]:
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
         case ListType(inner_typ=inner_typ):
             return free_vars(inner_typ)
-        case ObjectType(fields=fields):
-            return sum([free_vars(t) for _, t in fields.items()], [])
+        case ObjectType(generic_args=args):
+            return sum([free_vars(t) for t in args], [])
         case Unknown():
             return []
         case Any():
@@ -168,7 +168,7 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             return RType(
                 base=unwrap(tar.base_type()), predicate=p, pending_subst=ps
             ).pos(tar)
-        case HMType():
+        case HMType() | RType() | Unknown() | Any():
             return src
         case RType():
             return src
@@ -180,14 +180,10 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_one(name, tar, inner)).pos(src)
-        case ObjectType(name=obj_name, type_abs=abs, fields=fields):
-            if name in abs:
-                del abs[name]
-            return ObjectType(
-                obj_name,
-                abs,
-                {x: subst_one(name, tar, t) for x, t in fields.items()},
-            ).pos(src)
+        case ObjectType(name=obj_name, generic_args=args):
+            return ObjectType(obj_name, [subst_one(name, tar, t) for t in args]).pos(
+                src
+            )
         case x:
             raise NotImplementedError(f"subst one: {x}")
 

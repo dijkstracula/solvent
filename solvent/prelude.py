@@ -59,8 +59,14 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
                         RType(TypeVar("T"), PredicateVar("K")),
                     ),
                     "__mul__": ArrowType(
-                        {"K": "pred", "K1": "pred"},
-                        [("self", SelfType([RType(TypeVar("T"), PredicateVar("K"))]))],
+                        {},
+                        [
+                            (
+                                "self",
+                                SelfType([HMType(TypeVar("T"))]),
+                            ),
+                            ("other", HMType.int()),
+                        ],
                         SelfType(
                             [
                                 RType(
