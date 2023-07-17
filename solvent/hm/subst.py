@@ -21,4 +21,4 @@ class Subst(Visitor):
                 case x:
                     new_args += [x]
 
-        return TypeApp(op.expr, new_args).pos(op)
+        return TypeApp(op.expr, new_args).metadata(op)

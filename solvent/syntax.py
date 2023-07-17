@@ -454,6 +454,11 @@ class TypeAnnotation:
 
 @dataclass
 class Expr(Node, Pos):
+    def metadata(self, frm: "Expr") -> Self:
+        self.node_id = frm.node_id
+        self.position = frm.position
+        return self
+
     def to_string(
         self, types: Dict[int, Type] | None = None, include_types=False
     ) -> str:
@@ -659,6 +664,11 @@ class Argument:
 
 @dataclass
 class Stmt(Node, Pos):
+    def metadata(self, frm: "Stmt") -> Self:
+        self.node_id = frm.node_id
+        self.position = frm.position
+        return self
+
     def to_string(
         self, types: Dict[int, Type] | None = None, indent=0, include_types=False
     ):

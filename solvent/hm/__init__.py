@@ -13,7 +13,7 @@ from .unification import apply, free_vars, unify  # type: ignore
 
 def solve(
     stmts: List[syn.Stmt], types: Dict[int, syn.Type], env: ScopedEnv | None = None
-) -> tuple[List[syn.Stmt], Dict[str, syn.Type]]:
+) -> tuple[List[syn.Stmt], Dict[int, syn.Type]]:
     if env is None:
         env = ScopedEnv.empty()
 
@@ -66,4 +66,4 @@ def solve(
     #     if isinstance(s, syn.FunctionDef):
     #         function_types[s.name] = s.typ
 
-    return (stmts, {})
+    return (stmts, new_types)

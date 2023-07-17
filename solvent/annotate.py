@@ -1,4 +1,8 @@
-from logging import debug
+"""
+Implements a forward type checking pass.
+"""
+
+from logging import debug, warning
 from typing import Dict, List
 
 from solvent.env import ScopedEnv
@@ -24,6 +28,8 @@ from solvent.syntax import (
     Neg,
     ObjectType,
     PredicateVar,
+    RType,
+    SelfType,
     Stmt,
     Type,
     TypeApp,
@@ -53,11 +59,20 @@ def lookup_path(path: List[str], thing: Type) -> Type:
 
 
 class Annotate(Visitor):
-    def start(self, initial_env: ScopedEnv | None = None):
-        if initial_env is not None:
-            self.env = initial_env
+    def start(
+        self,
+        initial_env: ScopedEnv | None = None,
+        initial_id_map: Dict[int, Type] | None = None,
+    ):
+        if initial_env is None:
+            initial_env = ScopedEnv.empty()
 
-        self.id_map: Dict[int, Type] = {}
+        self.env = initial_env
+
+        if initial_id_map is None:
+            initial_id_map = {}
+
+        self.id_map: Dict[int, Type] = initial_id_map
 
         super().start()
 
@@ -112,6 +127,7 @@ class Annotate(Visitor):
         self.id_map[var.node_id] = self.env[var.name]
 
     def end_ArithBinOp(self, abo: ArithBinOp):
+        debug("here?")
         lhs_typ = self.id_map[abo.lhs.node_id]
         rhs_typ = self.id_map[abo.rhs.node_id]
 
@@ -233,24 +249,29 @@ class Annotate(Visitor):
 
         assert isinstance(fn_typ, ArrowType)
 
+        for (_, fn_arg), op_arg in zip(fn_typ.args, op.arglist):
+            debug(f"{fn_arg} == {self.id_map[op_arg.node_id]}")
+
         # type of function
         # fn_typ = self.id_map[op.function_name.node_id]
 
-        # if we are not abstracting over any types we check what we know about
-        # the types of the arguments we are passing against the types of arguments
-        # that we are expecting
-        if fn_typ.type_abs == {}:
-            assert len(fn_typ.args) == len(op.arglist)  # TODO: real error message
+        # start by checking that the arg types are consistent
+        # with what we expect
+        debug(fn_typ.args, op.arglist)
+        # gather types, ignoring a self type if it comes first
+        match fn_typ.args:
+            case [(_, SelfType()), *rest]:
+                fn_args_to_chk = [ty for (_, ty) in rest]
+            case rest:
+                fn_args_to_chk = [ty for (_, ty) in rest]
 
-            for (_, typ), exp in zip(fn_typ.args, op.arglist):
-                if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
-                    debug(typ, self.id_map[exp.node_id])
-                    assert typ == self.id_map[exp.node_id]  # TODO: real error message
+        assert len(fn_args_to_chk) == len(op.arglist)  # TODO: real error message
+        for arg_typ, passed_arg in zip(fn_args_to_chk, op.arglist):
+            passed_typ = self.id_map[passed_arg.node_id]
+            if not type_consistent_with(arg_typ, passed_typ):
+                raise Exception(f"{arg_typ} != {passed_typ}")
 
-            # the type of this node is the return type of the function we are calling
-            self.id_map[op.node_id] = fn_typ.ret
-        # otherwise, we know that we are abstracting over type variables
-        else:
+        if fn_typ.type_abs != {}:
             new_fn_type = fn_typ
             # make a list of fresh type variables
             new_vars = []
@@ -302,3 +323,35 @@ class Annotate(Visitor):
         #         raise NotImplementedError(fn_typ)
         #     case x:
         #         raise NotImplementedError(x)
+
+
+def type_consistent_with(t0: Type, t1: Type) -> bool:
+    match (t0, t1):
+        case (Unknown(), _) | (_, Unknown()):
+            return True
+        case (Any(), _) | (_, Any()):
+            return True
+        case (HMType(TypeVar()), _) | (_, HMType(TypeVar())):
+            return True
+        case (HMType(base=b1), HMType(base=b2)) | (
+            RType(
+                base=b1,
+            ),
+            RType(base=b2),
+        ):
+            return b1 == b2
+        case (HMType(base=b1), RType(base=b2)) | (RType(base=b1), HMType(base=b2)):
+            return b1 == b2
+        case (ListType(inner_typ=i0), ListType(inner_typ=i1)):
+            return type_consistent_with(i0, i1)
+        case (ArrowType(args=args0, ret=ret0), ArrowType(args=args1, ret=ret1)):
+            return all(
+                [type_consistent_with(a0, a1) for (_, a0), (_, a1) in zip(args0, args1)]
+            ) and type_consistent_with(ret0, ret1)
+        case (DictType(items=items0), DictType(items=items1)):
+            return all([type_consistent_with(t, items1[x]) for x, t in items0.items()])
+        case (Class(), _) | (ObjectType(), _) | (SelfType(), _):
+            raise NotImplementedError(t0, t1)
+        case x:
+            warning(f"Not handling {x}")
+            return False

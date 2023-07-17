@@ -80,6 +80,15 @@ def check(
     # raise Exception("blah")
 
     stmts, base_types = hm.solve(stmts, types, env=env)
+
+    annotator2 = Annotate(env.clone(), initial_id_map=base_types)
+    stmts = annotator2.visit_stmts(stmts)
+    types2: Dict[int, Type] = annotator2.id_map
+
+    info_stmts(stmts, types=types2, include_types=True)
+
+    raise Exception("stopping early")
+
     info("HmType program:")
     info_stmts(stmts, include_types=True)
 

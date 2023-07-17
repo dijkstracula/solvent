@@ -11,13 +11,16 @@ from solvent.syntax import (
     ArithBinOp,
     ArrowType,
     BoolOp,
+    Call,
     DictType,
+    Expr,
     FunctionDef,
     HMType,
     If,
     ListType,
     Return,
     Type,
+    TypeApp,
     TypeVar,
     base_type_eq,
 )
@@ -83,39 +86,48 @@ class HindleyMilner(Visitor):
         test_typ = self.types[if_stmt.test.node_id]
         self.constrs += [BaseEq(test_typ, HMType.bool()).pos(if_stmt.test)]
 
-    def end_ArithBinOp(self, abo: ArithBinOp):
-        if not isinstance(self.types[abo.node_id].base_type(), TypeVar):
-            return
+    def end_Call(self, op: Call) -> Expr:
+        fn_typ = self.types[op.function_name.node_id]
+        assert isinstance(fn_typ, ArrowType)
 
-        match abo.op:
-            case "+" | "*" | "/" | "-":
-                self.constrs += [
-                    BaseEq(self.types[abo.lhs.node_id], HMType.int()).pos(abo),
-                    BaseEq(self.types[abo.rhs.node_id], HMType.int()).pos(abo),
-                    BaseEq(self.types[abo.node_id], HMType.int()).pos(abo),
-                ]
-            case x:
-                raise NotImplementedError(x)
+        for (_, fn_arg), op_arg in zip(fn_typ.args, op.arglist):
+            self.constrs += [BaseEq(fn_arg, self.types[op_arg.node_id])]
 
-    def end_BoolOp(self, op: BoolOp):
-        if not isinstance(self.types[op.node_id].base_type(), TypeVar):
-            return
+        return op
 
-        match op.op:
-            case "<" | "<=" | "==" | ">=" | ">":
-                self.constrs += [
-                    BaseEq(self.types[op.lhs.node_id], HMType.int()).pos(op),
-                    BaseEq(self.types[op.rhs.node_id], HMType.int()).pos(op),
-                    BaseEq(self.types[op.node_id], HMType.bool()).pos(op),
-                ]
-            case "and" | "or":
-                self.constrs += [
-                    BaseEq(self.types[op.lhs.node_id], HMType.bool()).pos(op),
-                    BaseEq(self.types[op.rhs.node_id], HMType.bool()).pos(op),
-                    BaseEq(self.types[op.node_id], HMType.bool()).pos(op),
-                ]
-            case x:
-                raise NotImplementedError(x)
+    # def end_ArithBinOp(self, abo: ArithBinOp):
+    #     if not isinstance(self.types[abo.node_id].base_type(), TypeVar):
+    #         return
+
+    #     match abo.op:
+    #         case "+" | "*" | "/" | "-":
+    #             self.constrs += [
+    #                 BaseEq(self.types[abo.lhs.node_id], HMType.int()).pos(abo),
+    #                 BaseEq(self.types[abo.rhs.node_id], HMType.int()).pos(abo),
+    #                 BaseEq(self.types[abo.node_id], HMType.int()).pos(abo),
+    #             ]
+    #         case x:
+    #             raise NotImplementedError(x)
+
+    # def end_BoolOp(self, op: BoolOp):
+    #     if not isinstance(self.types[op.node_id].base_type(), TypeVar):
+    #         return
+
+    #     match op.op:
+    #         case "<" | "<=" | "==" | ">=" | ">":
+    #             self.constrs += [
+    #                 BaseEq(self.types[op.lhs.node_id], HMType.int()).pos(op),
+    #                 BaseEq(self.types[op.rhs.node_id], HMType.int()).pos(op),
+    #                 BaseEq(self.types[op.node_id], HMType.bool()).pos(op),
+    #             ]
+    #         case "and" | "or":
+    #             self.constrs += [
+    #                 BaseEq(self.types[op.lhs.node_id], HMType.bool()).pos(op),
+    #                 BaseEq(self.types[op.rhs.node_id], HMType.bool()).pos(op),
+    #                 BaseEq(self.types[op.node_id], HMType.bool()).pos(op),
+    #             ]
+    #         case x:
+    #             raise NotImplementedError(x)
 
 
 def check_stmts(
