@@ -1,5 +1,5 @@
 from logging import debug
-from typing import Dict
+from typing import Dict, List
 
 from solvent.env import ScopedEnv
 from solvent.errors import Unreachable
@@ -11,6 +11,8 @@ from solvent.syntax import (
     BoolLiteral,
     BoolOp,
     Call,
+    Class,
+    DictType,
     Expr,
     FunctionDef,
     GetAttr,
@@ -22,6 +24,7 @@ from solvent.syntax import (
     Neg,
     ObjectType,
     PredicateVar,
+    SelfType,
     Stmt,
     Type,
     TypeApp,
@@ -32,6 +35,22 @@ from solvent.syntax import (
 )
 from solvent.utils import default
 from solvent.visitor import Visitor
+
+
+def lookup_path(path: List[str], thing: Type) -> Type:
+    match path:
+        case []:
+            return thing
+        case [x, *rest]:
+            match thing:
+                case Class(fields=fields):
+                    return lookup_path(rest, fields[x])
+                case DictType(items=items):
+                    return lookup_path(rest, items[x])
+                case x:
+                    raise NotImplementedError(type(x))
+        case _:
+            raise Unreachable()
 
 
 class Annotate(Visitor):
@@ -80,7 +99,7 @@ class Annotate(Visitor):
 
     def end_Expr(self, expr: Expr):
         if expr.node_id not in self.id_map:
-            raise NotImplementedError(expr)
+            raise NotImplementedError(f"{expr} {expr!r}")
             # self.id_map[expr.node_id] = Unknown()
 
     def start_IntLiteral(self, lit: IntLiteral):
@@ -148,16 +167,44 @@ class Annotate(Visitor):
 
     def end_GetAttr(self, lit: GetAttr) -> Expr | None:
         obj_typ = self.id_map[lit.name.node_id]
-        if not isinstance(obj_typ, ObjectType):
-            raise Exception(f"We must know that {lit.name} is an object at this point.")
+        debug(f"getattr: {lit} {obj_typ}")
 
-        if lit.attr not in obj_typ.fields:
-            # TODO: make nicer error message
-            raise Exception(f"{lit.attr} not in {obj_typ.name}")
+        match obj_typ:
+            case DictType(items=items) if lit.attr in items:
+                # HACK: change the name of the item so that it carries
+                # along the full path. This lets us resolve the
+                # name later by just looking at the type.
+                self.id_map[lit.node_id] = items[lit.attr].resolve_name(
+                    f"{lit.name}.{lit.attr}"
+                )
+            case DictType():
+                # TODO: make nicer error message
+                raise Exception(f"{lit.attr} not in {lit.name}")
+            case ObjectType(name=name, generic_args=args):
+                # find the class that this object refers to
+                match name.split("."):
+                    case [name]:
+                        cls_def = self.env[name]
+                    case [name, *rest]:
+                        cls_def = lookup_path(rest, self.env[name])
+                    case _:
+                        raise Unreachable()
 
-        self.id_map[lit.node_id] = obj_typ.fields[lit.attr]
+                debug("blah", args)
+                assert isinstance(cls_def, Class)
+                self.id_map[lit.node_id] = cls_def.fields[lit.attr]
+            case x:
+                raise NotImplementedError(x)
 
-        return super().end_GetAttr(lit)
+        # if not isinstance(obj_typ, ObjectType):
+        #     raise Exception(
+        #         f"We must know that {lit.name} is an object at this point.\n{obj_typ}"
+        #     )
+
+        # if lit.attr not in obj_typ.fields:
+        #     raise Exception(f"{lit.attr} not in {obj_typ.name}")
+
+        # self.id_map[lit.node_id] = obj_typ.fields[lit.attr]
 
     def end_Neg(self, op: Neg):
         op_typ = self.id_map[op.expr.node_id]
@@ -169,53 +216,70 @@ class Annotate(Visitor):
         # type of function
         fn_typ = self.id_map[op.function_name.node_id]
 
-        # if we already know that it is a function type, we can be
-        # more precise in the type we assign right now
-        if isinstance(fn_typ, ArrowType):
-            # if we are not abstracting over any types we check what we know about
-            # the types of the arguments we are passing against the types of arguments
-            # that we are expecting
-            if fn_typ.type_abs == {}:
-                assert len(fn_typ.args) == len(op.arglist)  # TODO: real error message
+        match fn_typ:
+            # if we already know that it is a function type, we can be
+            # more precise in the type we assign right now
+            case ArrowType(type_abs=type_abs, args=args, ret=ret):
+                # if we are not abstracting over any types we check what we know about
+                # the types of the arguments we are passing against the types of arguments
+                # that we are expecting
+                if type_abs == {}:
+                    assert len(args) == len(op.arglist)  # TODO: real error message
 
-                for (_, typ), exp in zip(fn_typ.args, op.arglist):
+                    for (_, typ), exp in zip(args, op.arglist):
+                        if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
+                            debug(typ, self.id_map[exp.node_id])
+                            assert (
+                                typ == self.id_map[exp.node_id]
+                            )  # TODO: real error message
+
+                    # the type of this node is the return type of the function we are calling
+                    self.id_map[op.node_id] = ret
+                # otherwise, we know that we are abstracting over type variables
+                else:
+                    new_fn_type = fn_typ
+                    # make a list of fresh type variables
+                    new_vars = []
+                    for v, kind in type_abs.items():
+                        if kind == "type":
+                            fresh = HMType(TypeVar.fresh(v))
+                            new_vars += [fresh]
+                        elif kind == "pred":
+                            fresh = PredicateVar.fresh(v)
+                            new_vars += [fresh]
+                        else:
+                            raise Unreachable(kind)
+                        new_fn_type = new_fn_type.subst_typevar(v, fresh)
+
+                    # construct a new type application node using this list of variables
+                    type_app = TypeApp(
+                        op.function_name,
+                        new_vars,
+                    ).pos(op.function_name)
+
+                    self.id_map[type_app.node_id] = new_fn_type
+                    self.id_map[op.node_id] = new_fn_type.ret
+
+                    # construct a new call node that calls the type app instead of the
+                    # function
+                    return Call(
+                        type_app,
+                        op.arglist,
+                        node_id=op.node_id,
+                    ).pos(op)
+            case Class(constructor=cons) if len(cons.type_abs) == 0:
+                assert len(cons.args) == len(op.arglist)
+                for (_, typ), exp in zip(cons.args, op.arglist):
                     if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
-                        debug(typ, self.id_map[exp.node_id])
-                        assert (
-                            typ == self.id_map[exp.node_id]
-                        )  # TODO: real error message
+                        assert typ == self.id_map[exp.node_id]
 
-                # the type of this node is the return type of the function we are calling
-                self.id_map[op.node_id] = fn_typ.ret
-            # otherwise, we know that we are abstracting over type variables
-            else:
-                new_fn_type = fn_typ
-                # make a list of fresh type variables
-                new_vars = []
-                for v, kind in fn_typ.type_abs.items():
-                    if kind == "type":
-                        fresh = HMType(TypeVar.fresh(v))
-                        new_vars += [fresh]
-                    elif kind == "pred":
-                        fresh = PredicateVar.fresh(v)
-                        new_vars += [fresh]
-                    else:
-                        raise Unreachable(kind)
-                    new_fn_type = new_fn_type.subst_typevar(v, fresh)
+                self.id_map[op.node_id] = cons.ret
+            case Class(
+                name=name, constructor=ArrowType(type_abs=type_abs, args=args, ret=ret)
+            ):
+                assert isinstance(ret, SelfType)
+                self.id_map[op.node_id] = ret.resolve(name)
 
-                # construct a new type application node using this list of variables
-                type_app = TypeApp(
-                    op.function_name,
-                    new_vars,
-                ).pos(op.function_name)
-
-                self.id_map[type_app.node_id] = new_fn_type
-                self.id_map[op.node_id] = new_fn_type.ret
-
-                # construct a new call node that calls the type app instead of the
-                # function
-                return Call(
-                    type_app,
-                    op.arglist,
-                    node_id=op.node_id,
-                ).pos(op)
+                raise NotImplementedError(fn_typ)
+            case x:
+                raise NotImplementedError(x)

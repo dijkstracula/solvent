@@ -156,7 +156,7 @@ class PredicateVar(Predicate):
 class Type(Pos):
     pending_subst: Dict[str, "Expr"] = field(default_factory=dict, repr=False)
 
-    def metadata(self, frm: "Type") -> "Type":
+    def metadata(self, frm: "Type") -> Self:
         self.pending_subst = frm.pending_subst
         self.position = frm.position
         return self
@@ -170,7 +170,7 @@ class Type(Pos):
     def subst_typevar(self, typevar: str, tar: "Type | Predicate") -> Self:
         match self:
             case HMType(TypeVar(name=n)) if typevar == n:
-                assert isinstance(tar, Self)
+                assert isinstance(tar, Type)
                 return HMType(unwrap(tar.base_type())).pos(self)
             case HMType():
                 return self
@@ -193,6 +193,8 @@ class Type(Pos):
                 )
             case ListType(inner_typ=inner):
                 return ListType(inner.subst_typevar(typevar, tar)).pos(self)
+            case SelfType(generic_args=args):
+                return SelfType([a.subst_typevar(typevar, tar) for a in args]).pos(self)
             # case Class():
             #     raise NotImplementedError(self)
             # case ObjectType(name=obj_name, type_abs=abs, fields=fields):
@@ -275,12 +277,18 @@ class Type(Pos):
                 return "Any"
             case ListType(inner_typ=inner_typ):
                 return f"List[{inner_typ}]"
-            case DictType():
-                return "dict()"
+            case DictType(items=items):
+                names = ", ".join(map(str, items.keys()))
+                return f"{{ {names} }}"
             case Class(name=name, type_abs=abs):
-                return repr(self)
+                arg_str = ", ".join(list(map(str, abs)))
+                return f"{name}[{arg_str}]"
             case ObjectType(name=name, generic_args=args):
-                return f"{name}[{map(str, args)}]"
+                arg_str = ", ".join(map(str, args))
+                return f"{name}[{arg_str}]"
+            case SelfType(generic_args=args):
+                arg_str = ", ".join(map(str, args))
+                return f"Self[{arg_str}]"
                 # if len(abs) == 0:
                 #     type_args_str = ""
                 # elif len(abs) == 1:
@@ -306,6 +314,19 @@ class Type(Pos):
                 return RType(base, predicate, pending_subst=ps, position=pos)
             case x:
                 raise Exception(f"`{x}` is not an RType.")
+
+    def resolve_name(self, new: str) -> Self:
+        match self:
+            case ObjectType(generic_args=args):
+                return ObjectType(name=new, generic_args=args).metadata(self)
+            case SelfType(generic_args=args):
+                return ObjectType(name=new, generic_args=args).metadata(self)
+            case Class(type_abs=abs, constructor=cons, fields=fields):
+                return Class(
+                    name=new, type_abs=abs, constructor=cons, fields=fields
+                ).metadata(self)
+            case _:
+                return self
 
 
 @dataclass
@@ -385,12 +406,15 @@ class Class(Type):
 @dataclass
 class ObjectType(Type):
     name: str
-    generic_args: List[Type]
+    generic_args: List[Type] = field(default_factory=list)
 
 
 @dataclass
 class SelfType(Type):
     generic_args: List[Type] = field(default_factory=list)
+
+    def resolve(self, obj_name: str) -> ObjectType:
+        return ObjectType(obj_name, self.generic_args).metadata(self)
 
 
 @dataclass

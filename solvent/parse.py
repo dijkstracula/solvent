@@ -1,5 +1,5 @@
 import ast
-from logging import debug, info
+from logging import debug, info, warn
 from typing import Annotated, Any, Dict, List, get_args, get_origin
 
 import solvent
@@ -83,7 +83,7 @@ class Parser:
                 for stmt in body:
                     match stmt:
                         case ast.FunctionDef(name="__init__"):
-                            pass
+                            raise NotImplementedError("don't support __init__ yet")
                         case ast.FunctionDef(name=name):
                             fields[name] = self.parse(stmt)
                         case _:
@@ -125,6 +125,9 @@ class Parser:
                     ).ast(tree)
                 ]
             case ast.Assign(targets=[ast.Name(id=id)], value=e):
+                return [syn.Assign(id, self.parse_expr(e)).ast(tree)]
+            case ast.AnnAssign(target=ast.Name(id=id), value=e, annotation=ann):
+                warn(f"Ignoring annotation: {ast.dump(ann)}")
                 return [syn.Assign(id, self.parse_expr(e)).ast(tree)]
             case ast.Return(value=value):
                 return [syn.Return(value=self.parse_expr(value)).ast(tree)]
@@ -176,7 +179,6 @@ class Parser:
             raise NotImplementedError(hint)
 
     def parse_annotation(self, ann) -> syn.Type:
-        debug(ast.dump(ann, indent=2))
         match ann:
             case ast.Name(id="int"):
                 return syn.RType.lift(syn.Int())
@@ -263,11 +265,16 @@ class Parser:
                     ],
                     ret=ret,
                 )
+            # case ast.Subscript(
+            #         value=ast.Name(id=name),
+            #         slice=
+            # ):
+            #     pass
             case ast.Name(id=name):
                 return syn.RType(syn.TypeVar(name), syn.Conjoin([]))
             case x:
                 if x is not None and isinstance(x, ast.AST):
-                    info(ast.dump(ann, indent=2))
+                    debug(ast.dump(ann, indent=2))
                 raise NotImplementedError(x, type(x))
 
     def parse_expr(self, expr) -> syn.Expr:
@@ -331,16 +338,14 @@ class Parser:
                     raise NotImplementedError(x)
 
     def parse_refinement(self, input: str) -> syn.RType:
-        stripped = input[1:-1]
-        typ, refinement = stripped.split("|")
-        refine_expr = string_to_expr(refinement)
-        match typ.strip():
-            case "int":
-                return syn.RType(syn.Int(), syn.Conjoin([refine_expr]))
-            case "bool":
-                return syn.RType(syn.Bool(), syn.Conjoin([refine_expr]))
-            case _:
-                raise NotImplementedError
+        match ast.parse(input):
+            case ast.Module(body=[ast.Expr(value=v)]):
+                debug(ast.dump(v, indent=2))
+                res = self.parse_annotation(v)
+                debug("here", res)
+                return res
+            case x:
+                raise NotImplementedError(x)
 
     def binop_str(self, op):
         match op:
