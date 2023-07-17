@@ -1,12 +1,13 @@
-from logging import info
+from logging import debug, info
 from typing import Dict, List
 
 import solvent.syntax as syn
 from solvent import visitor
 from solvent.env import ScopedEnv
+from solvent.qualifiers import predicate
 
 from .constraints import HindleyMilner, check_stmts
-from .subst import Subst, subst_stmts  # type: ignore
+from .subst import Subst  # type: ignore
 from .unification import apply, free_vars, unify  # type: ignore
 
 
@@ -44,6 +45,8 @@ def solve(
         match t:
             case syn.HMType(syn.TypeVar(name=n)) if n in solution:
                 return solution[n]
+            case syn.RType(base=syn.TypeVar(name=n), predicate=p) if n in solution:
+                return solution[n].set_predicate(p)
             case _:
                 return t
 
@@ -53,7 +56,7 @@ def solve(
 
     # _ = apply(typ, solution)
     # subst_stmts(solution, stmts)
-    # stmts = Subst(solution).visit_stmts(stmts)
+    stmts = Subst(solution).visit_stmts(stmts)
 
     for s in stmts:
         info(s.to_string(new_types, include_types=True))

@@ -6,6 +6,7 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
+from logging import debug
 from typing import Any, Dict, Iterable, List, Optional, Self
 
 from ansi.color import fg, fx
@@ -171,7 +172,7 @@ class Type(Pos):
         match self:
             case HMType(TypeVar(name=n)) if typevar == n:
                 assert isinstance(tar, Type)
-                return HMType(unwrap(tar.base_type())).pos(self)
+                return HMType(unwrap(tar.base_type())).metadata(self)
             case HMType():
                 return self
             case RType(base=base, predicate=p, pending_subst=ps):
@@ -183,28 +184,33 @@ class Type(Pos):
                     assert isinstance(tar, Predicate)
                     p = tar
 
-                return RType(base, p, pending_subst=ps).pos(self)
+                return RType(base, p, pending_subst=ps).metadata(self)
 
             case ArrowType(type_abs=abs, args=args, ret=ret):
                 return ArrowType(
                     type_abs={k: abs[k] for k in abs if k != typevar},
                     args=[(x, t.subst_typevar(typevar, tar)) for x, t in args],
                     ret=ret.subst_typevar(typevar, tar),
-                )
+                ).metadata(self)
             case ListType(inner_typ=inner):
-                return ListType(inner.subst_typevar(typevar, tar)).pos(self)
+                return ListType(inner.subst_typevar(typevar, tar)).metadata(self)
             case SelfType(generic_args=args):
-                return SelfType([a.subst_typevar(typevar, tar) for a in args]).pos(self)
-            # case Class():
-            #     raise NotImplementedError(self)
-            # case ObjectType(name=obj_name, type_abs=abs, fields=fields):
-            # return ObjectType(
-            #     obj_name,
-            #     abs,
-            #     {x: t.subst_typevar(typevar, tar) for x, t in fields.items()},
-            # )
+                return SelfType([a.subst_typevar(typevar, tar) for a in args]).metadata(
+                    self
+                )
+            case ObjectType(name=name, generic_args=args):
+                return ObjectType(
+                    name, [a.subst_typevar(typevar, tar) for a in args]
+                ).metadata(self)
+            case Class(name=name, type_abs=abs, constructor=cons, fields=fields):
+                return Class(
+                    name,
+                    [a for a in abs if a != typevar],
+                    cons.subst_typevar(name, tar),
+                    {x: t.subst_typevar(name, tar) for x, t in fields.items()},
+                ).metadata(self)
             case x:
-                raise NotImplementedError(x)
+                raise NotImplementedError(str(x), type(x))
 
     def shape(self) -> Self:
         """
@@ -282,27 +288,13 @@ class Type(Pos):
                 return f"{{ {names} }}"
             case Class(name=name, type_abs=abs):
                 arg_str = ", ".join(list(map(str, abs)))
-                return f"{name}[{arg_str}]"
+                return f"class<{name}[{arg_str}]>"
             case ObjectType(name=name, generic_args=args):
                 arg_str = ", ".join(map(str, args))
                 return f"{name}[{arg_str}]"
             case SelfType(generic_args=args):
                 arg_str = ", ".join(map(str, args))
                 return f"Self[{arg_str}]"
-                # if len(abs) == 0:
-                #     type_args_str = ""
-                # elif len(abs) == 1:
-                #     type_args_str = "∀" + "".join(map(str, abs.keys())) + ", "
-                # else:
-                #     type_args_str = "∀(" + ", ".join(map(str, abs.keys())) + "), "
-
-                # tmp = ", ".join([f"{k}: {v}" for k, v in fields.items()])
-                # if len(tmp) > 0:
-                #     value_str = f"{{{tmp}}}"
-                # else:
-                #     value_str = ""
-
-                # return f"{type_args_str}{name}{value_str}"
             case x:
                 raise Exception(x, type(x))
 
@@ -310,8 +302,10 @@ class Type(Pos):
         match self:
             case ArrowType():
                 raise NotImplementedError
-            case RType(base=base, pending_subst=ps, position=pos):
-                return RType(base, predicate, pending_subst=ps, position=pos)
+            case RType(base=base):
+                return RType(base, predicate).metadata(self)
+            case HMType(base=base):
+                return RType(base, predicate).metadata(self)
             case x:
                 raise Exception(f"`{x}` is not an RType.")
 
@@ -413,9 +407,6 @@ class ObjectType(Type):
 class SelfType(Type):
     generic_args: List[Type] = field(default_factory=list)
 
-    def resolve(self, obj_name: str) -> ObjectType:
-        return ObjectType(obj_name, self.generic_args).metadata(self)
-
 
 @dataclass
 class Unknown(Type):
@@ -507,7 +498,9 @@ class Expr(Node, Pos):
                 return f"{obj.to_string(types, include_types)}.{attr}"
             case TypeApp(expr=e, arglist=args):
                 arg_str = ", ".join([str(a) for a in args])
-                return f"{e.to_string(types, include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
+                return (
+                    f"{e.to_string(types, include_types)}{fg.red}[{arg_str}]{fx.reset}"
+                )
             case x:
                 return f"`{repr(x)}`"
 
@@ -522,7 +515,7 @@ class Expr(Node, Pos):
             case ListLiteral(elts=elts):
                 inner = ", ".join([e.to_string() for e in elts])
                 if include_types:
-                    return f"([{inner}] : {types[self.node_id]})"
+                    return f"([{inner}] : {fg.yellow}{types[self.node_id]}{fx.reset})"
                 else:
                     return f"[{inner}]"
             case DictLit():
@@ -545,7 +538,7 @@ class Expr(Node, Pos):
                 return "*"
             case Call(function_name=fn, arglist=args):
                 args = [a.to_string2(types, include_types) for a in args]
-                return f"{fn}({', '.join(args)})"
+                return f"{fn.to_string2(types, include_types)}({', '.join(args)})"
             case GetAttr(name=obj, attr=attr):
                 return f"{obj.to_string2(types, include_types)}.{attr}"
             case TypeApp(expr=e, arglist=args):
@@ -771,7 +764,7 @@ class Stmt(Node, Pos):
                     if include_types
                     else ""
                 )
-                return f"{align}{name}{typann} = {value.to_string2(types, False)}"
+                return f"{align}{name}{typann} = {value.to_string2(types, True)}"
             case Return(value):
                 return f"{align}return ({value} : {fg.yellow}{types[value.node_id]}{fx.reset})"
             case x:

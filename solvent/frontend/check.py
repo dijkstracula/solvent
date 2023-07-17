@@ -73,9 +73,6 @@ def check(
 
     info_stmts(stmts, types=types, include_types=True)
 
-    for k, v in types.items():
-        debug(k, v)
-
     # info("Inserting type applications")
     # stmts = TypeApplication(types).visit_stmts(stmts)
     # info_stmts(stmts, types=types, include_types=True)

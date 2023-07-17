@@ -1,3 +1,4 @@
+from logging import warning
 from typing import Callable, List, cast
 
 from solvent import errors, position
@@ -19,6 +20,7 @@ from solvent.syntax import (
     Neg,
     ObjectType,
     Return,
+    SelfType,
     Star,
     Stmt,
     StrLiteral,
@@ -283,14 +285,12 @@ def type_mapper(typ: Type, fn: Callable[[Type], Type]) -> Type:
             ).metadata(typ)
         case ListType(inner_typ=inner):
             return fn(ListType(type_mapper(inner, fn))).metadata(typ)
-        case ObjectType(name=name, type_abs=abs, fields=fields):
-            return fn(
-                ObjectType(
-                    name=name,
-                    type_abs=abs,
-                    fields={x: type_mapper(t, fn) for x, t in fields.items()},
-                )
-            ).metadata(typ)
+        case SelfType(generic_args=args):
+            return fn(SelfType([type_mapper(t, fn) for t in args])).metadata(typ)
+        case ObjectType(name=name, generic_args=args):
+            return fn(ObjectType(name, [type_mapper(t, fn) for t in args])).metadata(
+                typ
+            )
         case x:
             return fn(x).metadata(x)
 

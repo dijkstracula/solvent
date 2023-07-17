@@ -24,7 +24,6 @@ from solvent.syntax import (
     Neg,
     ObjectType,
     PredicateVar,
-    SelfType,
     Stmt,
     Type,
     TypeApp,
@@ -167,7 +166,6 @@ class Annotate(Visitor):
 
     def end_GetAttr(self, lit: GetAttr) -> Expr | None:
         obj_typ = self.id_map[lit.name.node_id]
-        debug(f"getattr: {lit} {obj_typ}")
 
         match obj_typ:
             case DictType(items=items) if lit.attr in items:
@@ -190,9 +188,18 @@ class Annotate(Visitor):
                     case _:
                         raise Unreachable()
 
-                debug("blah", args)
                 assert isinstance(cls_def, Class)
-                self.id_map[lit.node_id] = cls_def.fields[lit.attr]
+
+                # get the method from the class
+                method = cls_def.fields[lit.attr]
+
+                # then, subst all the typevars defined
+                # at the class level using the arg list
+                # that we have
+                for a, tyv in zip(args, cls_def.type_abs):
+                    method = method.subst_typevar(tyv, a)
+
+                self.id_map[lit.node_id] = method
             case x:
                 raise NotImplementedError(x)
 
@@ -213,73 +220,85 @@ class Annotate(Visitor):
         return super().end_Neg(op)
 
     def end_Call(self, op: Call) -> Expr | None:
-        # type of function
-        fn_typ = self.id_map[op.function_name.node_id]
-
-        match fn_typ:
-            # if we already know that it is a function type, we can be
-            # more precise in the type we assign right now
-            case ArrowType(type_abs=type_abs, args=args, ret=ret):
-                # if we are not abstracting over any types we check what we know about
-                # the types of the arguments we are passing against the types of arguments
-                # that we are expecting
-                if type_abs == {}:
-                    assert len(args) == len(op.arglist)  # TODO: real error message
-
-                    for (_, typ), exp in zip(args, op.arglist):
-                        if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
-                            debug(typ, self.id_map[exp.node_id])
-                            assert (
-                                typ == self.id_map[exp.node_id]
-                            )  # TODO: real error message
-
-                    # the type of this node is the return type of the function we are calling
-                    self.id_map[op.node_id] = ret
-                # otherwise, we know that we are abstracting over type variables
-                else:
-                    new_fn_type = fn_typ
-                    # make a list of fresh type variables
-                    new_vars = []
-                    for v, kind in type_abs.items():
-                        if kind == "type":
-                            fresh = HMType(TypeVar.fresh(v))
-                            new_vars += [fresh]
-                        elif kind == "pred":
-                            fresh = PredicateVar.fresh(v)
-                            new_vars += [fresh]
-                        else:
-                            raise Unreachable(kind)
-                        new_fn_type = new_fn_type.subst_typevar(v, fresh)
-
-                    # construct a new type application node using this list of variables
-                    type_app = TypeApp(
-                        op.function_name,
-                        new_vars,
-                    ).pos(op.function_name)
-
-                    self.id_map[type_app.node_id] = new_fn_type
-                    self.id_map[op.node_id] = new_fn_type.ret
-
-                    # construct a new call node that calls the type app instead of the
-                    # function
-                    return Call(
-                        type_app,
-                        op.arglist,
-                        node_id=op.node_id,
-                    ).pos(op)
-            case Class(constructor=cons) if len(cons.type_abs) == 0:
-                assert len(cons.args) == len(op.arglist)
-                for (_, typ), exp in zip(cons.args, op.arglist):
-                    if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
-                        assert typ == self.id_map[exp.node_id]
-
-                self.id_map[op.node_id] = cons.ret
+        lookup_typ = self.id_map[op.function_name.node_id]
+        match lookup_typ:
+            case ArrowType():
+                fn_typ = lookup_typ
             case Class(
-                name=name, constructor=ArrowType(type_abs=type_abs, args=args, ret=ret)
+                name=name, constructor=ArrowType(type_abs=abs, args=args, ret=ret)
             ):
-                assert isinstance(ret, SelfType)
-                self.id_map[op.node_id] = ret.resolve(name)
+                fn_typ = ArrowType(abs, args, ret.resolve_name(name))
+            case _:
+                raise Exception(f"You can't call a {lookup_typ}")
 
-                raise NotImplementedError(fn_typ)
-            case x:
-                raise NotImplementedError(x)
+        assert isinstance(fn_typ, ArrowType)
+
+        # type of function
+        # fn_typ = self.id_map[op.function_name.node_id]
+
+        # if we are not abstracting over any types we check what we know about
+        # the types of the arguments we are passing against the types of arguments
+        # that we are expecting
+        if fn_typ.type_abs == {}:
+            assert len(fn_typ.args) == len(op.arglist)  # TODO: real error message
+
+            for (_, typ), exp in zip(fn_typ.args, op.arglist):
+                if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
+                    debug(typ, self.id_map[exp.node_id])
+                    assert typ == self.id_map[exp.node_id]  # TODO: real error message
+
+            # the type of this node is the return type of the function we are calling
+            self.id_map[op.node_id] = fn_typ.ret
+        # otherwise, we know that we are abstracting over type variables
+        else:
+            new_fn_type = fn_typ
+            # make a list of fresh type variables
+            new_vars = []
+            for v, kind in fn_typ.type_abs.items():
+                if kind == "type":
+                    fresh = HMType(TypeVar.fresh(v))
+                    new_vars += [fresh]
+                elif kind == "pred":
+                    fresh = PredicateVar.fresh(v)
+                    new_vars += [fresh]
+                else:
+                    raise Unreachable(kind)
+                new_fn_type = new_fn_type.subst_typevar(v, fresh)
+
+            # construct a new type application node using this list of variables
+            type_app = TypeApp(
+                op.function_name,
+                new_vars,
+            ).pos(op.function_name)
+
+            self.id_map[type_app.node_id] = new_fn_type
+            self.id_map[op.node_id] = new_fn_type.ret
+
+            # construct a new call node that calls the type app instead of the
+            # function
+            return Call(
+                type_app,
+                op.arglist,
+                node_id=op.node_id,
+            ).pos(op)
+
+        # match fn_typ:
+        #     # if we already know that it is a function type, we can be
+        #     # more precise in the type we assign right now
+        #     case ArrowType(type_abs=type_abs, args=args, ret=ret):
+        #     case Class(constructor=cons) if len(cons.type_abs) == 0:
+        #         assert len(cons.args) == len(op.arglist)
+        #         for (_, typ), exp in zip(cons.args, op.arglist):
+        #             if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
+        #                 assert typ == self.id_map[exp.node_id]
+
+        #         self.id_map[op.node_id] = cons.ret
+        #     case Class(
+        #         name=name, constructor=ArrowType(type_abs=type_abs, args=args, ret=ret)
+        #     ):
+        #         assert isinstance(ret, SelfType)
+        #         self.id_map[op.node_id] = ret.resolve_name(name)
+
+        #         raise NotImplementedError(fn_typ)
+        #     case x:
+        #         raise NotImplementedError(x)
