@@ -81,11 +81,6 @@ def check(
 
     stmts, base_types = hm.solve(stmts, types, env=env)
 
-    raise Exception("stopping early")
-
-    info("HmType program:")
-    info_stmts(stmts, include_types=True)
-
     info("== Inferred Base Types ==")
     info(
         "\n".join(

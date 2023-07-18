@@ -107,9 +107,13 @@ class Annotate(Visitor):
             arglist += [(arg.name, default(arg.annotation, fallback=HMType.fresh("a")))]
 
         # add the type of fd to the environment
-        this_typ = ArrowType(
-            {}, arglist, default(fd.return_annotation, fallback=HMType.fresh("ret"))
-        )
+        if fd.node_id in self.id_map:
+            this_typ = self.id_map[fd.node_id]
+        else:
+            this_typ = ArrowType(
+                {}, arglist, default(fd.return_annotation, fallback=HMType.fresh("ret"))
+            )
+
         self.env[fd.name] = this_typ
         self.id_map[fd.node_id] = this_typ
         self.env.push_scope_mut()
@@ -144,7 +148,6 @@ class Annotate(Visitor):
         self.id_map[var.node_id] = self.env[var.name]
 
     def end_ArithBinOp(self, abo: ArithBinOp):
-        debug("here?")
         lhs_typ = self.id_map[abo.lhs.node_id]
         rhs_typ = self.id_map[abo.rhs.node_id]
 
@@ -158,7 +161,16 @@ class Annotate(Visitor):
                         method = cls_def.fields["__mul__"]
                         assert isinstance(method, ArrowType)
                         warning("not doing any type checking here")  # TODO: fix this
-                        self.id_map[abo.node_id] = method.ret.resolve_name(lhs_typ.name)
+                        substs = [
+                            (name, expr)
+                            for ((name, _), expr) in zip(
+                                method.args, [abo.lhs, abo.rhs]
+                            )
+                        ]
+
+                        self.id_map[abo.node_id] = method.ret.resolve_name(
+                            lhs_typ.name
+                        ).subst(substs)
                         return
                 case _:
                     pass
@@ -179,6 +191,8 @@ class Annotate(Visitor):
             case (Int(), "-", Int()):
                 self.id_map[abo.node_id] = HMType.int()
             case (Int(), "/", Int()):
+                self.id_map[abo.node_id] = HMType.int()
+            case (Int(), "*", Int()):
                 self.id_map[abo.node_id] = HMType.int()
             case x:
                 raise NotImplementedError(x)
@@ -226,9 +240,9 @@ class Annotate(Visitor):
             case DictType():
                 # TODO: make nicer error message
                 raise Exception(f"{lit.attr} not in {lit.name}")
-            case ObjectType(name=name, generic_args=args):
+            case ObjectType(generic_args=args):
                 # find the class that this object refers to
-                cls_def = resolve_class(name, self.env)
+                cls_def = resolve_class(obj_typ, self.env)
 
                 # get the method from the class
                 method = cls_def.fields[lit.attr]
@@ -273,15 +287,8 @@ class Annotate(Visitor):
 
         assert isinstance(fn_typ, ArrowType)
 
-        for (_, fn_arg), op_arg in zip(fn_typ.args, op.arglist):
-            debug(f"{fn_arg} == {self.id_map[op_arg.node_id]}")
-
-        # type of function
-        # fn_typ = self.id_map[op.function_name.node_id]
-
         # start by checking that the arg types are consistent
-        # with what we expect
-        debug(fn_typ.args, op.arglist)
+        # with what we expect.
         # gather types, ignoring a self type if it comes first
         match fn_typ.args:
             case [(_, SelfType()), *rest]:

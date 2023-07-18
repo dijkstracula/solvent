@@ -91,7 +91,7 @@ class HindleyMilner(Visitor):
         assert isinstance(fn_typ, ArrowType)
 
         for (_, fn_arg), op_arg in zip(fn_typ.args, op.arglist):
-            self.constrs += [BaseEq(fn_arg, self.types[op_arg.node_id])]
+            self.constrs += [BaseEq(fn_arg, self.types[op_arg.node_id]).pos(op)]
 
         return op
 

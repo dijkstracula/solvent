@@ -146,8 +146,7 @@ class Visitor:
                 new_expr = Call(
                     self.visit_expr(fn),
                     [self.visit_expr(a) for a in args],
-                    node_id=expr.node_id,
-                )
+                ).metadata(expr)
                 new_expr = self.end_Call(new_expr)
             case TypeApp(expr=e, arglist=args):
                 self.start_TypeApp(cast(TypeApp, expr))
