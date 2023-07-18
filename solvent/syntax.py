@@ -286,7 +286,7 @@ class Type(Pos):
             case ListType(inner_typ=inner_typ):
                 return f"List[{inner_typ}]"
             case DictType(items=items):
-                names = ", ".join(map(str, items.keys()))
+                names = ", ".join([f"{name}: {k}" for name, k in items.items()])
                 return f"{{ {names} }}"
             case Class(name=name, type_abs=abs):
                 arg_str = ", ".join(list(map(str, abs)))

@@ -153,7 +153,6 @@ class Annotate(Visitor):
 
         if isinstance(lhs_typ, ObjectType):
             # find the class that this object refers to
-            # TODO: factor this out
             cls_def = resolve_class(lhs_typ, self.env)
             match abo.op:
                 case "*":
@@ -161,16 +160,19 @@ class Annotate(Visitor):
                         method = cls_def.fields["__mul__"]
                         assert isinstance(method, ArrowType)
                         warning("not doing any type checking here")  # TODO: fix this
-                        substs = [
-                            (name, expr)
-                            for ((name, _), expr) in zip(
-                                method.args, [abo.lhs, abo.rhs]
-                            )
-                        ]
+                        # substs = [
+                        #     (name, expr)
+                        #     for ((name, _), expr) in zip(
+                        #         method.args, [abo.lhs, abo.rhs]
+                        #     )
+                        # ]
 
+                        # self.id_map[abo.node_id] = method.ret.resolve_name(
+                        #     lhs_typ.name
+                        # ).subst(substs)
                         self.id_map[abo.node_id] = method.ret.resolve_name(
                             lhs_typ.name
-                        ).subst(substs)
+                        ).shape()
                         return
                 case _:
                     pass

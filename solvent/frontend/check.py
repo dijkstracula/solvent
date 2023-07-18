@@ -64,34 +64,27 @@ def check(
     stmts = annotator.visit_stmts(stmts)
     types: Dict[int, Type] = annotator.id_map
 
-    # replace all unknown types with type variables
-    # TODO: move into solve
-    # for node_id, ty in types.items():
-    #     types[node_id] = visitor.type_mapper(
-    #         ty, lambda t: syn.HMType.fresh("t") if isinstance(t, syn.Unknown) else t
-    #     )
-
     info_stmts(stmts, types=types, include_types=True)
 
-    # info("Inserting type applications")
-    # stmts = TypeApplication(types).visit_stmts(stmts)
-    # info_stmts(stmts, types=types, include_types=True)
+    stmts, types = hm.solve(stmts, types, env=env)
 
-    # raise Exception("blah")
+    # info("== Inferred Base Types ==")
+    # info(
+    #     "\n".join(
+    #         [f"{fn_name}: {alpha_rename(typ)}" for fn_name, typ in base_types.items()]
+    #     )
+    # )
 
-    stmts, base_types = hm.solve(stmts, types, env=env)
+    for id, ty in types.items():
+        debug(f"{id}: {ty}")
 
-    info("== Inferred Base Types ==")
-    info(
-        "\n".join(
-            [f"{fn_name}: {alpha_rename(typ)}" for fn_name, typ in base_types.items()]
-        )
-    )
-
-    stmts = Templatizer(env).visit_stmts(stmts)
+    templatizer = Templatizer(types, env.clone())
+    stmts = templatizer.visit_stmts(stmts)
     AssertHavePosition().visit_stmts(stmts)
     info("Template program:")
-    info_stmts(stmts, True)
+    for id, ty in templatizer.types.items():
+        debug(f"{id}: {ty}")
+    info_stmts(stmts, types=templatizer.types, include_types=True)
     AssertNoHmTypes().visit_stmts(stmts)
 
     _, constrs, ctx = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
