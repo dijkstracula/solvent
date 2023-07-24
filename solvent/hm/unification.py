@@ -207,14 +207,10 @@ def apply(typ: Type, solution: Solution) -> Type:
             )
         case ListType(inner_typ=inner):
             return ListType(inner_typ=apply(inner, solution))
-        case ObjectType(name=name, type_abs=abs, fields=fields):
-            new_type_abs = {}
-            for t, k in abs.items():
-                if t in solution:
-                    fields = {name: apply(t, solution) for name, t in fields.items()}
-                else:
-                    new_type_abs[t] = k
-            return ObjectType(name, new_type_abs, fields)
+        case ObjectType(name=name, generic_args=args):
+            return ObjectType(
+                name=name, generic_args=[apply(t, solution) for t in args]
+            )
         case _:
             return typ
 

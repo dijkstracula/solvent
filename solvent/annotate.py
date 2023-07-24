@@ -12,6 +12,7 @@ from solvent.syntax import (
     ArithBinOp,
     ArrowType,
     Assign,
+    BaseType,
     BoolLiteral,
     BoolOp,
     Call,
@@ -170,9 +171,7 @@ class Annotate(Visitor):
                         # self.id_map[abo.node_id] = method.ret.resolve_name(
                         #     lhs_typ.name
                         # ).subst(substs)
-                        self.id_map[abo.node_id] = method.ret.resolve_name(
-                            lhs_typ.name
-                        ).shape()
+                        self.id_map[abo.node_id] = method.ret.resolve_name(lhs_typ.name)
                         return
                 case _:
                     pass
@@ -304,19 +303,16 @@ class Annotate(Visitor):
             if not type_consistent_with(arg_typ, passed_typ):
                 raise Exception(f"{arg_typ} != {passed_typ}")
 
-        if fn_typ.type_abs != {}:
+        # filter out predicate variables
+        just_types = [v for v, kind in fn_typ.type_abs.items() if kind == "type"]
+
+        if len(just_types) != 0:
             new_fn_type = fn_typ
             # make a list of fresh type variables
             new_vars = []
-            for v, kind in fn_typ.type_abs.items():
-                if kind == "type":
-                    fresh = HMType(TypeVar.fresh(v))
-                    new_vars += [fresh]
-                elif kind == "pred":
-                    fresh = PredicateVar.fresh(v)
-                    new_vars += [fresh]
-                else:
-                    raise Unreachable(kind)
+            for v in just_types:
+                fresh = HMType(TypeVar.fresh(v))
+                new_vars += [fresh]
                 new_fn_type = new_fn_type.subst_typevar(v, fresh)
 
             # construct a new type application node using this list of variables
@@ -325,37 +321,25 @@ class Annotate(Visitor):
                 new_vars,
             ).pos(op.function_name)
 
-            self.id_map[type_app.node_id] = new_fn_type
-            self.id_map[op.node_id] = new_fn_type.ret
-
-            # construct a new call node that calls the type app instead of the
-            # function
-            return Call(
+            # construct a new call node that calls the type app
+            # instead of the function
+            call_node = Call(
                 type_app,
                 op.arglist,
-                node_id=op.node_id,
             ).pos(op)
 
-        # match fn_typ:
-        #     # if we already know that it is a function type, we can be
-        #     # more precise in the type we assign right now
-        #     case ArrowType(type_abs=type_abs, args=args, ret=ret):
-        #     case Class(constructor=cons) if len(cons.type_abs) == 0:
-        #         assert len(cons.args) == len(op.arglist)
-        #         for (_, typ), exp in zip(cons.args, op.arglist):
-        #             if self.id_map[exp.node_id] != Unknown() and typ != Unknown():
-        #                 assert typ == self.id_map[exp.node_id]
+            self.id_map[type_app.node_id] = new_fn_type
+            self.id_map[call_node.node_id] = new_fn_type.ret
 
-        #         self.id_map[op.node_id] = cons.ret
-        #     case Class(
-        #         name=name, constructor=ArrowType(type_abs=type_abs, args=args, ret=ret)
-        #     ):
-        #         assert isinstance(ret, SelfType)
-        #         self.id_map[op.node_id] = ret.resolve_name(name)
+            return call_node
 
-        #         raise NotImplementedError(fn_typ)
-        #     case x:
-        #         raise NotImplementedError(x)
+
+def base_type_consistent(t0: BaseType, t1: BaseType) -> bool:
+    match (t0, t1):
+        case (TypeVar(), _) | (_, TypeVar()):
+            return True
+        case (t0, t1):
+            return t0 == t1
 
 
 def type_consistent_with(t0: Type, t1: Type) -> bool:
@@ -364,17 +348,17 @@ def type_consistent_with(t0: Type, t1: Type) -> bool:
             return True
         case (Any(), _) | (_, Any()):
             return True
-        case (HMType(TypeVar()), _) | (_, HMType(TypeVar())):
-            return True
         case (HMType(base=b1), HMType(base=b2)) | (
             RType(
                 base=b1,
             ),
             RType(base=b2),
         ):
-            return b1 == b2
+            return base_type_consistent(b1, b2)
         case (HMType(base=b1), RType(base=b2)) | (RType(base=b1), HMType(base=b2)):
-            return b1 == b2
+            return base_type_consistent(b1, b2)
+        case (RType(base=b1), RType(base=b2)):
+            return base_type_consistent(b1, b2)
         case (ListType(inner_typ=i0), ListType(inner_typ=i1)):
             return type_consistent_with(i0, i1)
         case (ArrowType(args=args0, ret=ret0), ArrowType(args=args1, ret=ret1)):

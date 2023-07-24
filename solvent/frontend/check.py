@@ -14,15 +14,16 @@ from solvent.template import Templatizer
 
 
 def infer_base(stmts: List[syn.Stmt]) -> Dict[str, Type]:
-    norm_stmts = normalize.normalize(stmts)
-    _, solved_type = hm.solve(norm_stmts)
+    raise NotImplementedError("todo")
+    # norm_stmts = normalize.normalize(stmts)
+    # _, solved_type = hm.solve(norm_stmts)
 
-    info("Normalized Program:")
-    for s in norm_stmts:
-        info(s)
-    info("======")
+    # info("Normalized Program:")
+    # for s in norm_stmts:
+    #     info(s)
+    # info("======")
 
-    return {k: alpha_rename(v) for k, v in solved_type.items()}
+    # return {k: alpha_rename(v) for k, v in solved_type.items()}
 
 
 def number(blob: str) -> str:
@@ -64,6 +65,9 @@ def check(
     stmts = annotator.visit_stmts(stmts)
     types: Dict[int, Type] = annotator.id_map
 
+    for id, ty in types.items():
+        debug(f"{id}: {ty}")
+
     info_stmts(stmts, types=types, include_types=True)
 
     stmts, types = hm.solve(stmts, types, env=env)
@@ -83,9 +87,15 @@ def check(
     AssertHavePosition().visit_stmts(stmts)
     info("Template program:")
     for id, ty in templatizer.types.items():
-        debug(f"{id}: {ty}")
+        debug(f"{id}: {ty} ({type(ty)})")
     info_stmts(stmts, types=templatizer.types, include_types=True)
-    AssertNoHmTypes().visit_stmts(stmts)
+    # AssertNoHmTypes().visit_stmts(stmts)
+
+    debug("Testing constraints")
+    for c in templatizer.constraints:
+        debug(c)
+
+    raise Exception("blah")
 
     _, constrs, ctx = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
     for c in constrs:

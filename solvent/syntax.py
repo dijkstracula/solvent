@@ -275,7 +275,9 @@ class Type(Pos):
                     return f"{{{base} | {pred} [{inner}]}}"
             case ArrowType(type_abs=abs, args=args, ret=ret):
                 return "{}({}) -> {}".format(
-                    "∀({}), ".format(", ".join(abs)) if len(abs) > 0 else "",
+                    "∀({}), ".format(", ".join(map(str, abs.items())))
+                    if len(abs) > 0
+                    else "",
                     ", ".join([f"{name}:{t}" for name, t in args]),
                     ret,
                 )
@@ -388,7 +390,7 @@ class ListType(Type):
 
 @dataclass
 class DictType(Type):
-    items: Dict[str, Type]
+    items: Dict[str, Type] = field(default_factory=dict)
 
 
 @dataclass

@@ -43,9 +43,9 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
                 name="Series",
                 type_abs=["T"],
                 constructor=ArrowType(
-                    {"T": "type"},
-                    [("l", ListType(HMType(TypeVar("T"))))],
-                    SelfType([HMType(TypeVar("T"))]),
+                    {"T": "type", "K": "pred"},
+                    [("l", ListType(RType(TypeVar("T"), PredicateVar("K"))))],
+                    SelfType([RType(TypeVar("T"), PredicateVar("K"))]),
                 ),
                 fields={
                     "max": ArrowType(
