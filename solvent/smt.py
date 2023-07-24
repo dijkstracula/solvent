@@ -87,11 +87,7 @@ def from_type(name: str, t: syn.Type):
     match t:
         case syn.RType(predicate=syn.Conjoin(conj)):
             return from_exprs(conj, name)
-        case syn.ArrowType(args=_, ret=_):
-            return True
-        case syn.ListType():
-            return True
-        case syn.ObjectType():
+        case syn.ArrowType() | syn.ListType() | syn.ObjectType() | syn.DictType():
             return True
         case x:
             raise NotImplementedError(name, type(x))

@@ -52,7 +52,7 @@ def solve(
                 return t
 
     new_types: Dict[int, syn.Type] = {
-        id: visitor.type_mapper(t, replace) for id, t in hm.types.items()
+        id: t.mapper(replace) for id, t in hm.types.items()
     }
 
     annotator2 = Annotate(env.clone(), initial_id_map=new_types)

@@ -90,26 +90,26 @@ class ScopedEnv(Generic[T]):
 
 
 class ScopedEnvVisitor(Visitor):
-    def start(self, initial_env: ScopedEnv | None = None):
+    def start(self, types: Dict[int, Type], initial_env: ScopedEnv | None = None):
         if initial_env is None:
             initial_env = ScopedEnv.empty()
-        else:
-            debug(f"Starting with {initial_env}")
 
+        self.types = types
         self.env = initial_env
 
     def start_FunctionDef(self, fd: syn.FunctionDef):
-        if isinstance(fd.typ, syn.ArrowType):
+        fn_typ = self.types[fd.node_id]
+        if isinstance(fn_typ, syn.ArrowType):
             # add function name to current scope
-            self.env[fd.name] = fd.typ
+            self.env[fd.name] = fn_typ
 
             self.env.push_scope_mut()
-            for name, t in fd.typ.args:
+            for name, t in fn_typ.args:
                 self.env[name] = t
 
     def end_FunctionDef(self, fd: syn.FunctionDef):
-        if isinstance(fd.typ, syn.ArrowType):
+        if isinstance(self.types[fd.node_id], syn.ArrowType):
             self.env.pop_scope_mut()
 
-    def end_Assign(self, stmt: syn.Assign):
-        self.env[stmt.name] = stmt.typ
+    def end_Assign(self, asgn: syn.Assign):
+        self.env[asgn.name] = self.types[asgn.node_id]

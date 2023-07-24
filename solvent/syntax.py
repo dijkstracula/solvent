@@ -7,7 +7,7 @@ import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
 from logging import debug
-from typing import Any, Dict, Iterable, List, Optional, Self
+from typing import Any, Callable, Dict, Iterable, List, Optional, Self
 
 from ansi.color import fg, fx
 
@@ -157,16 +157,53 @@ class PredicateVar(Predicate):
 class Type(Pos):
     pending_subst: Dict[str, "Expr"] = field(default_factory=dict, repr=False)
 
-    def metadata(self, frm: "Type") -> Self:
-        self.pending_subst = frm.pending_subst
-        self.position = frm.position
+    def metadata(self, frm: "Type", pending_subst=True, position=True) -> Self:
+        if pending_subst:
+            self.pending_subst = frm.pending_subst
+        if position:
+            self.position = frm.position
         return self
 
-    def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
+    def mapper(self, fn: Callable[["Type"], "Type"]) -> "Type":
+        match self:
+            case ArrowType(type_abs=abs, args=args, ret=ret):
+                return fn(
+                    ArrowType(
+                        abs,
+                        [(name, t.mapper(fn)) for name, t in args],
+                        ret.mapper(fn),
+                    )
+                ).metadata(self)
+            case ListType(inner_typ=inner):
+                return fn(ListType(inner.mapper(fn))).metadata(self)
+            case SelfType(generic_args=args):
+                return fn(SelfType([t.mapper(fn) for t in args])).metadata(self)
+            case ObjectType(name=name, generic_args=args):
+                return fn(ObjectType(name, [t.mapper(fn) for t in args])).metadata(self)
+            case x:
+                return fn(x).metadata(x)
+
+    def subst(self, pairs: Iterable[tuple[str, "Expr"]], eager=False):
         ret = deepcopy(self)
         for k, v in pairs:
             ret.pending_subst[k] = v
-        return ret
+        if eager:
+            return ret.apply_substs()
+        else:
+            return ret
+
+    def apply_substs(self) -> Self:
+        def replace_rtype(typ):
+            match typ:
+                case RType(base=base, predicate=Conjoin(preds)):
+                    return RType(
+                        base,
+                        Conjoin([p.apply_substs(self.pending_subst) for p in preds]),
+                    )
+                case x:
+                    return x
+
+        return self.mapper(replace_rtype).metadata(self, pending_subst=False)
 
     def subst_typevar(self, typevar: str, tar: "Type | Predicate") -> Self:
         match self:
@@ -555,6 +592,22 @@ class Expr(Node, Pos):
                 return f"{e.to_string2(types, include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
             case x:
                 return f"`{repr(x)}`"
+
+    def apply_substs(self, substs: Dict[str, "Expr"]) -> "Expr":
+        match self:
+            case Variable(name=n) if n in substs:
+                return substs[n]
+            case BoolOp(lhs=l, op=op, rhs=r):
+                return BoolOp(l.apply_substs(substs), op, r.apply_substs(substs))
+            case ArithBinOp(lhs=l, op=op, rhs=r):
+                return ArithBinOp(l.apply_substs(substs), op, r.apply_substs(substs))
+            case Call(function_name=fn, arglist=args):
+                return Call(
+                    fn.apply_substs(substs),
+                    [a.apply_substs(substs) for a in args],
+                )
+            case x:
+                return x
 
     def __str__(self):
         return self.to_string()

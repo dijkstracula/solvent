@@ -1,10 +1,8 @@
-from logging import warning
-from typing import Callable, List, cast
+from typing import List, cast
 
-from solvent import errors, position
+from solvent import errors
 from solvent.syntax import (
     ArithBinOp,
-    ArrowType,
     Assign,
     BoolLiteral,
     BoolOp,
@@ -12,15 +10,11 @@ from solvent.syntax import (
     Expr,
     FunctionDef,
     GetAttr,
-    HMType,
     If,
     IntLiteral,
     ListLiteral,
-    ListType,
     Neg,
-    ObjectType,
     Return,
-    SelfType,
     Star,
     Stmt,
     StrLiteral,
@@ -270,28 +264,6 @@ class Visitor:
 
     def end_TypeApp(self, op: TypeApp) -> Expr | None:
         pass
-
-
-def type_mapper(typ: Type, fn: Callable[[Type], Type]) -> Type:
-    match typ:
-        case ArrowType(type_abs=abs, args=args, ret=ret):
-            return fn(
-                ArrowType(
-                    abs,
-                    [(name, type_mapper(t, fn)) for name, t in args],
-                    type_mapper(ret, fn),
-                )
-            ).metadata(typ)
-        case ListType(inner_typ=inner):
-            return fn(ListType(type_mapper(inner, fn))).metadata(typ)
-        case SelfType(generic_args=args):
-            return fn(SelfType([type_mapper(t, fn) for t in args])).metadata(typ)
-        case ObjectType(name=name, generic_args=args):
-            return fn(ObjectType(name, [type_mapper(t, fn) for t in args])).metadata(
-                typ
-            )
-        case x:
-            return fn(x).metadata(x)
 
 
 # class TypeVisitor:

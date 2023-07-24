@@ -96,14 +96,14 @@ class Templatizer(Visitor):
         this_typ = self.types[fd.node_id]
         assert isinstance(this_typ, ArrowType)
 
-        self.ret_typ = template_type(this_typ.ret)
+        self.ret_typ = template_type(this_typ.ret.shape())
         self.types[fd.node_id] = ArrowType(
             this_typ.type_abs, this_typ.args, self.ret_typ
         )
 
     def end_Return(self, ret: Return):
         self.constraints += [
-            SubType(self.env, [], self.types[ret.value.node_id], self.ret_typ)
+            SubType(self.env, [], self.types[ret.value.node_id], self.ret_typ).pos(ret)
         ]
 
     def end_Assign(self, asgn: Assign):
@@ -140,7 +140,9 @@ class Templatizer(Visitor):
         assert isinstance(list_typ, ListType)
         for child in lit.elts:
             self.constraints += [
-                SubType(self.env, [], self.types[child.node_id], list_typ.inner_typ)
+                SubType(
+                    self.env, [], self.types[child.node_id], list_typ.inner_typ
+                ).pos(child)
             ]
         self.types[lit.node_id] = list_typ
 
@@ -149,10 +151,12 @@ class Templatizer(Visitor):
         assert isinstance(fn_typ, ArrowType)
         self.types[op.node_id] = fn_typ.ret
 
-        for op_ty, fn_arg_typ in zip(
-            [self.types[o.node_id] for o in op.arglist], [ty for _, ty in fn_typ.args]
-        ):
-            self.constraints += [SubType(self.env, [], op_ty, fn_arg_typ)]
+        for passed_arg, (_, fn_arg_typ) in zip(op.arglist, fn_typ.args):
+            self.constraints += [
+                SubType(self.env, [], self.types[passed_arg.node_id], fn_arg_typ).pos(
+                    op
+                )
+            ]
 
 
 # class Templatizer(Visitor):

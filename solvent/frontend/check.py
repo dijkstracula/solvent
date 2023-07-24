@@ -9,7 +9,7 @@ from solvent import visitor
 from solvent.annotate import Annotate
 from solvent.env import ScopedEnv
 from solvent.sanitize import AssertHavePosition, AssertNoHmTypes
-from solvent.syntax import Type
+from solvent.syntax import Not, Type
 from solvent.template import Templatizer
 
 
@@ -87,33 +87,34 @@ def check(
     AssertHavePosition().visit_stmts(stmts)
     info("Template program:")
     for id, ty in templatizer.types.items():
-        debug(f"{id}: {ty} ({type(ty)})")
+        debug(f"{id}: {ty}")
     info_stmts(stmts, types=templatizer.types, include_types=True)
-    # AssertNoHmTypes().visit_stmts(stmts)
 
-    debug("Testing constraints")
-    for c in templatizer.constraints:
-        debug(c)
+    # _, constrs, ctx = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
+    # for c in constrs:
+    #     AssertNoHmTypes().check_constraint(c)
 
-    raise Exception("blah")
+    # info("context:")
+    # msg = ""
+    # for scope in ctx.scopes:
+    #     for k, v in scope.items():
+    #         msg += f"{k}: {v}\n"
+    #     msg += "== scope ==\n"
+    # info(msg)
 
-    _, constrs, ctx = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
-    for c in constrs:
-        AssertNoHmTypes().check_constraint(c)
-
-    info("context:")
-    msg = ""
-    for scope in ctx.scopes:
-        for k, v in scope.items():
-            msg += f"{k}: {v}\n"
-        msg += "== scope ==\n"
-    info(msg)
-
-    predvar_solution = liquid.solve(stmts, constrs, quals)
+    predvar_solution = liquid.solve(
+        stmts, templatizer.constraints, quals, templatizer.types
+    )
 
     info("== Predicate Variable Solution ==")
     for k, v in predvar_solution.items():
         info(f"{k} := {v}")
+
+    blah = {
+        id: liquid.apply(ty, predvar_solution) for id, ty in templatizer.types.items()
+    }
+
+    info_stmts(stmts, types=blah, include_types=True)
 
     return {
         k: alpha_rename(liquid.apply(v, predvar_solution))
