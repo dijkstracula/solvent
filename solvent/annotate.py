@@ -2,7 +2,7 @@
 Implements a forward type checking pass.
 """
 
-from logging import debug, warning
+from logging import warning
 from typing import Dict, List
 
 from solvent.env import ScopedEnv
@@ -28,7 +28,6 @@ from solvent.syntax import (
     ListType,
     Neg,
     ObjectType,
-    PredicateVar,
     RType,
     SelfType,
     Stmt,

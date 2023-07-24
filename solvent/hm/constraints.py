@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from logging import debug
 from typing import Dict, List
 
 from solvent import errors
@@ -8,9 +7,7 @@ from solvent import utils
 from solvent.env import ScopedEnv
 from solvent.position import Context
 from solvent.syntax import (
-    ArithBinOp,
     ArrowType,
-    BoolOp,
     Call,
     DictType,
     Expr,
@@ -20,7 +17,6 @@ from solvent.syntax import (
     ListType,
     Return,
     Type,
-    TypeApp,
     TypeVar,
     base_type_eq,
 )

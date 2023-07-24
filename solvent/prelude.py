@@ -3,8 +3,7 @@ Standard type definitions that may be included in the context
 of programs type-checked with solvent.
 """
 
-import typing as py
-from typing import Dict, Generic, Self
+from typing import Dict
 
 from solvent.syntax import (
     ArithBinOp,
@@ -16,7 +15,6 @@ from solvent.syntax import (
     DictType,
     HMType,
     ListType,
-    ObjectType,
     PredicateVar,
     RType,
     SelfType,

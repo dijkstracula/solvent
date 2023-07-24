@@ -1,18 +1,7 @@
 from typing import Dict
 
 from solvent.errors import Unreachable
-from solvent.syntax import (
-    ArrowType,
-    Call,
-    GetAttr,
-    HMType,
-    ObjectType,
-    PredicateVar,
-    Type,
-    TypeApp,
-    TypeVar,
-    Variable,
-)
+from solvent.syntax import ArrowType, Call, HMType, PredicateVar, Type, TypeApp, TypeVar
 from solvent.visitor import Visitor
 
 

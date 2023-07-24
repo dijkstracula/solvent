@@ -343,7 +343,8 @@ class Parser:
                 debug(ast.dump(v, indent=2))
                 res = self.parse_annotation(v)
                 debug("here", res)
-                return res
+                # return res
+                raise NotImplementedError()
             case x:
                 raise NotImplementedError(x)
 

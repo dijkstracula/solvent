@@ -1,13 +1,11 @@
-from logging import debug, info
+from logging import info
 from typing import Dict, List
 
 import solvent.syntax as syn
-from solvent import visitor
 from solvent.annotate import Annotate
 from solvent.env import ScopedEnv
-from solvent.qualifiers import predicate
 
-from .constraints import HindleyMilner, check_stmts
+from .constraints import HindleyMilner
 from .subst import Subst  # type: ignore
 from .unification import apply, free_vars, unify  # type: ignore
 

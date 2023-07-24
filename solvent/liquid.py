@@ -119,8 +119,8 @@ def solve(
         list(
             filter(
                 lambda x: isinstance(x, constr.SubType)
-                and isinstance(x.lhs, constr.RType)
-                and not isinstance(x.lhs.base, constr.TypeVar),
+                and isinstance(x.lhs, syn.RType)
+                and not isinstance(x.lhs.base, syn.TypeVar),
                 constrs,
             )
         ),
@@ -269,21 +269,3 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
             return syn.ObjectType(name, [apply(typ, solution) for typ in args])
         case x:
             return x
-
-
-# def apply_substs(e: syn.Expr, substs: Dict[str, syn.Expr]) -> syn.Expr:
-#     match e:
-#         case syn.Variable(name=n) if n in substs:
-#             return substs[n]
-#         case syn.BoolOp(lhs=l, op=op, rhs=r):
-#             return syn.BoolOp(apply_substs(l, substs), op, apply_substs(r, substs))
-#         case syn.ArithBinOp(lhs=l, op=op, rhs=r):
-#             return syn.ArithBinOp(apply_substs(l, substs), op, apply_substs(r, substs))
-#         case syn.Neg(expr=e):
-#             return syn.Neg(apply_substs(e, substs))
-#         case syn.Call(function_name=fn, arglist=args):
-#             return syn.Call(
-#                 apply_substs(fn, substs), [apply_substs(a, substs) for a in args]
-#             )
-#         case x:
-#             return x

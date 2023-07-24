@@ -1,6 +1,5 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from logging import debug
 from typing import Dict, Generic, List, Self, TypeVar
 
 from solvent import syntax as syn

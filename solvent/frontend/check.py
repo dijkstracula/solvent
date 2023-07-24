@@ -3,18 +3,16 @@ from typing import Dict, List
 
 from ansi.color import fg, fx
 
-from solvent import constraints, hm, liquid, normalize, qualifiers
+from solvent import hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
-from solvent import visitor
 from solvent.annotate import Annotate
 from solvent.env import ScopedEnv
-from solvent.sanitize import AssertHavePosition, AssertNoHmTypes
-from solvent.syntax import Not, Type
+from solvent.syntax import Type
 from solvent.template import Templatizer
 
 
 def infer_base(stmts: List[syn.Stmt]) -> Dict[str, Type]:
-    raise NotImplementedError("todo")
+    raise NotImplementedError(f"todo: {stmts}")
     # norm_stmts = normalize.normalize(stmts)
     # _, solved_type = hm.solve(norm_stmts)
 
@@ -48,7 +46,7 @@ def check(
     stmts: List[syn.Stmt],
     quals: List[qualifiers.Qualifier],
     env: ScopedEnv | None = None,
-) -> Dict[str, Type]:
+) -> Dict[int, Type]:
     """
     Run Liquid-type inference and checking.
     """
@@ -84,7 +82,6 @@ def check(
 
     templatizer = Templatizer(types, env.clone())
     stmts = templatizer.visit_stmts(stmts)
-    AssertHavePosition().visit_stmts(stmts)
     info("Template program:")
     for id, ty in templatizer.types.items():
         debug(f"{id}: {ty}")
@@ -116,10 +113,7 @@ def check(
 
     info_stmts(stmts, types=blah, include_types=True)
 
-    return {
-        k: alpha_rename(liquid.apply(v, predvar_solution))
-        for k, v in ctx.scopes[0].items()
-    }
+    return blah
 
 
 NAMES = "abcdefghijklmnopqrstuvwxyz"

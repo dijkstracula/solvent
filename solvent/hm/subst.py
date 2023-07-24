@@ -1,11 +1,7 @@
-from logging import debug
-from typing import List
-
-from solvent import syntax as syn
-from solvent.syntax import Expr, HMType, Stmt, TypeApp, TypeVar
+from solvent.syntax import HMType, TypeApp, TypeVar
 from solvent.visitor import Visitor
 
-from .unification import Solution, free_vars, subst_one
+from .unification import Solution
 
 
 class Subst(Visitor):

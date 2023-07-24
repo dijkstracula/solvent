@@ -6,7 +6,6 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
-from logging import debug
 from typing import Any, Callable, Dict, Iterable, List, Optional, Self
 
 from ansi.color import fg, fx
@@ -455,7 +454,7 @@ class Unknown(Type):
 
 
 @dataclass
-class Any(Type):
+class AnyType(Type):
     pass
 
 
@@ -527,10 +526,14 @@ class Expr(Node, Pos):
                 return f"{v}[{e}]"
             case Neg(expr=e):
                 return f"-({e.to_string(types, include_types)})"
-            case ArithBinOp(lhs=l, op=op, rhs=r):
-                return f"{l.to_string(types, include_types)} {op} {r.to_string(types, include_types)}"
-            case BoolOp(lhs=l, op=op, rhs=r):
-                return f"{l.to_string(types, include_types)} {op} {r.to_string(types, include_types)}"
+            case ArithBinOp(lhs=l, op=op, rhs=r) | BoolOp(lhs=l, op=op, rhs=r):
+                return " ".join(
+                    [
+                        l.to_string(types, include_types),
+                        op,
+                        r.to_string(types, include_types),
+                    ]
+                )
             case Not(expr=e):
                 return f"!({e.to_string(types, include_types)})"
             case V():
@@ -572,10 +575,14 @@ class Expr(Node, Pos):
                 return f"{v}[{e}]"
             case Neg(expr=e):
                 return f"-({e.to_string2(types, include_types)})"
-            case ArithBinOp(lhs=l, op=op, rhs=r):
-                return f"{l.to_string2(types, include_types)} {op} {r.to_string2(types, include_types)}"
-            case BoolOp(lhs=l, op=op, rhs=r):
-                return f"{l.to_string2(types, include_types)} {op} {r.to_string2(types, include_types)}"
+            case ArithBinOp(lhs=l, op=op, rhs=r) | BoolOp(lhs=l, op=op, rhs=r):
+                return " ".join(
+                    [
+                        l.to_string2(types, include_types),
+                        op,
+                        r.to_string2(types, include_types),
+                    ]
+                )
             case Not(expr=e):
                 return f"!({e.to_string2(types, include_types)})"
             case V():
@@ -589,7 +596,10 @@ class Expr(Node, Pos):
                 return f"{obj.to_string2(types, include_types)}.{attr}"
             case TypeApp(expr=e, arglist=args):
                 arg_str = ", ".join([str(a) for a in args])
-                return f"{e.to_string2(types, include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
+                return (
+                    f"{e.to_string2(types, include_types)}"
+                    + f"{fg.yellow}[{arg_str}]{fx.reset}"
+                )
             case x:
                 return f"`{repr(x)}`"
 
@@ -820,7 +830,8 @@ class Stmt(Node, Pos):
                 )
                 res = "\n".join(
                     [
-                        f"{align}if ({test} : {fg.yellow}{types[test.node_id]}{fx.reset}):",
+                        f"{align}if ({test} : "
+                        + f"{fg.yellow}{types[test.node_id]}{fx.reset}):",
                         f"{bodystr}{elsestr}",
                     ]
                 )
@@ -833,7 +844,10 @@ class Stmt(Node, Pos):
                 )
                 return f"{align}{name}{typann} = {value.to_string2(types, True)}"
             case Return(value):
-                return f"{align}return ({value} : {fg.yellow}{types[value.node_id]}{fx.reset})"
+                return (
+                    f"{align}return ({value} : "
+                    + f"{fg.yellow}{types[value.node_id]}{fx.reset})"
+                )
             case x:
                 return f"{align}{repr(x)}"
 
