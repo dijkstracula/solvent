@@ -6,7 +6,7 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Iterable, List, Optional, Self
+from typing import Callable, Dict, Iterable, List, Optional, Self
 
 from ansi.color import fg, fx
 
@@ -281,7 +281,7 @@ class Type(Pos):
                 ).metadata(self)
             case SelfType(generic_args=args):
                 return SelfType(generic_args=[a.shape() for a in args]).metadata(self)
-            case Unknown() | Any():
+            case Unknown() | AnyType():
                 return self
             case x:
                 raise Exception(f"`{x}` is not a Type.")
@@ -319,7 +319,7 @@ class Type(Pos):
                 )
             case Unknown():
                 return "Unknown"
-            case Any():
+            case AnyType():
                 return "Any"
             case ListType(inner_typ=inner_typ):
                 return f"List[{inner_typ}]"

@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 from solvent import errors
 from solvent.env import ScopedEnv
 from solvent.syntax import (
-    Any,
+    AnyType,
     ArrowType,
     HMType,
     ListType,
@@ -144,7 +144,7 @@ def free_vars(typ: Type) -> list[str]:
             return sum([free_vars(t) for t in args], [])
         case Unknown():
             return []
-        case Any():
+        case AnyType():
             return []
         case x:
             raise NotImplementedError(x, type(x))
@@ -168,7 +168,7 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             return RType(
                 base=unwrap(tar.base_type()), predicate=p, pending_subst=ps
             ).pos(tar)
-        case HMType() | RType() | Unknown() | Any():
+        case HMType() | RType() | Unknown() | AnyType():
             return src
         case RType():
             return src

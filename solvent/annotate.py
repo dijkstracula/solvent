@@ -8,7 +8,7 @@ from typing import Dict, List
 from solvent.env import ScopedEnv
 from solvent.errors import Unreachable
 from solvent.syntax import (
-    Any,
+    AnyType,
     ArithBinOp,
     ArrowType,
     Assign,
@@ -219,7 +219,7 @@ class Annotate(Visitor):
             if inner_typ is None:
                 inner_typ = elt_typ
             elif inner_typ != elt_typ:
-                inner_typ = Any()
+                inner_typ = AnyType()
 
         if inner_typ is None:
             inner_typ = Unknown()
@@ -347,7 +347,7 @@ def type_consistent_with(t0: Type, t1: Type) -> bool:
     match (t0, t1):
         case (Unknown(), _) | (_, Unknown()):
             return True
-        case (Any(), _) | (_, Any()):
+        case (AnyType(), _) | (_, AnyType()):
             return True
         case (HMType(base=b1), HMType(base=b2)) | (
             RType(
