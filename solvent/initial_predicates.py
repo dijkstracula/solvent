@@ -8,7 +8,7 @@ from typing import Dict, List
 
 from solvent import qualifiers
 from solvent import syntax as syn
-from solvent.env import ScopedEnv, ScopedEnvVisitor
+from solvent.env import ScopedEnv
 from solvent.syntax import Expr
 from solvent.visitor import Visitor
 
@@ -25,8 +25,8 @@ def predicate_variables(t: syn.Type) -> List[str]:
             ) + predicate_variables(ret)
         case syn.ListType(inner_typ=inner):
             return predicate_variables(inner)
-        case syn.ObjectType(fields=fields):
-            return sum([predicate_variables(t) for _, t in fields.items()], [])
+        case syn.ObjectType(generic_args=args):
+            return sum([predicate_variables(t) for t in args], [])
         case _:
             return []
 
@@ -38,7 +38,6 @@ class InitialPredicatesVisitor(Visitor):
         types: Dict[int, syn.Type],
         initial_env: ScopedEnv | None = None,
     ):
-        super().start()
         self.solution: Solution = {}
         self.quals = quals
         self.types = types
@@ -63,8 +62,6 @@ class InitialPredicatesVisitor(Visitor):
                 self.solution[pvar] = qualifiers.predicate(env, quals)
 
     def start_Stmt(self, stmt: syn.Stmt):
-        super().start_Stmt(stmt)
-
         if isinstance(stmt, syn.FunctionDef):
             return
 
@@ -89,6 +86,4 @@ class InitialPredicatesVisitor(Visitor):
         self.env[asgn.name] = self.types[asgn.node_id]
 
     def start_Expr(self, expr: Expr):
-        super().start_Expr(expr)
-
         self.calculate(self.types[expr.node_id], self.env, self.quals)

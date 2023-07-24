@@ -24,6 +24,10 @@ def from_expr(e: syn.Expr, val_name: str = ".v"):
         case syn.V():
             # TODO, look up type
             return z3.Int(val_name)
+        case syn.Call(function_name=syn.Variable(name="el"), arglist=args):
+            # fn = z3.Function("el", *[z3.IntSort() for _ in args], z3.IntSort())
+            # call = fn(*[from_expr(a, val_name) for a in args])
+            return from_expr(args[0], val_name) <= 0
         case syn.Call(function_name=syn.Variable(name=name), arglist=args):
             fn = z3.Function(name, *[z3.IntSort() for _ in args], z3.IntSort())
             call = fn(*[from_expr(a, val_name) for a in args])
