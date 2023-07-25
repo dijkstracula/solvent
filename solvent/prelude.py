@@ -13,6 +13,7 @@ from solvent.syntax import (
     Class,
     Conjoin,
     DictType,
+    GetAttr,
     HMType,
     ListType,
     PredicateVar,
@@ -76,8 +77,8 @@ PYTHON_STANDARD_LIBRARIES: Dict[str, Type] = {
                                                 "==",
                                                 ArithBinOp(
                                                     Call(
-                                                        Variable("el"),
-                                                        [Variable("self")],
+                                                        GetAttr(Variable("self"), "el"),
+                                                        [],
                                                     ),
                                                     "*",
                                                     Variable("other"),

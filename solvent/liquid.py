@@ -126,12 +126,11 @@ def solve(
         ),
     )
 
-    return liquid.constraints_valid(subtype_eqs, solution)
+    return liquid.constraints_valid(subtype_eqs, solution, types)
 
 
 def constraints_valid(
-    constrs: List[constr.SubType],
-    solution: Solution,
+    constrs: List[constr.SubType], solution: Solution, types: Dict[int, syn.Type]
 ):
     """
     Check if solution satisfies every constraint in constrs.
@@ -143,7 +142,7 @@ def constraints_valid(
         sc = apply_constr(c, solution)
         Context.show(f"G |- {c.lhs} <: {c.rhs}", at=c.position)
         try:
-            valid = subtype.check_constr(sc)
+            valid = subtype.check_constr(sc, types)
         except NotImplementedError as e:
             info("culprit", sc)
             ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
@@ -156,12 +155,14 @@ def constraints_valid(
         info(f"  Valid? ({valid}) w/ context:\n    {ctx}\n    {assums}")
 
         if not valid:
-            return constraints_valid(constrs, weaken(c, solution))
+            return constraints_valid(constrs, weaken(c, solution, types), types)
 
     return solution
 
 
-def weaken(c: constr.SubType, solution: Solution) -> Solution:
+def weaken(
+    c: constr.SubType, solution: Solution, types: Dict[int, syn.Type]
+) -> Solution:
     """
     Weaken constr and return a new solution.
 
@@ -189,6 +190,7 @@ def weaken(c: constr.SubType, solution: Solution) -> Solution:
 
                 if subtype.check(
                     apply_ctx(ctx, solution),
+                    types,
                     assumes,
                     apply(lhs, solution),
                     syn.RType(b2, syn.Conjoin([qual.apply_substs(ps)])),
@@ -201,7 +203,7 @@ def weaken(c: constr.SubType, solution: Solution) -> Solution:
             if get_predicate_vars(lhs) is not None:
                 raise Exception(f"Invalid constraint: {c}")
 
-            if not subtype.check_constr(c):
+            if not subtype.check_constr(c, types):
                 raise Exception(f"Not subtype: {c}")
         case x:
             raise NotImplementedError(pprint.pformat(x))

@@ -159,8 +159,14 @@ class Type(Pos):
     def metadata(self, frm: "Type", pending_subst=True, position=True) -> Self:
         if pending_subst:
             self.pending_subst = frm.pending_subst
+        else:
+            self.pending_subst = {}
+
         if position:
             self.position = frm.position
+        else:
+            self.position = Position()
+
         return self
 
     def mapper(self, fn: Callable[["Type"], "Type"]) -> "Type":
@@ -350,17 +356,20 @@ class Type(Pos):
                 raise Exception(f"`{x}` is not an RType.")
 
     def resolve_name(self, new: str) -> Self:
-        match self:
-            case ObjectType(generic_args=args):
-                return ObjectType(name=new, generic_args=args).metadata(self)
-            case SelfType(generic_args=args):
-                return ObjectType(name=new, generic_args=args).metadata(self)
-            case Class(type_abs=abs, constructor=cons, fields=fields):
-                return Class(
-                    name=new, type_abs=abs, constructor=cons, fields=fields
-                ).metadata(self)
-            case _:
-                return self
+        def resolver(typ: "Type"):
+            match typ:
+                case ObjectType(generic_args=args):
+                    return ObjectType(name=new, generic_args=args).metadata(self)
+                case SelfType(generic_args=args):
+                    return ObjectType(name=new, generic_args=args).metadata(self)
+                case Class(type_abs=abs, constructor=cons, fields=fields):
+                    return Class(
+                        name=new, type_abs=abs, constructor=cons, fields=fields
+                    ).metadata(self)
+                case _:
+                    return typ
+
+        return self.mapper(resolver)
 
 
 @dataclass
@@ -608,14 +617,20 @@ class Expr(Node, Pos):
             case Variable(name=n) if n in substs:
                 return substs[n]
             case BoolOp(lhs=l, op=op, rhs=r):
-                return BoolOp(l.apply_substs(substs), op, r.apply_substs(substs))
+                return BoolOp(
+                    l.apply_substs(substs), op, r.apply_substs(substs)
+                ).metadata(self)
             case ArithBinOp(lhs=l, op=op, rhs=r):
-                return ArithBinOp(l.apply_substs(substs), op, r.apply_substs(substs))
+                return ArithBinOp(
+                    l.apply_substs(substs), op, r.apply_substs(substs)
+                ).metadata(self)
             case Call(function_name=fn, arglist=args):
                 return Call(
                     fn.apply_substs(substs),
                     [a.apply_substs(substs) for a in args],
-                )
+                ).metadata(self)
+            case GetAttr(name=exp, attr=attr):
+                return GetAttr(exp.apply_substs(substs), attr).metadata(self)
             case x:
                 return x
 
