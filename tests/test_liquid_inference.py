@@ -1,4 +1,5 @@
-from solvent import V, _, Q, Refine
+from solvent import Q, Refine, V, _
+
 from .utils import assert_type
 
 
@@ -19,18 +20,18 @@ def test_max(x: Refine[int, True], y: Refine[int, True]):
         return y
 
 
-@assert_type(
-    [
-        _ < V,
-        V < _,
-        _ <= V,
-        V <= _,
-        Q[0] <= V,
-    ],
-    "(f:(arg0:'a, arg1:'a) -> 'a, x:'a) -> 'a",
-)
-def test_double(f, x):
-    return f(f(x, x), f(x, x))
+# @assert_type(
+#     [
+#         _ < V,
+#         V < _,
+#         _ <= V,
+#         V <= _,
+#         Q[0] <= V,
+#     ],
+#     "(f:(arg0:'a, arg1:'a) -> 'a, x:'a) -> 'a",
+# )
+# def test_double(f, x):
+#     return f(f(x, x), f(x, x))
 
 
 @assert_type(

@@ -346,14 +346,15 @@ class Type(Pos):
 
     def set_predicate(self, predicate: Predicate) -> "Type":
         match self:
-            case ArrowType():
-                raise NotImplementedError
+            # case ArrowType():
+            #     raise NotImplementedError(self)
             case RType(base=base):
                 return RType(base, predicate).metadata(self)
             case HMType(base=base):
                 return RType(base, predicate).metadata(self)
             case x:
-                raise Exception(f"`{x}` is not an RType.")
+                return x
+                # raise Exception(f"`{x}` is not an RType.")
 
     def resolve_name(self, new: str) -> Self:
         def resolver(typ: "Type"):

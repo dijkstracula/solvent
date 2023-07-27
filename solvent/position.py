@@ -92,3 +92,7 @@ class Context(eff.ects):
     @classmethod
     def debug(cls, msg: Any, *, at: Position):
         debug(f"{msg} ({cls.single(at=at, color=True)})")
+
+    @classmethod
+    def str(cls, msg: Any, *, at: Position):
+        return f"{msg} ({cls.single(at=at, color=True)})"

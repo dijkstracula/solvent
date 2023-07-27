@@ -92,27 +92,24 @@ def solve(
     quals: List[quals.Qualifier],
     types: Dict[int, syn.Type],
 ) -> Solution:
-    debug("Raw Constraints:")
-    for c in constrs:
-        Context.debug(c, at=c.position)
-    debug("======")
+    debug(
+        "Raw Constraints:",
+        "\n".join([Context.str(c, at=c.position) for c in constrs]),
+    )
 
     # split all the constraints that we have into base constraints
     constrs = sum([split(c) for c in constrs], [])
 
-    debug("Constraints after splitting:")
-    for c in constrs:
-        Context.debug(c, at=c.position)
-    debug("======")
+    debug(
+        "Constraints after splitting:",
+        "\n".join([Context.str(c, at=c.position) for c in constrs]),
+    )
 
     ipv = InitialPredicatesVisitor(quals, types)
     ipv.visit_stmts(stmts)
     solution = ipv.solution
 
-    info("Initial Predicates:")
-    for k, v in solution.items():
-        info(f"{k} := {v}")
-    info("======")
+    info("Initial Predicates:", "\n".join([f"{k} := {v}" for k, v in solution.items()]))
 
     subtype_eqs = cast(
         List[constr.SubType],

@@ -23,10 +23,12 @@ def check(
         ) if t1 == t2:
             to_smt = smt.ToSmt(context, types)
 
-            ctx_smt = reduce(
-                lambda a, b: z3.And(a, b),
-                [to_smt.from_type(x, t) for x, t in context.items()],
-                True,
+            ctx_smt = z3.simplify(
+                reduce(
+                    lambda a, b: z3.And(a, b),
+                    [to_smt.from_type(x, t) for x, t in context.items()],
+                    True,
+                )
             )
 
             to_check = z3.Implies(
@@ -37,7 +39,7 @@ def check(
                 to_smt.from_exprs(cs2),
             )
 
-            info(f"  SMT: {to_check}")
+            info("SMT:", to_check)
 
             s = z3.Solver()
             s.add(z3.Not(to_check))

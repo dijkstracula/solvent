@@ -11,17 +11,17 @@ from solvent.syntax import Type
 from solvent.template import Templatizer
 
 
-def infer_base(stmts: List[syn.Stmt]) -> Dict[str, Type]:
-    raise NotImplementedError(f"todo: {stmts}")
-    # norm_stmts = normalize.normalize(stmts)
-    # _, solved_type = hm.solve(norm_stmts)
+def infer_base(fd: syn.FunctionDef) -> Type:
+    stmts = normalize.normalize([fd])
+    annotator = Annotate()
+    stmts = annotator.visit_stmts(stmts)
+    stmts, types = hm.solve(stmts, annotator.id_map)
 
-    # info("Normalized Program:")
-    # for s in norm_stmts:
-    #     info(s)
-    # info("======")
+    print(fd.node_id)
+    for id, ty in types.items():
+        print(f"{id}: {ty}")
 
-    # return {k: alpha_rename(v) for k, v in solved_type.items()}
+    return alpha_rename(types[fd.node_id])
 
 
 def number(blob: str) -> str:
@@ -58,33 +58,25 @@ def check(
     info("Normalized Program:")
     info_stmts(stmts)
 
-    info("Forward type annotation")
     annotator = Annotate(env.clone())
     stmts = annotator.visit_stmts(stmts)
     types: Dict[int, Type] = annotator.id_map
 
-    for id, ty in types.items():
-        debug(f"{id}: {ty}")
+    debug(
+        "Forward type annotation",
+        "\n".join([f"{id}: {ty}" for id, ty in types.items()]),
+    )
 
     info_stmts(stmts, types=types, include_types=True)
 
     stmts, types = hm.solve(stmts, types, env=env)
 
-    # info("== Inferred Base Types ==")
-    # info(
-    #     "\n".join(
-    #         [f"{fn_name}: {alpha_rename(typ)}" for fn_name, typ in base_types.items()]
-    #     )
-    # )
-
-    for id, ty in types.items():
-        debug(f"{id}: {ty}")
-
     templatizer = Templatizer(types, env.clone())
     stmts = templatizer.visit_stmts(stmts)
-    info("Template program:")
-    for id, ty in templatizer.types.items():
-        debug(f"{id}: {ty}")
+    debug(
+        "Template program types",
+        "\n".join([f"{id}: {ty}" for id, ty in templatizer.types.items()]),
+    )
     info_stmts(stmts, types=templatizer.types, include_types=True)
 
     # _, constrs, ctx = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
@@ -107,13 +99,13 @@ def check(
     for k, v in predvar_solution.items():
         info(f"{k} := {v}")
 
-    blah = {
+    types = {
         id: liquid.apply(ty, predvar_solution) for id, ty in templatizer.types.items()
     }
 
-    info_stmts(stmts, types=blah, include_types=True)
+    info_stmts(stmts, types, include_types=True)
 
-    return blah
+    return types
 
 
 NAMES = "abcdefghijklmnopqrstuvwxyz"

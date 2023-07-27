@@ -27,7 +27,9 @@ class ToSmt:
             ret_smt = z3.And(ret_smt, ismt)
             asms += iasms
 
-        return z3.And(reduce(lambda x, y: z3.And(x, y), asms, True), ret_smt)
+        return z3.simplify(
+            z3.And(reduce(lambda x, y: z3.And(x, y), asms, True), ret_smt)
+        )
 
     def from_expr(self, e: syn.Expr, val_name: str = ".v") -> tuple[Any, List[Any]]:
         match e:

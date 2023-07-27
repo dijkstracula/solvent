@@ -172,18 +172,18 @@ class Parser:
 
     def parse_base(self, hint: type) -> syn.Type:
         if hint == int:
-            return syn.RType.lift(syn.Int())
+            return syn.HMType(syn.Int())
         elif hint == bool:
-            return syn.RType.lift(syn.Bool())
+            return syn.HMType(syn.Bool())
         else:
             raise NotImplementedError(hint)
 
     def parse_annotation(self, ann) -> syn.Type:
         match ann:
             case ast.Name(id="int"):
-                return syn.RType.lift(syn.Int())
+                return syn.HMType(syn.Int())
             case ast.Name(id="bool"):
-                return syn.RType.lift(syn.Bool())
+                return syn.HMType(syn.Bool())
             case ast.Constant(value=v):
                 return self.parse_refinement(v)
             case ast.Set(elts=[ast.BinOp(left=base, op=ast.BitOr(), right=refinement)]):

@@ -177,6 +177,12 @@ class Annotate(Visitor):
                 case _:
                     pass
 
+        # TODO: don't special case lists
+        if isinstance(lhs_typ, ListType) and isinstance(rhs_typ, ListType):
+            if lhs_typ.inner_typ.base_type() == rhs_typ.inner_typ.base_type():
+                self.id_map[abo.node_id] = ListType(inner_typ=lhs_typ.inner_typ)
+                return
+
         match (lhs_typ.base_type(), abo.op, rhs_typ.base_type()):
             # case (None, "/", _) if isinstance(
             #     lhs_typ, ObjectType
@@ -186,7 +192,7 @@ class Annotate(Visitor):
             #     self.id_map[abo.node_id] = lhs_typ.fields["__div__"].ret
             case (None, _, _):
                 self.id_map[abo.node_id] = Unknown()
-            case (TypeVar(_), _, _):
+            case (TypeVar(_), _, _) | (_, _, TypeVar()):
                 self.id_map[abo.node_id] = HMType.fresh("abo")
             case (Int(), "+", Int()):
                 self.id_map[abo.node_id] = HMType.int()
@@ -206,6 +212,8 @@ class Annotate(Visitor):
         match (lhs_typ.base_type(), op.op, rhs_typ.base_type()):
             case (TypeVar(_), _, _):
                 self.id_map[op.node_id] = HMType.fresh("bo")
+            case (Int(), "<" | "<=" | "==" | ">=" | ">", Int()):
+                self.id_map[op.node_id] = HMType.bool()
             case x:
                 raise NotImplementedError(x)
 
@@ -333,6 +341,8 @@ class Annotate(Visitor):
             self.id_map[call_node.node_id] = new_fn_type.ret
 
             return call_node
+        else:
+            self.id_map[op.node_id] = fn_typ.ret
 
 
 def base_type_consistent(t0: BaseType, t1: BaseType) -> bool:

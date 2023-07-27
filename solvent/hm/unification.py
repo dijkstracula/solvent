@@ -31,10 +31,11 @@ def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
         case []:
             return []
         case [top, *rest]:
-            info("====== unify ======")
-            info(f"=> {top}")
-            for c in rest:
-                info(c)
+            info(f"unify => {top}", "with:" if len(rest) > 0 else "<none>", *rest)
+            # info("====== unify ======")
+            # info(f"=> {top}")
+            # for c in rest:
+            #     info(c)
 
             lX = tvar_name(top.lhs)
             rX = tvar_name(top.rhs)

@@ -44,27 +44,39 @@ class Visitor:
                     args,
                     retann,
                     self.visit_stmts(body),
-                    node_id=stmt.node_id,
-                ).pos(stmt)
+                ).metadata(stmt)
                 self.end_FunctionDef(new_stmt)
             case If(test=test, body=body, orelse=orelse):
-                self.start_If(cast(If, stmt))
+                if_stmt = cast(If, stmt)
+                self.start_If(if_stmt)
+
+                # visit condition
+                new_test = self.visit_expr(test)
+
+                # visit true branch
+                self.start_IfTrue(if_stmt)
+                new_body = self.visit_stmts(body)
+                self.end_IfTrue(if_stmt)
+
+                # visit false branch
+                self.start_IfFalse(if_stmt)
+                new_orelse = self.visit_stmts(orelse)
+                self.end_IfFalse(if_stmt)
+
                 new_stmt = If(
-                    self.visit_expr(test),
-                    self.visit_stmts(body),
-                    self.visit_stmts(orelse),
-                    node_id=stmt.node_id,
-                ).pos(stmt)
+                    new_test,
+                    new_body,
+                    new_orelse,
+                ).metadata(stmt)
+
                 self.end_If(new_stmt)
             case Assign(name=name, value=expr):
                 self.start_Assign(cast(Assign, stmt))
-                new_stmt = Assign(
-                    name, self.visit_expr(expr), node_id=stmt.node_id
-                ).pos(stmt)
+                new_stmt = Assign(name, self.visit_expr(expr)).metadata(stmt)
                 self.end_Assign(new_stmt)
             case Return(value=expr):
                 self.start_Return(cast(Return, stmt))
-                new_stmt = Return(self.visit_expr(expr), node_id=stmt.node_id).pos(stmt)
+                new_stmt = Return(self.visit_expr(expr)).metadata(stmt)
                 self.end_Return(new_stmt)
             case x:
                 raise errors.Unreachable(x)
@@ -179,6 +191,18 @@ class Visitor:
         pass
 
     def end_If(self, if_stmt: If):
+        pass
+
+    def start_IfTrue(self, if_stmt: If):
+        pass
+
+    def end_IfTrue(self, if_stmt: If):
+        pass
+
+    def start_IfFalse(self, if_stmt: If):
+        pass
+
+    def end_IfFalse(self, if_stmt: If):
         pass
 
     def start_Assign(self, asgn: Assign):

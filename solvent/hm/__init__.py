@@ -16,11 +16,9 @@ def solve(
     if env is None:
         env = ScopedEnv.empty()
 
-    info("New Hindley Milner")
     hm = HindleyMilner(types, env)
     hm.visit_stmts(stmts)
-    info("\n".join([str(c) for c in hm.constrs]))
-    info("====== end ======")
+    info("New Hindley Milner", "\n".join([str(c) for c in hm.constrs]))
 
     # raise Exception()
 
@@ -33,12 +31,11 @@ def solve(
     # for k, v in context.items():
     #     info(f"{k} := {v}")
 
-    info("== Unification ==")
     _, solution = unify(hm.constrs)
 
-    info("== Solution ==")
-    for k, v in solution.items():
-        info(f"{k} := {v}")
+    info(
+        "Unification Solution", "\n".join([f"{k} := {v}" for k, v in solution.items()])
+    )
 
     def replace(t: syn.Type) -> syn.Type:
         match t:
