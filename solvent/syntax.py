@@ -485,11 +485,11 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
             return args_eq and base_type_eq(ret1, ret2)
         case ListType(inner_typ1), ListType(inner_typ2):
             return base_type_eq(inner_typ1, inner_typ2)
-        case ObjectType(name=n0, fields=f0), ObjectType(name=n1, fields=f1) if n0 == n1:
-            return sorted(f0.keys()) == sorted(f1.keys()) and all(
-                [base_type_eq(v, f1[k]) for k, v in f0.items()]
-            )
-        case _:
+        case ObjectType(name=n0, generic_args=args0), ObjectType(
+            name=n1, generic_args=args1
+        ) if n0 == n1:
+            return all([base_type_eq(b0, b1) for b0, b1 in zip(args0, args1)])
+        case (_, _):
             return False
 
 

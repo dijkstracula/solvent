@@ -13,9 +13,7 @@ quals = [
 ]
 
 
-@assert_type(
-    quals, "() -> Series{max: () -> int, data: List[int]}", modules={"pd": "pandas"}
-)
+@assert_type(quals, "() -> pd.Series[int]", modules={"pd": "pandas"})
 def test_series_cstr():
     s = pd.Series([-1, 2, 3])
     return s
@@ -23,7 +21,7 @@ def test_series_cstr():
 
 @assert_type(
     quals,
-    "() -> Series{max: () -> {int | 0 <= V}, data: List[{int | 0 <= V}]}",
+    "() -> pd.Series[{int | 0 <= V}]",
     modules={"pd": "pandas"},
 )
 def test_series_cstr_pos():
@@ -38,32 +36,32 @@ def test_series_max():
 
 
 @assert_type(quals, "() -> {int | 0 <= V}", modules={"pd": "pandas"})
-def test_series_max_div_pos():
+def test_series_max_mul_pos():
     s = pd.Series([1, 2, 3])
-    return s.max() / 1  # type: ignore
+    return s.max() * 1  # type: ignore
 
 
 @assert_type(quals, "() -> {int | V <= 0}", modules={"pd": "pandas"})
 def test_series_max_div_neg():
     s = pd.Series([1, 2, 3])
-    return s.max() / -1  # type: ignore
+    return s.max() * -1  # type: ignore
 
 
 @assert_type(
     quals,
-    "() -> Series{max: () -> {int | 0 <= V}, data: List[{int | 0 <= V}]}",
+    "() -> pd.Series[{int | 0 <= V}]",
     modules={"pd": "pandas"},
 )
-def test_series_div():
+def test_series_mul_pos():
     s = pd.Series([1, 2, 3])
-    return s / 2
+    return s * 2
 
 
 @assert_type(
     quals,
-    "() -> Series{max: () -> {int | V <= 0}, data: List[{int | V <= 0}]}",
+    "() -> pd.Series[{int | V <= 0}]",
     modules={"pd": "pandas"},
 )
-def test_series_div_neg():
+def test_series_mul_neg():
     s = pd.Series([1, 2, 3])
-    return s / -2
+    return s * -2

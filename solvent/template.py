@@ -249,7 +249,26 @@ def type_level_eval(fn_typ: ArrowType, args: List[Type]) -> Type:
             ],
         ):
             return RType(base=b1, predicate=p)
-        case (x, _):
-            warning("This is not correct!")
+        case (
+            ArrowType(
+                type_abs={},
+                args=[
+                    (
+                        "self",
+                        SelfType(generic_args=[RType(base=b)]),
+                    )
+                ],
+                ret=RType(base=Int()),
+            ),
+            [
+                ObjectType(
+                    name="pd.Series",
+                    generic_args=[RType(predicate=p)],
+                )
+            ],
+        ):
+            return RType(base=b, predicate=p)
+        case (x, y):
+            warning(f"{x}{list(map(str, y))} Type application is wrong!")
             return x.ret
             # raise NotImplementedError(str(x), list(map(str, y)))

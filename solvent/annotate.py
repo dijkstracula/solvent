@@ -28,6 +28,7 @@ from solvent.syntax import (
     ListType,
     Neg,
     ObjectType,
+    Return,
     RType,
     SelfType,
     Stmt,
@@ -90,8 +91,7 @@ class Annotate(Visitor):
             initial_id_map = {}
 
         self.id_map: Dict[int, Type] = initial_id_map
-
-        super().start()
+        self.return_types = []
 
     def end_Stmt(self, stmt: Stmt):
         if stmt.node_id not in self.id_map:
@@ -121,10 +121,21 @@ class Annotate(Visitor):
         for name, typ in arglist:
             self.env[name] = typ
 
-        return super().start_FunctionDef(fd)
-
-    def end_FunctionDef(self, _: FunctionDef):
+    def end_FunctionDef(self, fd: FunctionDef):
         self.env.pop_scope_mut()
+
+        if len(self.return_types) == 1:
+            fn_typ = self.id_map[fd.node_id]
+            assert isinstance(fn_typ, ArrowType)
+
+            self.id_map[fd.node_id] = ArrowType(
+                fn_typ.type_abs, fn_typ.args, self.return_types[0]
+            )
+        else:
+            warning("Two returns isn't properly handled yet")
+
+    def end_Return(self, ret: Return):
+        self.return_types += [self.id_map[ret.value.node_id]]
 
     def end_Assign(self, asgn: Assign):
         self.env[asgn.name] = self.id_map[asgn.value.node_id]
