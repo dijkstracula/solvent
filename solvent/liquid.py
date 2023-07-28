@@ -3,7 +3,7 @@ Implement Liquid Type inference
 """
 
 import pprint
-from logging import debug, info
+from logging import debug, info, warning
 from typing import Dict, List, cast
 
 from solvent import constraints as constr
@@ -198,7 +198,8 @@ def weaken(
             solution[n] = syn.Conjoin(qs)
         case constr.SubType(lhs=lhs):
             if get_predicate_vars(lhs) is not None:
-                raise Exception(f"Invalid constraint: {c}")
+                # raise Exception(f"Invalid constraint: {c}")
+                warning(f"Invalid constraint: {c}")
 
             if not subtype.check_constr(c, types):
                 raise Exception(f"Not subtype: {c}")

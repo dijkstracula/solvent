@@ -31,7 +31,12 @@ def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
         case []:
             return []
         case [top, *rest]:
-            info(f"unify => {top}", "with:" if len(rest) > 0 else "<none>", *rest)
+            info(
+                "unification step",
+                top,
+                "  rest:" if len(rest) > 0 else "<none>",
+                *rest,
+            )
             # info("====== unify ======")
             # info(f"=> {top}")
             # for c in rest:

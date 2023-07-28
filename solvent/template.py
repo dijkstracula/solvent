@@ -137,23 +137,22 @@ class Templatizer(Visitor):
     def end_ArithBinOp(self, abo: ArithBinOp):
         lhs_typ = self.types[abo.lhs.node_id]
         rhs_typ = self.types[abo.rhs.node_id]
-        ret_typ = template_type(self.types[abo.node_id])
 
         match (lhs_typ, abo.op, rhs_typ):
             case (ListType(), "+", ListType()):
+                ret_typ = template_type(self.types[abo.node_id])
                 self.constraints += [
                     SubType(self.env.clone(), self.assumptions, lhs_typ, ret_typ),
                     SubType(self.env.clone(), self.assumptions, rhs_typ, ret_typ),
                 ]
+                debug(f"template list: {ret_typ!r}")
+                self.types[abo.node_id] = ret_typ
             case (lhs, _, rhs) if lhs.base_type() == Int() and rhs.base_type() == Int():
                 self.types[abo.node_id] = RType(
                     Int(), Conjoin([BoolOp(V(), "==", abo)])
                 )
-                return
             case _:
-                pass
-
-        self.types[abo.node_id] = ret_typ
+                self.types[abo.node_id] = template_type(self.types[abo.node_id])
 
     def start_Variable(self, var: Variable):
         self.types[var.node_id] = self.env[var.name].set_predicate(
@@ -176,7 +175,8 @@ class Templatizer(Visitor):
         of the type of this list.
         """
 
-        list_typ = template_type(self.types[lit.node_id])
+        list_typ = template_type(self.types[lit.node_id].shape())
+        debug(f"list template: {lit}: {[self.types[o.node_id] for o in lit.elts]}")
         assert isinstance(list_typ, ListType)
         for child in lit.elts:
             self.constraints += [
@@ -205,13 +205,15 @@ class Templatizer(Visitor):
             args + [self.types[o.node_id] for o in op.arglist],
         )
 
-        self.types[op.node_id] = typ
+        self.types[op.node_id] = typ.subst(
+            zip([name for name, _ in fn_typ.args], op.arglist)
+        )
 
         for passed_arg, (_, fn_arg_typ) in zip(op.arglist, fn_typ.args):
             self.constraints += [
                 SubType(
                     self.env.clone(),
-                    self.assumptions,
+                    self.assumptions[:],
                     self.types[passed_arg.node_id],
                     fn_arg_typ,
                 ).pos(passed_arg)

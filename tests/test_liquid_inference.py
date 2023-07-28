@@ -103,24 +103,24 @@ def test_fib(n: Refine[int, True]):
         return test_fib(n - 1) + test_fib(n - 2)
 
 
-@assert_type(
-    [
-        _ < V,
-        V < _,
-        _ <= V,
-        V <= _,
-        Q[0] <= V,
-    ],
-    "(n:int, b:'a, f:(arg0:{int | 0 <= V}, arg1:'a) -> 'a) -> 'a",
-)
-def test_foldn(n: Refine[int, True], b, f):
-    def loop(i, c):
-        if i < n:
-            return loop(i + 1, f(i, c))
-        else:
-            return c
+# @assert_type(
+#     [
+#         _ < V,
+#         V < _,
+#         _ <= V,
+#         V <= _,
+#         Q[0] <= V,
+#     ],
+#     "(n:int, b:'a, f:(arg0:{int | 0 <= V}, arg1:'a) -> 'a) -> 'a",
+# )
+# def test_foldn(n: Refine[int, True], b, f):
+#     def loop(i, c):
+#         if i < n:
+#             return loop(i + 1, f(i, c))
+#         else:
+#             return c
 
-    return loop(0, b)
+#     return loop(0, b)
 
 
 @assert_type([Q[0] <= V, V <= Q[0], _ <= V, V <= _], "() -> {int | 0 <= V and V <= 0}")

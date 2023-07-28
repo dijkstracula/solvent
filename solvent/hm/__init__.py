@@ -39,7 +39,7 @@ def solve(
 
     def replace(t: syn.Type) -> syn.Type:
         match t:
-            case syn.HMType(syn.TypeVar(name=n)) if n in solution:
+            case syn.HMType(base=syn.TypeVar(name=n)) if n in solution:
                 return solution[n]
             case syn.RType(base=syn.TypeVar(name=n), predicate=p) if n in solution:
                 return solution[n].set_predicate(p)

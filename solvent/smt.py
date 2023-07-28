@@ -122,7 +122,8 @@ def lookup_op(op: str) -> Callable[[Any, Any], Any]:
         case "*":
             return lambda x, y: x * y
         case "//":
-            return lambda x, y: x // y
+            # TODO: check if this is correct
+            return lambda x, y: x / y
         case "/":
             return lambda x, y: x / y
         case ">":

@@ -1,4 +1,6 @@
-from solvent import V, _, Q, Refine
+from typing import List
+
+from solvent import Q, Refine, V, _
 from tests.utils import assert_type
 
 quals = [
@@ -27,7 +29,7 @@ def test_list_append2():
 
 
 @assert_type([_ <= V, V <= _], "(n:int) -> List[{int | V <= n}]")
-def test_list(n: Refine[int, True]):
+def test_list(n: Refine[int, True]) -> List[int]:
     if n <= 0:
         return []
     else:

@@ -175,8 +175,10 @@ class Parser:
             return syn.HMType(syn.Int())
         elif hint == bool:
             return syn.HMType(syn.Bool())
+        elif hint == List[int]:
+            return syn.ListType(syn.HMType.int())
         else:
-            raise NotImplementedError(hint)
+            raise NotImplementedError(hint, type(hint))
 
     def parse_annotation(self, ann) -> syn.Type:
         match ann:
@@ -265,11 +267,8 @@ class Parser:
                     ],
                     ret=ret,
                 )
-            # case ast.Subscript(
-            #         value=ast.Name(id=name),
-            #         slice=
-            # ):
-            #     pass
+            case ast.Subscript(value=ast.Name(id="List"), slice=inner):
+                return syn.ListType(inner_typ=self.parse_annotation(inner))
             case ast.Name(id=name):
                 return syn.RType(syn.TypeVar(name), syn.Conjoin([]))
             case x:

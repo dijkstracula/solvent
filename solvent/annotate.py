@@ -180,7 +180,7 @@ class Annotate(Visitor):
         # TODO: don't special case lists
         if isinstance(lhs_typ, ListType) and isinstance(rhs_typ, ListType):
             if lhs_typ.inner_typ.base_type() == rhs_typ.inner_typ.base_type():
-                self.id_map[abo.node_id] = ListType(inner_typ=lhs_typ.inner_typ)
+                self.id_map[abo.node_id] = ListType(inner_typ=lhs_typ.inner_typ.shape())
                 return
 
         match (lhs_typ.base_type(), abo.op, rhs_typ.base_type()):
@@ -220,21 +220,24 @@ class Annotate(Visitor):
     def end_ListLiteral(self, lit: ListLiteral):
         # TODO: compute least upper bound of types in list
 
-        # check if every element in the list literal has the same type
-        inner_typ: Type | None = None
-        for elt in lit.elts:
-            elt_typ = self.id_map[elt.node_id]
+        # empty list
+        if len(lit.elts) == 0:
+            if lit.node_id not in self.id_map:
+                self.id_map[lit.node_id] = ListType(HMType.fresh("l"))
+        else:
+            # check if every element in the list literal has the same type
+            inner_typ: Type | None = None
+            for elt in lit.elts:
+                elt_typ = self.id_map[elt.node_id]
+                if inner_typ is None:
+                    inner_typ = elt_typ
+                elif inner_typ != elt_typ:
+                    inner_typ = AnyType()
+
             if inner_typ is None:
-                inner_typ = elt_typ
-            elif inner_typ != elt_typ:
-                inner_typ = AnyType()
+                inner_typ = Unknown()
 
-        if inner_typ is None:
-            inner_typ = Unknown()
-
-        self.id_map[lit.node_id] = ListType(inner_typ)
-
-        return super().end_ListLiteral(lit)
+            self.id_map[lit.node_id] = ListType(inner_typ)
 
     def end_GetAttr(self, lit: GetAttr) -> Expr | None:
         obj_typ = self.id_map[lit.name.node_id]
