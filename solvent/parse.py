@@ -1,5 +1,5 @@
 import ast
-from logging import info
+from logging import debug, info, warn
 from typing import Annotated, Any, Dict, List, get_args, get_origin
 
 import solvent
@@ -55,9 +55,56 @@ class Parser:
                     self.modules[f"{used_name}"] = f"{module}.{n.name}"
 
                 return []
+            case ast.ClassDef(name=name, bases=bases, body=body):
+                # parse base classes to see if we have any generic variables
+                # HACK: hardcoding the name of Generic. At some point we'll
+                # want to actually resovle this name
+                type_vars = []
+                match bases:
+                    case [
+                        ast.Subscript(
+                            value=ast.Name(id="Generic"), slice=ast.Name(id=name)
+                        )
+                    ]:
+                        type_vars = [name]
+                    case [
+                        ast.Subscript(
+                            value=ast.Name(id="Generic"), slice=ast.Tuple(elts=elts)
+                        )
+                    ]:
+                        for e in elts:
+                            if isinstance(e, ast.Name):
+                                type_vars += [e.id]
+                    case _:
+                        pass
+
+                constructor = syn.ArrowType({}, [], syn.SelfType())
+                fields = {}
+                for stmt in body:
+                    match stmt:
+                        case ast.FunctionDef(name="__init__"):
+                            raise NotImplementedError("don't support __init__ yet")
+                        case ast.FunctionDef(name=name):
+                            fields[name] = self.parse(stmt)
+                        case _:
+                            pass
+                debug("\n".join([ast.dump(x, indent=2) for x in body]))
+
+                raise NotImplementedError(
+                    syn.Class(
+                        name=name,
+                        type_abs=type_vars,
+                        constructor=constructor,
+                        fields={},
+                    )
+                )
             case ast.FunctionDef(name=name, args=args, body=body, returns=returns):
-                if returns is not None and "return" in self.typing_hints:
-                    ret_ann = self.parse_hint(self.typing_hints["return"]).ast(returns)
+                if "return" in self.typing_hints:
+                    ret_ann = self.parse_hint(self.typing_hints["return"])
+                    if returns is not None:
+                        ret_ann = ret_ann.ast(returns)
+                elif returns is not None:
+                    ret_ann = self.parse_annotation(returns).ast(returns)
                 else:
                     ret_ann = None
 
@@ -79,6 +126,9 @@ class Parser:
                 ]
             case ast.Assign(targets=[ast.Name(id=id)], value=e):
                 return [syn.Assign(id, self.parse_expr(e)).ast(tree)]
+            case ast.AnnAssign(target=ast.Name(id=id), value=e, annotation=ann):
+                warn(f"Ignoring annotation: {ast.dump(ann)}")
+                return [syn.Assign(id, self.parse_expr(e)).ast(tree)]
             case ast.Return(value=value):
                 return [syn.Return(value=self.parse_expr(value)).ast(tree)]
             case ast.Expr(value=value) if not self.strict:
@@ -94,7 +144,7 @@ class Parser:
     def parse_argument(self, arg: ast.arg) -> syn.Argument:
         if arg.arg in self.typing_hints:
             ann = self.parse_hint(self.typing_hints[arg.arg]).ast(arg)
-        elif isinstance(arg.annotation, ast.Subscript):
+        elif arg.annotation is not None:
             ann = self.parse_annotation(arg.annotation)
         else:
             ann = None
@@ -122,18 +172,20 @@ class Parser:
 
     def parse_base(self, hint: type) -> syn.Type:
         if hint == int:
-            return syn.RType.lift(syn.Int())
+            return syn.HMType(syn.Int())
         elif hint == bool:
-            return syn.RType.lift(syn.Bool())
+            return syn.HMType(syn.Bool())
+        elif hint == List[int]:
+            return syn.ListType(syn.HMType.int())
         else:
-            raise NotImplementedError(hint)
+            raise NotImplementedError(hint, type(hint))
 
     def parse_annotation(self, ann) -> syn.Type:
         match ann:
             case ast.Name(id="int"):
-                return syn.RType.lift(syn.Int())
+                return syn.HMType(syn.Int())
             case ast.Name(id="bool"):
-                return syn.RType.lift(syn.Bool())
+                return syn.HMType(syn.Bool())
             case ast.Constant(value=v):
                 return self.parse_refinement(v)
             case ast.Set(elts=[ast.BinOp(left=base, op=ast.BitOr(), right=refinement)]):
@@ -194,6 +246,8 @@ class Parser:
                         return rtype.set_predicate(
                             syn.Conjoin([syn.BoolLiteral(locals["pred"])])
                         )
+                    case str():
+                        return rtype.set_predicate(syn.PredicateVar(locals["pred"]))
                     case x:
                         raise NotImplementedError(x)
             case ast.Subscript(
@@ -213,10 +267,14 @@ class Parser:
                     ],
                     ret=ret,
                 )
+            case ast.Subscript(value=ast.Name(id="List"), slice=inner):
+                return syn.ListType(inner_typ=self.parse_annotation(inner))
+            case ast.Name(id=name):
+                return syn.RType(syn.TypeVar(name), syn.Conjoin([]))
             case x:
                 if x is not None and isinstance(x, ast.AST):
-                    info(ast.dump(ann, indent=2))
-                raise NotImplementedError(x)
+                    debug(ast.dump(ann, indent=2))
+                raise NotImplementedError(x, type(x))
 
     def parse_expr(self, expr) -> syn.Expr:
         match expr:
@@ -250,7 +308,7 @@ class Parser:
                     return syn.IntLiteral(value=val).ast(expr)
                 elif type(val) == bool:
                     return syn.BoolLiteral(value=val).ast(expr)
-                elif type(val) == str and not self.strict:
+                elif type(val) == str:
                     return syn.StrLiteral(value=val).ast(expr)
                 else:
                     raise NotImplementedError(val, type(val))
@@ -279,16 +337,15 @@ class Parser:
                     raise NotImplementedError(x)
 
     def parse_refinement(self, input: str) -> syn.RType:
-        stripped = input[1:-1]
-        typ, refinement = stripped.split("|")
-        refine_expr = string_to_expr(refinement)
-        match typ.strip():
-            case "int":
-                return syn.RType(syn.Int(), syn.Conjoin([refine_expr]))
-            case "bool":
-                return syn.RType(syn.Bool(), syn.Conjoin([refine_expr]))
-            case _:
-                raise NotImplementedError
+        match ast.parse(input):
+            case ast.Module(body=[ast.Expr(value=v)]):
+                debug(ast.dump(v, indent=2))
+                res = self.parse_annotation(v)
+                debug("here", res)
+                # return res
+                raise NotImplementedError()
+            case x:
+                raise NotImplementedError(x)
 
     def binop_str(self, op):
         match op:

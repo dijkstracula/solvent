@@ -20,6 +20,9 @@ def assert_type(quals, expected, modules: Dict[str, str] | None = None):
             pyast = ast.parse(lines)
             res = parse.Parser(get_type_hints(func, include_extras=True)).parse(pyast)
 
+            fd = res[0]
+            assert isinstance(fd, syn.FunctionDef)
+
             env = ScopedEnv.empty()
             if modules is not None:
                 for prog_name, resolved_name in modules.items():
@@ -31,8 +34,8 @@ def assert_type(quals, expected, modules: Dict[str, str] | None = None):
 
             syn.NameGenerator.reset()
             with Context(lines=lines.split("\n")):  # type: ignore
-                types = frontend.check(res, quals, env)
-                assert str(types[func.__name__]) == expected
+                types = frontend.check([fd], quals, env)
+                assert str(types[fd.node_id]) == expected
 
         repl.__name__ = func.__name__
 

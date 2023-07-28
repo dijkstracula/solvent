@@ -1,27 +1,27 @@
-from logging import info
+from logging import debug, info
 from typing import Dict, List
 
 from ansi.color import fg, fx
 
-from solvent import constraints, hm, liquid, normalize, qualifiers
+from solvent import hm, liquid, normalize, qualifiers
 from solvent import syntax as syn
+from solvent.annotate import Annotate
 from solvent.env import ScopedEnv
-from solvent.sanitize import AssertHavePosition, AssertNoHmTypes
 from solvent.syntax import Type
 from solvent.template import Templatizer
-from solvent.type_applications import TypeApplication
 
 
-def infer_base(stmts: List[syn.Stmt]) -> Dict[str, Type]:
-    norm_stmts = normalize.normalize(stmts)
-    _, solved_type = hm.solve(norm_stmts)
+def infer_base(fd: syn.FunctionDef) -> Type:
+    stmts = normalize.normalize([fd])
+    annotator = Annotate()
+    stmts = annotator.visit_stmts(stmts)
+    stmts, types = hm.solve(stmts, annotator.id_map)
 
-    info("Normalized Program:")
-    for s in norm_stmts:
-        info(s)
-    info("======")
+    print(fd.node_id)
+    for id, ty in types.items():
+        print(f"{id}: {ty}")
 
-    return {k: alpha_rename(v) for k, v in solved_type.items()}
+    return alpha_rename(types[fd.node_id])
 
 
 def number(blob: str) -> str:
@@ -35,9 +35,9 @@ def number(blob: str) -> str:
     return "\n".join(ret)
 
 
-def info_stmts(stmts: List[syn.Stmt], include_types=False):
+def info_stmts(stmts: List[syn.Stmt], types=None, include_types=False):
     gather = "\n\n".join(
-        [number(s.to_string(include_types=include_types)) for s in stmts]
+        [number(s.to_string(types=types, include_types=include_types)) for s in stmts]
     )
     info(gather)
 
@@ -46,7 +46,7 @@ def check(
     stmts: List[syn.Stmt],
     quals: List[qualifiers.Qualifier],
     env: ScopedEnv | None = None,
-) -> Dict[str, Type]:
+) -> Dict[int, Type]:
     """
     Run Liquid-type inference and checking.
     """
@@ -58,49 +58,54 @@ def check(
     info("Normalized Program:")
     info_stmts(stmts)
 
-    info("Inserting type applications")
-    stmts = TypeApplication(env.clone()).visit_stmts(stmts)
-    info_stmts(stmts)
+    annotator = Annotate(env.clone())
+    stmts = annotator.visit_stmts(stmts)
+    types: Dict[int, Type] = annotator.id_map
 
-    stmts, base_types = hm.solve(stmts, env=env)
-    info("HmType program:")
-    info_stmts(stmts, True)
-
-    info("== Inferred Base Types ==")
-    info(
-        "\n".join(
-            [f"{fn_name}: {alpha_rename(typ)}" for fn_name, typ in base_types.items()]
-        )
+    debug(
+        "Forward type annotation",
+        "\n".join([f"{id}: {ty}" for id, ty in types.items()]),
     )
 
-    stmts = Templatizer(env).visit_stmts(stmts)
-    AssertHavePosition().visit_stmts(stmts)
-    info("Template program:")
-    info_stmts(stmts, True)
-    AssertNoHmTypes().visit_stmts(stmts)
+    info_stmts(stmts, types=types, include_types=True)
 
-    _, constrs, ctx = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
-    for c in constrs:
-        AssertNoHmTypes().check_constraint(c)
+    stmts, types = hm.solve(stmts, types, env=env)
 
-    info("context:")
-    msg = ""
-    for scope in ctx.scopes:
-        for k, v in scope.items():
-            msg += f"{k}: {v}\n"
-        msg += "== scope ==\n"
-    info(msg)
+    templatizer = Templatizer(types, env.clone())
+    stmts = templatizer.visit_stmts(stmts)
+    debug(
+        "Template program types",
+        "\n".join([f"{id}: {ty}" for id, ty in templatizer.types.items()]),
+    )
+    info_stmts(stmts, types=templatizer.types, include_types=True)
 
-    predvar_solution = liquid.solve(stmts, constrs, quals)
+    # _, constrs, ctx = constraints.check_stmts(ScopedEnv.empty(), [], stmts)
+    # for c in constrs:
+    #     AssertNoHmTypes().check_constraint(c)
+
+    # info("context:")
+    # msg = ""
+    # for scope in ctx.scopes:
+    #     for k, v in scope.items():
+    #         msg += f"{k}: {v}\n"
+    #     msg += "== scope ==\n"
+    # info(msg)
+
+    predvar_solution = liquid.solve(
+        stmts, templatizer.constraints, quals, templatizer.types
+    )
 
     info("== Predicate Variable Solution ==")
     for k, v in predvar_solution.items():
         info(f"{k} := {v}")
 
-    return {
-        k: alpha_rename(liquid.apply(v, predvar_solution))
-        for k, v in ctx.scopes[0].items()
+    types = {
+        id: liquid.apply(ty, predvar_solution) for id, ty in templatizer.types.items()
     }
+
+    info_stmts(stmts, types, include_types=True)
+
+    return types
 
 
 NAMES = "abcdefghijklmnopqrstuvwxyz"

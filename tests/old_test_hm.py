@@ -19,9 +19,12 @@ def assert_hm(expected):
             pyast = ast.parse(lines)
             res = parse.Parser(get_type_hints(func, include_extras=True)).parse(pyast)
 
+            fd = res[0]
+            assert isinstance(fd, syn.FunctionDef)
+
             syn.NameGenerator.reset()
             with Context(lines=lines.split("\n")):  # type: ignore
-                assert str(frontend.infer_base(res)[func.__name__]) == expected
+                assert str(frontend.infer_base(fd)) == expected
 
         repl.__name__ = func.__name__
 

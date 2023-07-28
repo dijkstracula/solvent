@@ -40,25 +40,43 @@ class Visitor:
             case FunctionDef(name=name, args=args, return_annotation=retann, body=body):
                 self.start_FunctionDef(cast(FunctionDef, stmt))
                 new_stmt = FunctionDef(
-                    name, args, retann, self.visit_stmts(body), typ=stmt.typ
-                )
+                    name,
+                    args,
+                    retann,
+                    self.visit_stmts(body),
+                ).metadata(stmt)
                 self.end_FunctionDef(new_stmt)
             case If(test=test, body=body, orelse=orelse):
-                self.start_If(cast(If, stmt))
+                if_stmt = cast(If, stmt)
+                self.start_If(if_stmt)
+
+                # visit condition
+                new_test = self.visit_expr(test)
+
+                # visit true branch
+                self.start_IfTrue(if_stmt)
+                new_body = self.visit_stmts(body)
+                self.end_IfTrue(if_stmt)
+
+                # visit false branch
+                self.start_IfFalse(if_stmt)
+                new_orelse = self.visit_stmts(orelse)
+                self.end_IfFalse(if_stmt)
+
                 new_stmt = If(
-                    self.visit_expr(test),
-                    self.visit_stmts(body),
-                    self.visit_stmts(orelse),
-                    typ=stmt.typ,
-                )
+                    new_test,
+                    new_body,
+                    new_orelse,
+                ).metadata(stmt)
+
                 self.end_If(new_stmt)
             case Assign(name=name, value=expr):
                 self.start_Assign(cast(Assign, stmt))
-                new_stmt = Assign(name, self.visit_expr(expr), typ=stmt.typ)
+                new_stmt = Assign(name, self.visit_expr(expr)).metadata(stmt)
                 self.end_Assign(new_stmt)
             case Return(value=expr):
                 self.start_Return(cast(Return, stmt))
-                new_stmt = Return(self.visit_expr(expr), typ=stmt.typ)
+                new_stmt = Return(self.visit_expr(expr)).metadata(stmt)
                 self.end_Return(new_stmt)
             case x:
                 raise errors.Unreachable(x)
@@ -82,8 +100,11 @@ class Visitor:
             case ArithBinOp(lhs=lhs, op=op, rhs=rhs):
                 self.start_ArithBinOp(cast(ArithBinOp, expr))
                 new_expr = ArithBinOp(
-                    self.visit_expr(lhs), op, self.visit_expr(rhs), typ=expr.typ
-                )
+                    self.visit_expr(lhs),
+                    op,
+                    self.visit_expr(rhs),
+                    node_id=expr.node_id,
+                ).pos(expr)
                 self.end_ArithBinOp(new_expr)
             case BoolLiteral():
                 new_expr = self.start_BoolLiteral(cast(BoolLiteral, expr))
@@ -91,38 +112,51 @@ class Visitor:
                 new_expr = self.start_StrLiteral(cast(StrLiteral, expr))
             case ListLiteral(elts=elts):
                 self.start_ListLiteral(cast(ListLiteral, expr))
-                new_expr = ListLiteral([self.visit_expr(e) for e in elts], typ=expr.typ)
+                new_expr = ListLiteral(
+                    [self.visit_expr(e) for e in elts],
+                    node_id=expr.node_id,
+                )
                 self.end_ListLiteral(new_expr)
             case GetAttr(name=name, attr=attr):
                 self.start_GetAttr(cast(GetAttr, expr))
                 new_expr = self.end_GetAttr(
-                    GetAttr(name=self.visit_expr(name), attr=attr, typ=expr.typ)
+                    GetAttr(
+                        name=self.visit_expr(name),
+                        attr=attr,
+                        node_id=expr.node_id,
+                    )
                 )
             case Subscript(value=v, idx=e):
                 self.start_Subscript(cast(Subscript, expr))
-                new_expr = Subscript(self.visit_expr(v), self.visit_expr(e))
+                new_expr = Subscript(
+                    self.visit_expr(v),
+                    self.visit_expr(e),
+                    node_id=expr.node_id,
+                )
                 self.end_Subscript(new_expr)
             case BoolOp(lhs=lhs, op=op, rhs=rhs):
                 self.start_BoolOp(cast(BoolOp, expr))
                 new_expr = BoolOp(
-                    self.visit_expr(lhs), op, self.visit_expr(rhs), typ=expr.typ
-                )
+                    self.visit_expr(lhs),
+                    op,
+                    self.visit_expr(rhs),
+                    node_id=expr.node_id,
+                ).pos(expr)
                 self.end_BoolOp(new_expr)
             case Neg(expr=e):
                 self.start_Neg(cast(Neg, expr))
-                new_expr = Neg(self.visit_expr(e), typ=expr.typ)
+                new_expr = Neg(self.visit_expr(e), node_id=expr.node_id)
                 self.end_Neg(new_expr)
             case Call(function_name=fn, arglist=args):
                 self.start_Call(cast(Call, expr))
                 new_expr = Call(
                     self.visit_expr(fn),
                     [self.visit_expr(a) for a in args],
-                    typ=expr.typ,
-                )
+                ).metadata(expr)
                 new_expr = self.end_Call(new_expr)
             case TypeApp(expr=e, arglist=args):
                 self.start_TypeApp(cast(TypeApp, expr))
-                new_expr = TypeApp(self.visit_expr(e), args, typ=expr.typ)
+                new_expr = TypeApp(self.visit_expr(e), args, node_id=expr.node_id)
                 new_expr = self.end_TypeApp(new_expr)
             case x:
                 raise errors.Unreachable(x)
@@ -157,6 +191,18 @@ class Visitor:
         pass
 
     def end_If(self, if_stmt: If):
+        pass
+
+    def start_IfTrue(self, if_stmt: If):
+        pass
+
+    def end_IfTrue(self, if_stmt: If):
+        pass
+
+    def start_IfFalse(self, if_stmt: If):
+        pass
+
+    def end_IfFalse(self, if_stmt: If):
         pass
 
     def start_Assign(self, asgn: Assign):
@@ -242,3 +288,10 @@ class Visitor:
 
     def end_TypeApp(self, op: TypeApp) -> Expr | None:
         pass
+
+
+# class TypeVisitor:
+#     def enter_HMType():
+#         pass
+
+#     def

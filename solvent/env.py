@@ -1,33 +1,34 @@
 from copy import deepcopy
 from dataclasses import dataclass
-from logging import debug
-from typing import Any, Dict, List, Self
+from typing import Dict, Generic, List, Self, TypeVar
 
 from solvent import syntax as syn
 from solvent.syntax import Type
 from solvent.visitor import Visitor
 
+T = TypeVar("T")
+
 
 @dataclass(frozen=True)
-class ScopedEnv:
+class ScopedEnv(Generic[T]):
     """
     A scoped environment. Each scope is represented as map from variable names (str)
     to anything. New scopes are prepended to the front of the list of scopes.
     Variables in newer scopes, shadow variables in older scopes.
     """
 
-    scopes: List[Dict[str, Any]]
+    scopes: List[Dict[str, T]]
 
     @staticmethod
     def empty():
         return ScopedEnv([{}])
 
-    def add(self, name: str, data: Any) -> Self:
+    def add(self, name: str, data: T) -> Self:
         new = deepcopy(self)
         new.scopes[0][name] = data
         return new
 
-    def add_mut(self, name: str, data: Any):
+    def add_mut(self, name: str, data: T):
         self.scopes[0][name] = data
 
     def push_scope(self) -> Self:
@@ -65,7 +66,7 @@ class ScopedEnv:
                 return v
         raise IndexError(f"{name} not bound in context.\n{self}")
 
-    def __setitem__(self, name, value):
+    def __setitem__(self, name: str, value: T):
         self.add_mut(name, value)
 
     def __contains__(self, name):
@@ -88,26 +89,26 @@ class ScopedEnv:
 
 
 class ScopedEnvVisitor(Visitor):
-    def start(self, initial_env: ScopedEnv | None = None):
+    def start(self, types: Dict[int, Type], initial_env: ScopedEnv | None = None):
         if initial_env is None:
             initial_env = ScopedEnv.empty()
-        else:
-            debug(f"Starting with {initial_env}")
 
+        self.types = types
         self.env = initial_env
 
     def start_FunctionDef(self, fd: syn.FunctionDef):
-        if isinstance(fd.typ, syn.ArrowType):
+        fn_typ = self.types[fd.node_id]
+        if isinstance(fn_typ, syn.ArrowType):
             # add function name to current scope
-            self.env[fd.name] = fd.typ
+            self.env[fd.name] = fn_typ
 
             self.env.push_scope_mut()
-            for name, t in fd.typ.args:
+            for name, t in fn_typ.args:
                 self.env[name] = t
 
     def end_FunctionDef(self, fd: syn.FunctionDef):
-        if isinstance(fd.typ, syn.ArrowType):
+        if isinstance(self.types[fd.node_id], syn.ArrowType):
             self.env.pop_scope_mut()
 
-    def end_Assign(self, stmt: syn.Assign):
-        self.env[stmt.name] = stmt.typ
+    def end_Assign(self, asgn: syn.Assign):
+        self.env[asgn.name] = self.types[asgn.node_id]

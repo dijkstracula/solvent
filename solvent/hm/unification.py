@@ -8,19 +8,20 @@ from typing import Dict, List, Tuple
 from solvent import errors
 from solvent.env import ScopedEnv
 from solvent.syntax import (
+    AnyType,
     ArrowType,
-    Bottom,
-    DataFrameType,
     HMType,
     ListType,
     ObjectType,
     RType,
     Type,
     TypeVar,
+    Unknown,
     base_type_eq,
 )
+from solvent.utils import unwrap
 
-from .check import BaseEq
+from .constraints import BaseEq
 
 Solution = Dict[str, Type]
 
@@ -30,10 +31,16 @@ def solve(constrs: List[BaseEq]) -> List[tuple[str, Type]]:
         case []:
             return []
         case [top, *rest]:
-            info("====== unify ======")
-            info(f"=> {top}")
-            for c in rest:
-                info(c)
+            info(
+                "unification step",
+                top,
+                "  rest:" if len(rest) > 0 else "<none>",
+                *rest,
+            )
+            # info("====== unify ======")
+            # info(f"=> {top}")
+            # for c in rest:
+            #     info(c)
 
             lX = tvar_name(top.lhs)
             rX = tvar_name(top.rhs)
@@ -139,11 +146,11 @@ def free_vars(typ: Type) -> list[str]:
             return sum([free_vars(t) for _, t in args], []) + free_vars(ret)
         case ListType(inner_typ=inner_typ):
             return free_vars(inner_typ)
-        case DataFrameType(columns=cols):
-            return sum([free_vars(t) for _, t in cols.items()], [])
-        case ObjectType(fields=fields):
-            return sum([free_vars(t) for _, t in fields.items()], [])
-        case Bottom():
+        case ObjectType(generic_args=args):
+            return sum([free_vars(t) for t in args], [])
+        case Unknown():
+            return []
+        case AnyType():
             return []
         case x:
             raise NotImplementedError(x, type(x))
@@ -164,8 +171,10 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
         case HMType(TypeVar(name=n)) if name == n:
             return tar
         case RType(base=TypeVar(name=n), predicate=p, pending_subst=ps) if name == n:
-            return RType(base=tar.base_type(), predicate=p, pending_subst=ps).pos(tar)
-        case HMType():
+            return RType(
+                base=unwrap(tar.base_type()), predicate=p, pending_subst=ps
+            ).pos(tar)
+        case HMType() | RType() | Unknown() | AnyType():
             return src
         case RType():
             return src
@@ -177,14 +186,10 @@ def subst_one(name: str, tar: Type, src: Type) -> Type:
             ).pos(src)
         case ListType(inner_typ=inner):
             return ListType(subst_one(name, tar, inner)).pos(src)
-        case ObjectType(name=obj_name, type_abs=abs, fields=fields):
-            if name in abs:
-                del abs[name]
-            return ObjectType(
-                obj_name,
-                abs,
-                {x: subst_one(name, tar, t) for x, t in fields.items()},
-            ).pos(src)
+        case ObjectType(name=obj_name, generic_args=args):
+            return ObjectType(obj_name, [subst_one(name, tar, t) for t in args]).pos(
+                src
+            )
         case x:
             raise NotImplementedError(f"subst one: {x}")
 
@@ -208,14 +213,10 @@ def apply(typ: Type, solution: Solution) -> Type:
             )
         case ListType(inner_typ=inner):
             return ListType(inner_typ=apply(inner, solution))
-        case ObjectType(name=name, type_abs=abs, fields=fields):
-            new_type_abs = {}
-            for t, k in abs.items():
-                if t in solution:
-                    fields = {name: apply(t, solution) for name, t in fields.items()}
-                else:
-                    new_type_abs[t] = k
-            return ObjectType(name, new_type_abs, fields)
+        case ObjectType(name=name, generic_args=args):
+            return ObjectType(
+                name=name, generic_args=[apply(t, solution) for t in args]
+            )
         case _:
             return typ
 

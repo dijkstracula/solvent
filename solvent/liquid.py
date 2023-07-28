@@ -3,7 +3,7 @@ Implement Liquid Type inference
 """
 
 import pprint
-from logging import info
+from logging import debug, info, warning
 from typing import Dict, List, cast
 
 from solvent import constraints as constr
@@ -21,8 +21,6 @@ Solution = Dict[str, syn.Conjoin]
 def split(c: constr.SubType) -> List[constr.SubType]:
     """
     Split compound constraints into simpler constraints.
-
-    TODO: Do I need to split constraints in the environment?
     """
 
     match c:
@@ -53,20 +51,34 @@ def split(c: constr.SubType) -> List[constr.SubType]:
                         constr.SubType(ctx, asms, ret0, ret1).pos(c),
                     ]
                     return sum([split(x) for x in split_constrs], [])
-                case (syn.ObjectType(fields=f1), syn.ObjectType(fields=f2)):
+                case (
+                    syn.ObjectType(generic_args=args1),
+                    syn.ObjectType(generic_args=args2),
+                ):
                     split_constrs = [
-                        # TODO: Variance for field constraints???
                         constr.SubType(
                             ctx,
                             asms,
                             t0.subst(lhs.pending_subst.items()),
                             t1.subst(rhs.pending_subst.items()),
                         ).pos(c)
-                        for (_, t0), (_, t1) in zip(
-                            sorted(f1.items()), sorted(f2.items())
-                        )
+                        for t0, t1 in zip(args1, args2)
                     ]
                     return sum([split(x) for x in split_constrs], [])
+                # case (syn.ObjectType(fields=f1), syn.ObjectType(fields=f2)):
+                #     split_constrs = [
+                #         # TODO: Variance for field constraints???
+                #         constr.SubType(
+                #             ctx,
+                #             asms,
+                #             t0.subst(lhs.pending_subst.items()),
+                #             t1.subst(rhs.pending_subst.items()),
+                #         ).pos(c)
+                #         for (_, t0), (_, t1) in zip(
+                #             sorted(f1.items()), sorted(f2.items())
+                #         )
+                #     ]
+                #     return sum([split(x) for x in split_constrs], [])
 
                 case _:
                     return [c]
@@ -78,47 +90,44 @@ def solve(
     stmts: List[syn.Stmt],
     constrs: List[constr.SubType],
     quals: List[quals.Qualifier],
+    types: Dict[int, syn.Type],
 ) -> Solution:
-    info("Raw Constraints:")
-    for c in constrs:
-        Context.show(c, at=c.position)
-    info("======")
+    debug(
+        "Raw Constraints:",
+        "\n".join([Context.str(c, at=c.position) for c in constrs]),
+    )
 
     # split all the constraints that we have into base constraints
     constrs = sum([split(c) for c in constrs], [])
 
-    ipv = InitialPredicatesVisitor(quals)
+    debug(
+        "Constraints after splitting:",
+        "\n".join([Context.str(c, at=c.position) for c in constrs]),
+    )
+
+    ipv = InitialPredicatesVisitor(quals, types)
     ipv.visit_stmts(stmts)
     solution = ipv.solution
 
-    info("Initial Constraints:")
-    for c in constrs:
-        Context.show(c, at=c.position)
-    info("======")
-
-    info("Initial Predicates:")
-    for k, v in solution.items():
-        info(f"{k} := {v}")
-    info("======")
+    info("Initial Predicates:", "\n".join([f"{k} := {v}" for k, v in solution.items()]))
 
     subtype_eqs = cast(
         List[constr.SubType],
         list(
             filter(
                 lambda x: isinstance(x, constr.SubType)
-                and isinstance(x.lhs, constr.RType)
-                and not isinstance(x.lhs.base, constr.TypeVar),
+                and isinstance(x.lhs, syn.RType)
+                and not isinstance(x.lhs.base, syn.TypeVar),
                 constrs,
             )
         ),
     )
 
-    return liquid.constraints_valid(subtype_eqs, solution)
+    return liquid.constraints_valid(subtype_eqs, solution, types)
 
 
 def constraints_valid(
-    constrs: List[constr.SubType],
-    solution: Solution,
+    constrs: List[constr.SubType], solution: Solution, types: Dict[int, syn.Type]
 ):
     """
     Check if solution satisfies every constraint in constrs.
@@ -130,7 +139,7 @@ def constraints_valid(
         sc = apply_constr(c, solution)
         Context.show(f"G |- {c.lhs} <: {c.rhs}", at=c.position)
         try:
-            valid = subtype.check_constr(sc)
+            valid = subtype.check_constr(sc, types)
         except NotImplementedError as e:
             info("culprit", sc)
             ctx = "\n    ".join([f"{k}: {v}" for k, v in sc.context.items()])
@@ -143,12 +152,14 @@ def constraints_valid(
         info(f"  Valid? ({valid}) w/ context:\n    {ctx}\n    {assums}")
 
         if not valid:
-            return constraints_valid(constrs, weaken(c, solution))
+            return constraints_valid(constrs, weaken(c, solution, types), types)
 
     return solution
 
 
-def weaken(c: constr.SubType, solution: Solution) -> Solution:
+def weaken(
+    c: constr.SubType, solution: Solution, types: Dict[int, syn.Type]
+) -> Solution:
     """
     Weaken constr and return a new solution.
 
@@ -176,9 +187,10 @@ def weaken(c: constr.SubType, solution: Solution) -> Solution:
 
                 if subtype.check(
                     apply_ctx(ctx, solution),
+                    types,
                     assumes,
                     apply(lhs, solution),
-                    syn.RType(b2, syn.Conjoin([apply_substs(qual, ps)])),
+                    syn.RType(b2, syn.Conjoin([qual.apply_substs(ps)])),
                 ):
                     info("Ok")
                     qs += [qual]
@@ -186,9 +198,10 @@ def weaken(c: constr.SubType, solution: Solution) -> Solution:
             solution[n] = syn.Conjoin(qs)
         case constr.SubType(lhs=lhs):
             if get_predicate_vars(lhs) is not None:
-                raise Exception(f"Invalid constraint: {c}")
+                # raise Exception(f"Invalid constraint: {c}")
+                warning(f"Invalid constraint: {c}")
 
-            if not subtype.check_constr(c):
+            if not subtype.check_constr(c, types):
                 raise Exception(f"Not subtype: {c}")
         case x:
             raise NotImplementedError(pprint.pformat(x))
@@ -236,7 +249,7 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
         case syn.RType(
             base=base, predicate=syn.PredicateVar(name=n), pending_subst=ps
         ) if n in solution:
-            cjct = syn.Conjoin([apply_substs(c, ps) for c in solution[n].conjuncts])
+            cjct = syn.Conjoin([c.apply_substs(ps) for c in solution[n].conjuncts])
             return syn.RType(
                 base,
                 cjct,
@@ -252,29 +265,7 @@ def apply(typ: syn.Type, solution: Solution) -> syn.Type:
             )
         case syn.ListType(inner_typ=inner):
             return syn.ListType(inner_typ=apply(inner, solution))
-        case syn.ObjectType(name=name, type_abs=abs, fields=fields):
-            return syn.ObjectType(
-                name,
-                abs,
-                {name: apply(typ, solution) for name, typ in fields.items()},
-            )
-        case x:
-            return x
-
-
-def apply_substs(e: syn.Expr, substs: Dict[str, syn.Expr]) -> syn.Expr:
-    match e:
-        case syn.Variable(name=n) if n in substs:
-            return substs[n]
-        case syn.BoolOp(lhs=l, op=op, rhs=r):
-            return syn.BoolOp(apply_substs(l, substs), op, apply_substs(r, substs))
-        case syn.ArithBinOp(lhs=l, op=op, rhs=r):
-            return syn.ArithBinOp(apply_substs(l, substs), op, apply_substs(r, substs))
-        case syn.Neg(expr=e):
-            return syn.Neg(apply_substs(e, substs))
-        case syn.Call(function_name=fn, arglist=args):
-            return syn.Call(
-                apply_substs(fn, substs), [apply_substs(a, substs) for a in args]
-            )
+        case syn.ObjectType(name=name, generic_args=args):
+            return syn.ObjectType(name, [apply(typ, solution) for typ in args])
         case x:
             return x

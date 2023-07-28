@@ -6,12 +6,27 @@ is transformed into this more manageable sublanguage.
 import ast
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Self
+from typing import Callable, Dict, Iterable, List, Optional, Self
 
 from ansi.color import fg, fx
 
 from solvent.position import Position
-from solvent.utils import default
+from solvent.utils import default, unwrap
+
+
+class ID:
+    next_id: int = 0
+
+    @classmethod
+    def next(cls):
+        i = cls.next_id
+        cls.next_id += 1
+        return i
+
+
+@dataclass(kw_only=True)
+class Node:
+    node_id: int = field(default_factory=ID.next)
 
 
 @dataclass(kw_only=True)
@@ -141,46 +156,103 @@ class PredicateVar(Predicate):
 class Type(Pos):
     pending_subst: Dict[str, "Expr"] = field(default_factory=dict, repr=False)
 
-    def subst(self, pairs: Iterable[tuple[str, "Expr"]]):
+    def metadata(self, frm: "Type", pending_subst=True, position=True) -> Self:
+        if pending_subst:
+            self.pending_subst = frm.pending_subst
+        else:
+            self.pending_subst = {}
+
+        if position:
+            self.position = frm.position
+        else:
+            self.position = Position()
+
+        return self
+
+    def mapper(self, fn: Callable[["Type"], "Type"]) -> "Type":
+        match self:
+            case ArrowType(type_abs=abs, args=args, ret=ret):
+                return fn(
+                    ArrowType(
+                        abs,
+                        [(name, t.mapper(fn)) for name, t in args],
+                        ret.mapper(fn),
+                    )
+                ).metadata(self)
+            case ListType(inner_typ=inner):
+                return fn(ListType(inner.mapper(fn))).metadata(self)
+            case SelfType(generic_args=args):
+                return fn(SelfType([t.mapper(fn) for t in args])).metadata(self)
+            case ObjectType(name=name, generic_args=args):
+                return fn(ObjectType(name, [t.mapper(fn) for t in args])).metadata(self)
+            case x:
+                return fn(x).metadata(x)
+
+    def subst(self, pairs: Iterable[tuple[str, "Expr"]], eager=False):
         ret = deepcopy(self)
         for k, v in pairs:
             ret.pending_subst[k] = v
-        return ret
+        if eager:
+            return ret.apply_substs()
+        else:
+            return ret
+
+    def apply_substs(self) -> Self:
+        def replace_rtype(typ):
+            match typ:
+                case RType(base=base, predicate=Conjoin(preds)):
+                    return RType(
+                        base,
+                        Conjoin([p.apply_substs(self.pending_subst) for p in preds]),
+                    )
+                case x:
+                    return x
+
+        return self.mapper(replace_rtype).metadata(self, pending_subst=False)
 
     def subst_typevar(self, typevar: str, tar: "Type | Predicate") -> Self:
         match self:
             case HMType(TypeVar(name=n)) if typevar == n:
-                assert isinstance(tar, Self)
-                return HMType(tar.base_type()).pos(self)
+                assert isinstance(tar, Type)
+                return HMType(unwrap(tar.base_type())).metadata(self)
             case HMType():
                 return self
             case RType(base=base, predicate=p, pending_subst=ps):
                 if isinstance(base, TypeVar) and base.name == typevar:
                     assert isinstance(tar, Type)
-                    base = tar.base_type()
+                    base = unwrap(tar.base_type())
 
                 if isinstance(p, PredicateVar) and p.name == typevar:
                     assert isinstance(tar, Predicate)
                     p = tar
 
-                return RType(base, p, pending_subst=ps).pos(self)
+                return RType(base, p, pending_subst=ps).metadata(self)
 
             case ArrowType(type_abs=abs, args=args, ret=ret):
                 return ArrowType(
                     type_abs={k: abs[k] for k in abs if k != typevar},
                     args=[(x, t.subst_typevar(typevar, tar)) for x, t in args],
                     ret=ret.subst_typevar(typevar, tar),
-                )
+                ).metadata(self)
             case ListType(inner_typ=inner):
-                return ListType(inner.subst_typevar(typevar, tar)).pos(self)
-            case ObjectType(name=obj_name, type_abs=abs, fields=fields):
-                return ObjectType(
-                    obj_name,
-                    abs,
-                    {x: t.subst_typevar(typevar, tar) for x, t in fields.items()},
+                return ListType(inner.subst_typevar(typevar, tar)).metadata(self)
+            case SelfType(generic_args=args):
+                return SelfType([a.subst_typevar(typevar, tar) for a in args]).metadata(
+                    self
                 )
+            case ObjectType(name=name, generic_args=args):
+                return ObjectType(
+                    name, [a.subst_typevar(typevar, tar) for a in args]
+                ).metadata(self)
+            case Class(name=cls_name, type_abs=abs, constructor=cons, fields=fields):
+                return Class(
+                    cls_name,
+                    [a for a in abs if a != typevar],
+                    cons.subst_typevar(typevar, tar),
+                    {x: t.subst_typevar(typevar, tar) for x, t in fields.items()},
+                ).metadata(self)
             case x:
-                raise NotImplementedError(x)
+                raise NotImplementedError(str(x), type(x))
 
     def shape(self) -> Self:
         """
@@ -189,36 +261,45 @@ class Type(Pos):
         """
 
         match self:
-            case ArrowType(type_abs=abs, args=args, ret=ret, pending_subst=ps):
+            case ArrowType(type_abs=abs, args=args, ret=ret):
                 return ArrowType(
                     type_abs=abs,
                     args=[(name, a.shape()) for name, a in args],
                     ret=ret.shape(),
-                    pending_subst=ps,
-                ).pos(self)
+                ).metadata(self)
             case RType(base=base):
-                return HMType(base).pos(self)
+                return HMType(base).metadata(self)
             case HMType():
                 return self
             case ListType(inner_typ):
-                return ListType(inner_typ.shape())
-            case ObjectType(name=name, type_abs=abs, fields=fields):
+                return ListType(inner_typ.shape()).metadata(self)
+            case Class(name=name, type_abs=abs, constructor=cons, fields=fields):
+                return Class(
+                    name=name,
+                    type_abs=abs,
+                    constructor=cons.shape(),
+                    fields={name: ty.shape() for name, ty in fields.items()},
+                ).metadata(self)
+            case ObjectType(name=name, generic_args=args):
                 return ObjectType(
                     name,
-                    abs,
-                    {name: typ.shape() for name, typ in fields.items()},
-                )
+                    [a.shape() for a in args],
+                ).metadata(self)
+            case SelfType(generic_args=args):
+                return SelfType(generic_args=[a.shape() for a in args]).metadata(self)
+            case Unknown() | AnyType():
+                return self
             case x:
                 raise Exception(f"`{x}` is not a Type.")
 
-    def base_type(self) -> BaseType:
+    def base_type(self) -> BaseType | None:
         match self:
             case HMType(base=base):
                 return base
             case RType(base=base):
                 return base
-            case x:
-                raise Exception(f"Can't take the base type of {x}.")
+            case _:
+                return None
 
     def __str__(self):
         match self:
@@ -236,48 +317,60 @@ class Type(Pos):
                     return f"{{{base} | {pred} [{inner}]}}"
             case ArrowType(type_abs=abs, args=args, ret=ret):
                 return "{}({}) -> {}".format(
-                    "∀({}), ".format(", ".join(abs)) if len(abs) > 0 else "",
+                    "∀({}), ".format(", ".join(map(str, abs.items())))
+                    if len(abs) > 0
+                    else "",
                     ", ".join([f"{name}:{t}" for name, t in args]),
                     ret,
                 )
-            case Bottom():
-                return "False"
+            case Unknown():
+                return "Unknown"
+            case AnyType():
+                return "Any"
             case ListType(inner_typ=inner_typ):
                 return f"List[{inner_typ}]"
-            case DictType():
-                return "dict()"
-            case DataFrameType(columns=c):
-                tmp = [f"{k}: {v}" for k, v in c.items()]
-                if len(tmp) > 0:
-                    return f"DataFrame({tmp}, ..)"
-                else:
-                    return "DataFrame(..?)"
-            case ObjectType(name=name, type_abs=abs, fields=fields):
-                if len(abs) == 0:
-                    type_args_str = ""
-                elif len(abs) == 1:
-                    type_args_str = "∀" + "".join(map(str, abs.keys())) + ", "
-                else:
-                    type_args_str = "∀(" + ", ".join(map(str, abs.keys())) + "), "
-
-                tmp = ", ".join([f"{k}: {v}" for k, v in fields.items()])
-                if len(tmp) > 0:
-                    value_str = f"{{{tmp}}}"
-                else:
-                    value_str = ""
-
-                return f"{type_args_str}{name}{value_str}"
+            case DictType(items=items):
+                names = ", ".join([f"{name}: {k}" for name, k in items.items()])
+                return f"{{ {names} }}"
+            case Class(name=name, type_abs=abs):
+                arg_str = ", ".join(list(map(str, abs)))
+                return f"class<{name}[{arg_str}]>"
+            case ObjectType(name=name, generic_args=args):
+                arg_str = ", ".join(map(str, args))
+                return f"{name}[{arg_str}]"
+            case SelfType(generic_args=args):
+                arg_str = ", ".join(map(str, args))
+                return f"Self[{arg_str}]"
             case x:
                 raise Exception(x, type(x))
 
     def set_predicate(self, predicate: Predicate) -> "Type":
         match self:
-            case ArrowType():
-                raise NotImplementedError
-            case RType(base=base, pending_subst=ps, position=pos):
-                return RType(base, predicate, pending_subst=ps, position=pos)
+            # case ArrowType():
+            #     raise NotImplementedError(self)
+            case RType(base=base):
+                return RType(base, predicate).metadata(self)
+            case HMType(base=base):
+                return RType(base, predicate).metadata(self)
             case x:
-                raise Exception(f"`{x}` is not an RType.")
+                return x
+                # raise Exception(f"`{x}` is not an RType.")
+
+    def resolve_name(self, new: str) -> Self:
+        def resolver(typ: "Type"):
+            match typ:
+                case ObjectType(generic_args=args):
+                    return ObjectType(name=new, generic_args=args).metadata(self)
+                case SelfType(generic_args=args):
+                    return ObjectType(name=new, generic_args=args).metadata(self)
+                case Class(type_abs=abs, constructor=cons, fields=fields):
+                    return Class(
+                        name=new, type_abs=abs, constructor=cons, fields=fields
+                    ).metadata(self)
+                case _:
+                    return typ
+
+        return self.mapper(resolver)
 
 
 @dataclass
@@ -343,25 +436,35 @@ class ListType(Type):
 
 @dataclass
 class DictType(Type):
-    # TODO: actually represent dictionary types
-    # items: Dict[str, Type]
-    pass
+    items: Dict[str, Type] = field(default_factory=dict)
 
 
 @dataclass
-class DataFrameType(Type):
-    columns: Dict[str, Type]
+class Class(Type):
+    name: str
+    type_abs: List[str]
+    constructor: ArrowType
+    fields: Dict[str, Type] = field(default_factory=dict)
 
 
 @dataclass
 class ObjectType(Type):
     name: str
-    type_abs: Dict[str, str] = field(default_factory=dict)
-    fields: Dict[str, Type] = field(default_factory=dict)
+    generic_args: List[Type] = field(default_factory=list)
 
 
 @dataclass
-class Bottom(Type):
+class SelfType(Type):
+    generic_args: List[Type] = field(default_factory=list)
+
+
+@dataclass
+class Unknown(Type):
+    pass
+
+
+@dataclass
+class AnyType(Type):
     pass
 
 
@@ -382,17 +485,17 @@ def base_type_eq(t1: Type, t2: Type) -> bool:
             return args_eq and base_type_eq(ret1, ret2)
         case ListType(inner_typ1), ListType(inner_typ2):
             return base_type_eq(inner_typ1, inner_typ2)
-        case ObjectType(name=n0, fields=f0), ObjectType(name=n1, fields=f1) if n0 == n1:
-            return sorted(f0.keys()) == sorted(f1.keys()) and all(
-                [base_type_eq(v, f1[k]) for k, v in f0.items()]
-            )
-        case _:
+        case ObjectType(name=n0, generic_args=args0), ObjectType(
+            name=n1, generic_args=args1
+        ) if n0 == n1:
+            return all([base_type_eq(b0, b1) for b0, b1 in zip(args0, args1)])
+        case (_, _):
             return False
 
 
 @dataclass(kw_only=True)
 class TypeAnnotation:
-    typ: Type = field(default_factory=Bottom)
+    typ: Type = field(default_factory=Unknown)
 
     def annot(self, t: Type):
         self.typ = t
@@ -400,8 +503,18 @@ class TypeAnnotation:
 
 
 @dataclass
-class Expr(Pos, TypeAnnotation):
-    def to_string(self, include_types=False) -> str:
+class Expr(Node, Pos):
+    def metadata(self, frm: "Expr") -> Self:
+        self.node_id = frm.node_id
+        self.position = frm.position
+        return self
+
+    def to_string(
+        self, types: Dict[int, Type] | None = None, include_types=False
+    ) -> str:
+        if types is not None:
+            return self.to_string2(types, include_types)
+
         match self:
             case Variable(name=x):
                 return f"{x}"
@@ -412,7 +525,7 @@ class Expr(Pos, TypeAnnotation):
             case ListLiteral(elts=elts):
                 inner = ", ".join([e.to_string() for e in elts])
                 if include_types:
-                    return f"([{inner}] : {self.typ})"
+                    return f"([{inner}] : [depr])"
                 else:
                     return f"[{inner}]"
             case DictLit():
@@ -422,27 +535,105 @@ class Expr(Pos, TypeAnnotation):
             case Subscript(value=v, idx=e):
                 return f"{v}[{e}]"
             case Neg(expr=e):
-                return f"-({e.to_string(include_types)})"
-            case ArithBinOp(lhs=l, op=op, rhs=r):
-                return f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
-            case BoolOp(lhs=l, op=op, rhs=r):
-                return f"{l.to_string(include_types)} {op} {r.to_string(include_types)}"
+                return f"-({e.to_string(types, include_types)})"
+            case ArithBinOp(lhs=l, op=op, rhs=r) | BoolOp(lhs=l, op=op, rhs=r):
+                return " ".join(
+                    [
+                        l.to_string(types, include_types),
+                        op,
+                        r.to_string(types, include_types),
+                    ]
+                )
             case Not(expr=e):
-                return f"!({e.to_string(include_types)})"
+                return f"!({e.to_string(types, include_types)})"
             case V():
                 return "V"
             case Star():
                 return "*"
             case Call(function_name=fn, arglist=args):
-                args = [a.to_string(include_types) for a in args]
+                args = [a.to_string(types, include_types) for a in args]
                 return f"{fn}({', '.join(args)})"
             case GetAttr(name=obj, attr=attr):
-                return f"{obj.to_string(include_types)}.{attr}"
+                return f"{obj.to_string(types, include_types)}.{attr}"
             case TypeApp(expr=e, arglist=args):
                 arg_str = ", ".join([str(a) for a in args])
-                return f"{e.to_string(include_types)}{fg.yellow}[{arg_str}]{fx.reset}"
+                return (
+                    f"{e.to_string(types, include_types)}{fg.red}[{arg_str}]{fx.reset}"
+                )
             case x:
                 return f"`{repr(x)}`"
+
+    def to_string2(self, types: Dict[int, Type], include_types=False) -> str:
+        match self:
+            case Variable(name=x):
+                return f"{x}"
+            case IntLiteral(value=v):
+                return f"{v}"
+            case BoolLiteral(value=v):
+                return f"{v}"
+            case ListLiteral(elts=elts):
+                inner = ", ".join([e.to_string() for e in elts])
+                if include_types:
+                    return f"([{inner}] : {fg.yellow}{types[self.node_id]}{fx.reset})"
+                else:
+                    return f"[{inner}]"
+            case DictLit():
+                return "{<opaque>}"
+            case StrLiteral(value=v):
+                return f'"{v}"'
+            case Subscript(value=v, idx=e):
+                return f"{v}[{e}]"
+            case Neg(expr=e):
+                return f"-({e.to_string2(types, include_types)})"
+            case ArithBinOp(lhs=l, op=op, rhs=r) | BoolOp(lhs=l, op=op, rhs=r):
+                return " ".join(
+                    [
+                        l.to_string2(types, include_types),
+                        op,
+                        r.to_string2(types, include_types),
+                    ]
+                )
+            case Not(expr=e):
+                return f"!({e.to_string2(types, include_types)})"
+            case V():
+                return "V"
+            case Star():
+                return "*"
+            case Call(function_name=fn, arglist=args):
+                args = [a.to_string2(types, include_types) for a in args]
+                return f"{fn.to_string2(types, include_types)}({', '.join(args)})"
+            case GetAttr(name=obj, attr=attr):
+                return f"{obj.to_string2(types, include_types)}.{attr}"
+            case TypeApp(expr=e, arglist=args):
+                arg_str = ", ".join([str(a) for a in args])
+                return (
+                    f"{e.to_string2(types, include_types)}"
+                    + f"{fg.yellow}[{arg_str}]{fx.reset}"
+                )
+            case x:
+                return f"`{repr(x)}`"
+
+    def apply_substs(self, substs: Dict[str, "Expr"]) -> "Expr":
+        match self:
+            case Variable(name=n) if n in substs:
+                return substs[n]
+            case BoolOp(lhs=l, op=op, rhs=r):
+                return BoolOp(
+                    l.apply_substs(substs), op, r.apply_substs(substs)
+                ).metadata(self)
+            case ArithBinOp(lhs=l, op=op, rhs=r):
+                return ArithBinOp(
+                    l.apply_substs(substs), op, r.apply_substs(substs)
+                ).metadata(self)
+            case Call(function_name=fn, arglist=args):
+                return Call(
+                    fn.apply_substs(substs),
+                    [a.apply_substs(substs) for a in args],
+                ).metadata(self)
+            case GetAttr(name=exp, attr=attr):
+                return GetAttr(exp.apply_substs(substs), attr).metadata(self)
+            case x:
+                return x
 
     def __str__(self):
         return self.to_string()
@@ -515,7 +706,7 @@ class Subscript(Expr):
 @dataclass
 class BoolOp(Expr):
     lhs: Expr
-    op: Any
+    op: str
     rhs: Expr
 
 
@@ -551,23 +742,32 @@ class Argument:
         if self.annotation is None:
             return self.name
         else:
-            return f"{self.name}: {self.annotation}"
+            return f"{self.name}: {fg.yellow}{self.annotation}{fx.reset}"
 
 
 @dataclass
-class Stmt(Pos, TypeAnnotation):
-    def to_string(self, indent=0, include_types=False):
+class Stmt(Node, Pos):
+    def metadata(self, frm: "Stmt") -> Self:
+        self.node_id = frm.node_id
+        self.position = frm.position
+        return self
+
+    def to_string(
+        self, types: Dict[int, Type] | None = None, indent=0, include_types=False
+    ):
         align = " " * indent
+
+        if types is not None:
+            return self.to_string2(types, indent, include_types)
+
         match self:
             case FunctionDef(
                 name=name, body=stmts, typ=ArrowType(args=args, ret=retann)
             ) if include_types:
                 argstr = ", ".join([f"{x}:{fg.yellow}{t}{fx.reset}" for x, t in args])
-                retstr = (
-                    f" -> {fg.yellow}{retann}{fx.reset}:" if retann is not None else ":"
-                )
+                retstr = f" -> {fg.yellow}{retann}{fx.reset}:"
                 bodystr = "\n".join(
-                    [s.to_string(indent + 2, include_types) for s in stmts]
+                    [s.to_string(types, indent + 2, include_types) for s in stmts]
                 )
                 return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
 
@@ -577,21 +777,21 @@ class Stmt(Pos, TypeAnnotation):
                 argstr = ", ".join([str(a) for a in args])
                 retstr = f" -> {retann}:" if retann is not None else ":"
                 bodystr = "\n".join(
-                    [s.to_string(indent + 2, include_types) for s in stmts]
+                    [s.to_string(types, indent + 2, include_types) for s in stmts]
                 )
                 return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
             case If(test=test, body=body, orelse=orelse):
                 bodystr = "\n".join(
-                    [s.to_string(indent + 2, include_types) for s in body]
+                    [s.to_string(types, indent + 2, include_types) for s in body]
                 )
                 elsestr = "\n".join(
-                    [s.to_string(indent + 2, include_types) for s in orelse]
+                    [s.to_string(types, indent + 2, include_types) for s in orelse]
                 )
                 typstr0 = "(" if include_types else ""
-                typstr1 = f") : {self.typ}" if include_types else ""
+                typstr1 = f") : {fg.yellow}[depr]{fx.reset}" if include_types else ""
                 res = "\n".join(
                     [
-                        f"{align}{typstr0}if {test.to_string(include_types)}:",
+                        f"{align}{typstr0}if {test.to_string(types, include_types)}:",
                         f"{bodystr}",
                         f"{align}else:",
                         f"{elsestr}{typstr1}",
@@ -599,10 +799,71 @@ class Stmt(Pos, TypeAnnotation):
                 )
                 return res
             case Assign(name=name, value=value):
-                typann = f": {fg.yellow}{self.typ}{fx.reset}" if include_types else ""
-                return f"{align}{name}{typann} = {value.to_string(False)}"
+                typann = f": {fg.yellow}[depr]{fx.reset}" if include_types else ""
+                return f"{align}{name}{typann} = {value.to_string(types, False)}"
             case Return(value):
-                return f"{align}return {value.to_string(include_types)}"
+                return f"{align}return {value.to_string(types, include_types)}"
+            case x:
+                return f"{align}{repr(x)}"
+
+    def to_string2(self, types: Dict[int, Type], indent=0, include_types=False):
+        align = " " * indent
+
+        match self:
+            case FunctionDef(name=name, body=stmts) if include_types:
+                typ = types[self.node_id]
+                assert isinstance(typ, ArrowType)
+                args = typ.args
+                retann = typ.ret
+
+                argstr = ", ".join([f"{x}: {fg.yellow}{t}{fx.reset}" for x, t in args])
+                retstr = f" -> {fg.yellow}{retann}{fx.reset}:"
+                bodystr = "\n".join(
+                    [s.to_string2(types, indent + 2, include_types) for s in stmts]
+                )
+                return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
+
+            case FunctionDef(
+                name=name, args=args, return_annotation=retann, body=stmts
+            ):
+                argstr = ", ".join([str(a) for a in args])
+                retstr = f" -> {retann}:" if retann is not None else ":"
+                bodystr = "\n".join(
+                    [s.to_string2(types, indent + 2, include_types) for s in stmts]
+                )
+                return f"{align}def {name}({argstr}){retstr}\n{bodystr}"
+            case If(test=test, body=body, orelse=orelse):
+                bodystr = "\n".join(
+                    [s.to_string2(types, indent + 2, include_types) for s in body]
+                )
+                elsestr = (
+                    f"\n{align}else:\n"
+                    + "\n".join(
+                        [s.to_string2(types, indent + 2, include_types) for s in orelse]
+                    )
+                    if len(orelse) > 0
+                    else ""
+                )
+                res = "\n".join(
+                    [
+                        f"{align}if ({test} : "
+                        + f"{fg.yellow}{types[test.node_id]}{fx.reset}):",
+                        f"{bodystr}{elsestr}",
+                    ]
+                )
+                return res
+            case Assign(name=name, value=value):
+                typann = (
+                    f": {fg.yellow}{types[self.node_id]}{fx.reset}"
+                    if include_types
+                    else ""
+                )
+                return f"{align}{name}{typann} = {value.to_string2(types, True)}"
+            case Return(value):
+                return (
+                    f"{align}return ({value} : "
+                    + f"{fg.yellow}{types[value.node_id]}{fx.reset})"
+                )
             case x:
                 return f"{align}{repr(x)}"
 

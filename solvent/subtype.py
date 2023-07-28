@@ -4,6 +4,7 @@ Implement decidable subypting from the liquid type paper.
 
 from functools import reduce
 from logging import info
+from typing import Dict
 
 import z3
 
@@ -12,28 +13,33 @@ from solvent import env, smt
 from solvent import syntax as syn
 
 
-def check(context: env.ScopedEnv, assumes, typ1, typ2) -> bool:
+def check(
+    context: env.ScopedEnv, types: Dict[int, syn.Type], assumes, typ1, typ2
+) -> bool:
     match (typ1, typ2):
         case (
             syn.RType(base=t1, predicate=syn.Conjoin(cs1)),
             syn.RType(base=t2, predicate=syn.Conjoin(cs2)),
         ) if t1 == t2:
-            ctx_smt = reduce(
-                lambda a, b: z3.And(a, b),
-                [smt.from_type(x, t) for x, t in context.items()],
-                True,
-            )
+            to_smt = smt.ToSmt(context, types)
 
-            assumes_smt = reduce(
-                lambda a, b: z3.And(a, b), [smt.from_expr(e) for e in assumes], True
+            ctx_smt = z3.simplify(
+                reduce(
+                    lambda a, b: z3.And(a, b),
+                    [to_smt.from_type(x, t) for x, t in context.items()],
+                    True,
+                )
             )
 
             to_check = z3.Implies(
-                z3.And(ctx_smt, z3.And(assumes_smt, smt.from_exprs(cs1))),
-                smt.from_exprs(cs2),
+                z3.And(
+                    ctx_smt,
+                    z3.And(to_smt.from_exprs(assumes), to_smt.from_exprs(cs1)),
+                ),
+                to_smt.from_exprs(cs2),
             )
 
-            info(f"  SMT: {to_check}")
+            info("SMT:", to_check)
 
             s = z3.Solver()
             s.add(z3.Not(to_check))
@@ -52,5 +58,5 @@ def check(context: env.ScopedEnv, assumes, typ1, typ2) -> bool:
             # return False
 
 
-def check_constr(c: constr.SubType) -> bool:
-    return check(c.context, c.assumes, c.lhs, c.rhs)
+def check_constr(c: constr.SubType, types: Dict[int, syn.Type]) -> bool:
+    return check(c.context, types, c.assumes, c.lhs, c.rhs)

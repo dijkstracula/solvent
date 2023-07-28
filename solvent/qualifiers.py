@@ -50,9 +50,7 @@ def type_eq(t0: syn.Type, t1: syn.Type) -> bool:
     match (t0, t1):
         case syn.ListType(inner_typ=t0), syn.ListType(inner_typ=t1):
             return type_eq(t0, t1)
-        case syn.Bottom(), _:
-            return True
-        case _, syn.Bottom():
+        case (syn.AnyType(), _) | (_, syn.AnyType()):
             return True
         case syn.ArrowType(args=args0, ret=ret0), syn.ArrowType(args=args1, ret=ret1):
             return all(
@@ -154,7 +152,7 @@ class Magic:
     def len(self):
         return Qualifier(
             syn.Call(syn.Variable("len"), [self.symbol]),
-            syn.ListType(inner_typ=syn.Bottom()),
+            syn.ListType(inner_typ=syn.AnyType()),
         )
 
 

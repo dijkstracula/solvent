@@ -21,6 +21,12 @@ def default(val: T | None, *, fallback: T) -> T:
         return val
 
 
+def unwrap(val: T | None) -> T:
+    if val is None:
+        raise Exception()
+    return val
+
+
 def dict_fmt(d: Dict[Any, Any]) -> str:
     if len(d) == 0:
         return "{}"

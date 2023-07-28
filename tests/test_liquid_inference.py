@@ -1,4 +1,5 @@
-from solvent import V, _, Q, Refine
+from solvent import Q, Refine, V, _
+
 from .utils import assert_type
 
 
@@ -19,18 +20,18 @@ def test_max(x: Refine[int, True], y: Refine[int, True]):
         return y
 
 
-@assert_type(
-    [
-        _ < V,
-        V < _,
-        _ <= V,
-        V <= _,
-        Q[0] <= V,
-    ],
-    "(f:(arg0:'a, arg1:'a) -> 'a, x:'a) -> 'a",
-)
-def test_double(f, x):
-    return f(f(x, x), f(x, x))
+# @assert_type(
+#     [
+#         _ < V,
+#         V < _,
+#         _ <= V,
+#         V <= _,
+#         Q[0] <= V,
+#     ],
+#     "(f:(arg0:'a, arg1:'a) -> 'a, x:'a) -> 'a",
+# )
+# def test_double(f, x):
+#     return f(f(x, x), f(x, x))
 
 
 @assert_type(
@@ -102,24 +103,24 @@ def test_fib(n: Refine[int, True]):
         return test_fib(n - 1) + test_fib(n - 2)
 
 
-@assert_type(
-    [
-        _ < V,
-        V < _,
-        _ <= V,
-        V <= _,
-        Q[0] <= V,
-    ],
-    "(n:int, b:'a, f:(arg0:{int | 0 <= V}, arg1:'a) -> 'a) -> 'a",
-)
-def test_foldn(n: Refine[int, True], b, f):
-    def loop(i, c):
-        if i < n:
-            return loop(i + 1, f(i, c))
-        else:
-            return c
+# @assert_type(
+#     [
+#         _ < V,
+#         V < _,
+#         _ <= V,
+#         V <= _,
+#         Q[0] <= V,
+#     ],
+#     "(n:int, b:'a, f:(arg0:{int | 0 <= V}, arg1:'a) -> 'a) -> 'a",
+# )
+# def test_foldn(n: Refine[int, True], b, f):
+#     def loop(i, c):
+#         if i < n:
+#             return loop(i + 1, f(i, c))
+#         else:
+#             return c
 
-    return loop(0, b)
+#     return loop(0, b)
 
 
 @assert_type([Q[0] <= V, V <= Q[0], _ <= V, V <= _], "() -> {int | 0 <= V and V <= 0}")

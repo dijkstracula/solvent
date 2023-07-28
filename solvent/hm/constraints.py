@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import Dict, List
 
 from solvent import errors
 from solvent import syntax as syn
@@ -8,13 +8,19 @@ from solvent.env import ScopedEnv
 from solvent.position import Context
 from solvent.syntax import (
     ArrowType,
+    Call,
     DictType,
+    Expr,
+    FunctionDef,
     HMType,
+    If,
     ListType,
+    Return,
     Type,
     TypeVar,
     base_type_eq,
 )
+from solvent.visitor import Visitor
 
 
 @dataclass
@@ -36,19 +42,103 @@ class BaseEq(syn.Pos):
         )
 
 
+class HindleyMilner(Visitor):
+    def start(self, types: Dict[int, Type], env: ScopedEnv):
+        self.constrs: List[BaseEq] = []
+        self.types = types
+        self.env = env.clone()
+        self.current_function_ret: Type | None = None
+
+    def start_FunctionDef(self, fd: FunctionDef):
+        fd_typ = self.types[fd.node_id]
+        assert isinstance(fd_typ, ArrowType)
+
+        # add the type of function arguments to a new context
+        self.env.push_scope_mut()
+        for name, ty in fd_typ.args:
+            self.env[name] = ty
+
+        # add the function that we are currently defining to our
+        # context, so that we can support recursive uses
+        self.env[fd.name] = fd_typ
+
+        self.current_function_ret = fd_typ.ret
+
+    def start_Return(self, ret: Return):
+        # TODO: handle the case where a function doesn't return anything
+        assert self.current_function_ret is not None
+
+        self.constrs += [
+            BaseEq(
+                lhs=self.current_function_ret, rhs=self.types[ret.value.node_id]
+            ).pos(ret)
+        ]
+
+    def end_FunctionDef(self, _: FunctionDef):
+        self.env.pop_scope_mut()
+        self.current_function_ret = None
+
+    def end_If(self, if_stmt: If):
+        test_typ = self.types[if_stmt.test.node_id]
+        self.constrs += [BaseEq(test_typ, HMType.bool()).pos(if_stmt.test)]
+
+    def end_Call(self, op: Call) -> Expr:
+        fn_typ = self.types[op.function_name.node_id]
+        assert isinstance(fn_typ, ArrowType)
+
+        for (_, fn_arg), op_arg in zip(fn_typ.args, op.arglist):
+            self.constrs += [BaseEq(fn_arg, self.types[op_arg.node_id]).pos(op)]
+
+        return op
+
+    # def end_ArithBinOp(self, abo: ArithBinOp):
+    #     if not isinstance(self.types[abo.node_id].base_type(), TypeVar):
+    #         return
+
+    #     match abo.op:
+    #         case "+" | "*" | "/" | "-":
+    #             self.constrs += [
+    #                 BaseEq(self.types[abo.lhs.node_id], HMType.int()).pos(abo),
+    #                 BaseEq(self.types[abo.rhs.node_id], HMType.int()).pos(abo),
+    #                 BaseEq(self.types[abo.node_id], HMType.int()).pos(abo),
+    #             ]
+    #         case x:
+    #             raise NotImplementedError(x)
+
+    # def end_BoolOp(self, op: BoolOp):
+    #     if not isinstance(self.types[op.node_id].base_type(), TypeVar):
+    #         return
+
+    #     match op.op:
+    #         case "<" | "<=" | "==" | ">=" | ">":
+    #             self.constrs += [
+    #                 BaseEq(self.types[op.lhs.node_id], HMType.int()).pos(op),
+    #                 BaseEq(self.types[op.rhs.node_id], HMType.int()).pos(op),
+    #                 BaseEq(self.types[op.node_id], HMType.bool()).pos(op),
+    #             ]
+    #         case "and" | "or":
+    #             self.constrs += [
+    #                 BaseEq(self.types[op.lhs.node_id], HMType.bool()).pos(op),
+    #                 BaseEq(self.types[op.rhs.node_id], HMType.bool()).pos(op),
+    #                 BaseEq(self.types[op.node_id], HMType.bool()).pos(op),
+    #             ]
+    #         case x:
+    #             raise NotImplementedError(x)
+
+
 def check_stmts(
-    context: ScopedEnv, stmts: List[syn.Stmt]
+    types: Dict[int, Type], context: ScopedEnv, stmts: List[syn.Stmt]
 ) -> tuple[syn.Type, List[BaseEq], ScopedEnv]:
     typ = HMType(syn.Unit())
     constraints = []
     for stmt in stmts:
-        typ, cs, context = check_stmt(context, stmt)
+        typ, cs, context = check_stmt(types, context, stmt)
         constraints += cs
     return typ, constraints, context
 
 
 def check_stmt(
-    context: ScopedEnv, stmt: syn.Stmt
+    types: Dict[int, Type], context: ScopedEnv, stmt: syn.Stmt
 ) -> tuple[syn.Type, List[BaseEq], ScopedEnv]:
     ret_type: syn.Type
     ret_constrs: List[BaseEq]
@@ -82,7 +172,7 @@ def check_stmt(
             ret_context = ret_context.add(name, this_type)
 
             # now typecheck the body
-            inferred_typ, constrs, ret_context = check_stmts(ret_context, body)
+            inferred_typ, constrs, ret_context = check_stmts(types, ret_context, body)
 
             ret_typ_constr = [
                 BaseEq(lhs=inferred_typ, rhs=ret_typ).pos(inferred_typ),
@@ -96,9 +186,9 @@ def check_stmt(
             ret_context = ret_context.add(name, this_type)
 
         case syn.If(test=test, body=body, orelse=orelse):
-            test_typ, test_constrs = check_expr(context, test)
-            body_typ, body_constrs, _ = check_stmts(context, body)
-            else_typ, else_constrs, _ = check_stmts(context, orelse)
+            test_typ, test_constrs = check_expr(types, context, test)
+            body_typ, body_constrs, _ = check_stmts(types, context, body)
+            else_typ, else_constrs, _ = check_stmts(types, context, orelse)
             ret_typ = HMType(TypeVar.fresh("if")).pos(stmt)
             cstrs = [
                 # test is a boolean
@@ -112,18 +202,20 @@ def check_stmt(
             ret_context = context
 
         case syn.Assign(name=id, value=e):
-            ret_type, ret_constrs = check_expr(context, e)
+            ret_type, ret_constrs = check_expr(types, context, e)
             ret_context = context.add(id, ret_type)
         case syn.Return(value=value):
-            ret_type, ret_constrs = check_expr(context, value)
+            ret_type, ret_constrs = check_expr(types, context, value)
             ret_context = context
         case x:
             raise NotImplementedError(x)
-    stmt.annot(ret_type)
+    # stmt.annot(ret_type)
     return ret_type.pos(stmt), ret_constrs, ret_context
 
 
-def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
+def check_expr(
+    types: Dict[int, Type], context: ScopedEnv, expr: syn.Expr
+) -> tuple[Type, List[BaseEq]]:
     ret_typ = None
     ret_constrs: List[BaseEq] = []
     match expr:
@@ -135,13 +227,13 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
         case syn.IntLiteral():
             ret_typ = HMType.int()
         case syn.Neg(expr=e):
-            e_ty, e_constrs = check_expr(context, e)
+            e_ty, e_constrs = check_expr(types, context, e)
             ret_typ = HMType.int()
             ret_constrs = e_constrs + [BaseEq(e_ty, HMType.int()).pos(expr)]
         case syn.ArithBinOp(lhs=lhs, rhs=rhs, op="+"):
             # give `+` the type `'a -> 'a -> 'a`
-            lhs_ty, lhs_constrs = check_expr(context, lhs)
-            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            lhs_ty, lhs_constrs = check_expr(types, context, lhs)
+            rhs_ty, rhs_constrs = check_expr(types, context, rhs)
             ret_typ = HMType.fresh()
             ret_constrs = (
                 lhs_constrs
@@ -153,8 +245,8 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             )
         case syn.ArithBinOp(lhs=lhs, rhs=rhs, op="/"):
             # give `/` the type `'a -> int -> 'a`
-            lhs_ty, lhs_constrs = check_expr(context, lhs)
-            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            lhs_ty, lhs_constrs = check_expr(types, context, lhs)
+            rhs_ty, rhs_constrs = check_expr(types, context, rhs)
             ret_typ = HMType.fresh("div")
             ret_constrs = (
                 lhs_constrs
@@ -165,8 +257,8 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 ]
             )
         case syn.ArithBinOp(lhs=lhs, rhs=rhs):
-            lhs_ty, lhs_constrs = check_expr(context, lhs)
-            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            lhs_ty, lhs_constrs = check_expr(types, context, lhs)
+            rhs_ty, rhs_constrs = check_expr(types, context, rhs)
             ret_typ = HMType.int()
             ret_constrs = (
                 lhs_constrs
@@ -184,7 +276,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
         case syn.StrLiteral():
             ret_typ = HMType.str()
         case syn.ListLiteral(elts=elts):
-            elts_typs = [check_expr(context, e) for e in elts]
+            elts_typs = [check_expr(types, context, e) for e in elts]
             assert elts_typs != []
             inner_ty: Type = elts_typs[0][0]
 
@@ -199,8 +291,8 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
         case syn.DictLit():
             ret_typ = DictType()
         case syn.Subscript(value=v, idx=e):
-            v_ty, v_constrs = check_expr(context, v)
-            e_ty, e_constrs = check_expr(context, e)
+            v_ty, v_constrs = check_expr(types, context, v)
+            e_ty, e_constrs = check_expr(types, context, e)
 
             ret_typ = HMType.fresh("inner")
             ret_constrs = (
@@ -213,8 +305,8 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             )
 
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["<", "<=", "==", ">=", ">"]:
-            lhs_ty, lhs_constrs = check_expr(context, lhs)
-            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            lhs_ty, lhs_constrs = check_expr(types, context, lhs)
+            rhs_ty, rhs_constrs = check_expr(types, context, rhs)
             ret_typ = HMType.bool()
             ret_constrs = (
                 lhs_constrs
@@ -225,8 +317,8 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 ]
             )
         case syn.BoolOp(lhs=lhs, op=op, rhs=rhs) if op in ["and", "or", "not"]:
-            lhs_ty, lhs_constrs = check_expr(context, lhs)
-            rhs_ty, rhs_constrs = check_expr(context, rhs)
+            lhs_ty, lhs_constrs = check_expr(types, context, lhs)
+            rhs_ty, rhs_constrs = check_expr(types, context, rhs)
             ret_typ = HMType.bool()
             ret_constrs = (
                 lhs_constrs
@@ -237,12 +329,12 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 ]
             )
         case syn.Call(function_name=fn, arglist=args):
-            fn_ty, constrs = check_expr(context, fn)
-            types = []
+            fn_ty, constrs = check_expr(types, context, fn)
+            arg_types = []
 
             for e in args:
-                ty, cs = check_expr(context, e)
-                types += [(syn.NameGenerator.fresh("arg"), ty)]
+                ty, cs = check_expr(types, context, e)
+                arg_types += [(syn.NameGenerator.fresh("arg"), ty)]
                 constrs += cs
 
             match fn_ty:
@@ -254,12 +346,12 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                     raise NotImplementedError(t)
 
             constrs += [
-                BaseEq(fn_ty, ArrowType({}, types, ret_typ).pos(expr)).pos(expr)
+                BaseEq(fn_ty, ArrowType({}, arg_types, ret_typ).pos(expr)).pos(expr)
             ]
             ret_constrs = constrs
 
         case syn.GetAttr(name=name, attr=attr):
-            (nametyp, namecstrs) = check_expr(context, name)
+            (nametyp, namecstrs) = check_expr(types, context, name)
             match nametyp:
                 case syn.ObjectType(fields=fields) if attr in fields:
                     ret_typ = fields[attr].pos(expr)
@@ -269,7 +361,7 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
                 case t:
                     raise errors.TypeError(BaseEq(t, syn.ObjectType("object")), at=expr)
         case syn.TypeApp(expr=e, arglist=args):
-            e_typ, e_cstrs = check_expr(context, e)
+            e_typ, e_cstrs = check_expr(types, context, e)
             ret_typ = e_typ
             assert isinstance(e_typ, ArrowType)
             for (tv, _), concrete in zip(e_typ.type_abs.items(), args):
@@ -279,5 +371,5 @@ def check_expr(context: ScopedEnv, expr: syn.Expr) -> tuple[Type, List[BaseEq]]:
             ret_constrs = e_cstrs
         case x:
             raise NotImplementedError(x)
-    expr.annot(ret_typ)
+    # expr.annot(ret_typ)
     return ret_typ.pos(expr), ret_constrs
