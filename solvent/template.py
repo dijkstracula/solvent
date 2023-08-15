@@ -1,8 +1,8 @@
-from logging import debug, warning
 from typing import Dict, List
 
 from solvent.constraints import SubType
 from solvent.env import ScopedEnv
+from solvent.initial_predicates import predicate_variables
 from solvent.syntax import (
     ArithBinOp,
     ArrowType,
@@ -28,7 +28,6 @@ from solvent.syntax import (
     PredicateVar,
     Return,
     RType,
-    SelfType,
     Type,
     V,
     Variable,
@@ -46,19 +45,8 @@ def template_type(typ: Type) -> Type:
             return RType.template(base)
         case ListType(inner_typ=inner):
             return ListType(template_type(inner)).metadata(typ)
-        case DictType():
+        case DictType() | Class() | ArrowType():
             return typ
-        case Class():
-            return typ
-        case ArrowType(type_abs=abs, args=args, ret=_):
-            pred_vars = [v for v, kind in abs.items() if kind == "pred"]
-            new_fn_typ = typ
-            for pv in pred_vars:
-                fresh = PredicateVar.fresh(pv)
-                new_fn_typ = new_fn_typ.subst_typevar(pv, fresh)
-
-            debug("template typ", typ, f"=> {new_fn_typ}")
-            return new_fn_typ
         case ObjectType(name=name, generic_args=args):
             return ObjectType(name, [template_type(a) for a in args]).metadata(typ)
         case x:
@@ -90,7 +78,6 @@ class Templatizer(Visitor):
         self.env.pop_scope_mut()
 
     def end_Return(self, ret: Return):
-        debug("return asms:", list(map(str, self.assumptions)))
         self.types[ret.node_id] = self.types[ret.value.node_id].set_predicate(
             Conjoin([BoolOp(V(), "==", ret.value)])
         )
@@ -128,7 +115,7 @@ class Templatizer(Visitor):
         ]
 
     def end_Expr(self, expr: Expr):
-        exclude = [IntLiteral, Variable, ArithBinOp, Call]
+        exclude = [IntLiteral, Variable, ArithBinOp, Call, Assign]
         if any([isinstance(expr, cls) for cls in exclude]):
             return
 
@@ -145,7 +132,6 @@ class Templatizer(Visitor):
                     SubType(self.env.clone(), self.assumptions, lhs_typ, ret_typ),
                     SubType(self.env.clone(), self.assumptions, rhs_typ, ret_typ),
                 ]
-                debug(f"template list: {ret_typ!r}")
                 self.types[abo.node_id] = ret_typ
             case (lhs, _, rhs) if lhs.base_type() == Int() and rhs.base_type() == Int():
                 self.types[abo.node_id] = RType(
@@ -176,7 +162,6 @@ class Templatizer(Visitor):
         """
 
         list_typ = template_type(self.types[lit.node_id].shape())
-        debug(f"list template: {lit}: {[self.types[o.node_id] for o in lit.elts]}")
         assert isinstance(list_typ, ListType)
         for child in lit.elts:
             self.constraints += [
@@ -192,7 +177,6 @@ class Templatizer(Visitor):
     def end_Call(self, op: Call):
         fn_typ = self.types[op.function_name.node_id]
         assert isinstance(fn_typ, ArrowType)
-        # self.types[op.node_id] = fn_typ.ret
 
         if len(fn_typ.args) > 0 and fn_typ.args[0][0] == "self":
             assert isinstance(op.function_name, GetAttr)
@@ -200,12 +184,12 @@ class Templatizer(Visitor):
         else:
             args = []
 
-        typ = type_level_eval(
+        fn_typ = unify_predvars(
             fn_typ,
             args + [self.types[o.node_id] for o in op.arglist],
         )
 
-        self.types[op.node_id] = typ.subst(
+        self.types[op.node_id] = fn_typ.ret.subst(
             zip([name for name, _ in fn_typ.args], op.arglist)
         )
 
@@ -220,55 +204,15 @@ class Templatizer(Visitor):
             ]
 
 
-def type_level_eval(fn_typ: ArrowType, args: List[Type]) -> Type:
-    # TODO: implement this function for real
-    match (fn_typ, args):
-        case (
-            ArrowType(args=[(_, ListType(inner_typ=RType()))], ret=_),
-            [ListType(inner_typ=RType(base=b, predicate=p))],
-        ):
-            return ObjectType(name="pd.Series", generic_args=[RType(b, p)])
-        case (
-            ArrowType(
-                type_abs={},
-                args=[
-                    (
-                        "self",
-                        SelfType(
-                            generic_args=[RType(predicate=PredicateVar(name="K3"))]
-                        ),
-                    )
-                ],
-                ret=RType(base=b1),
-            ),
-            [
-                ObjectType(
-                    name="pd.Series",
-                    generic_args=[RType(predicate=p)],
-                )
-            ],
-        ):
-            return RType(base=b1, predicate=p)
-        case (
-            ArrowType(
-                type_abs={},
-                args=[
-                    (
-                        "self",
-                        SelfType(generic_args=[RType(base=b)]),
-                    )
-                ],
-                ret=RType(base=Int()),
-            ),
-            [
-                ObjectType(
-                    name="pd.Series",
-                    generic_args=[RType(predicate=p)],
-                )
-            ],
-        ):
-            return RType(base=b, predicate=p)
-        case (x, y):
-            warning(f"{x}{list(map(str, y))} Type application is wrong!")
-            return x.ret
-            # raise NotImplementedError(str(x), list(map(str, y)))
+def unify_predvars(fn_typ: ArrowType, args: List[Type]) -> ArrowType:
+    for name, _ in filter(lambda x: x[1] == "pred", fn_typ.type_abs.items()):
+        for i, (_, ty_arg) in enumerate(fn_typ.args):
+            if name in predicate_variables(ty_arg):
+                # lookup arg
+                # TODO: this won't work for arguments that have filled
+                # in predicates
+                arg_pvar = predicate_variables(args[i])
+                assert len(arg_pvar) == 1
+                fn_typ = fn_typ.subst_typevar(name, PredicateVar(arg_pvar[0]))
+
+    return fn_typ

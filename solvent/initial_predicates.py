@@ -25,7 +25,7 @@ def predicate_variables(t: syn.Type) -> List[str]:
             ) + predicate_variables(ret)
         case syn.ListType(inner_typ=inner):
             return predicate_variables(inner)
-        case syn.ObjectType(generic_args=args):
+        case syn.ObjectType(generic_args=args) | syn.SelfType(generic_args=args):
             return sum([predicate_variables(t) for t in args], [])
         case _:
             return []
